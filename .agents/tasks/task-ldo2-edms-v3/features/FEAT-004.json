@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Authentication system with NextAuth.js v5, role-based access control, mock user data, login page, and tRPC context. Implements credentials provider with mock users (admin, supervisor, engineer, reviewer, viewer roles), JWT session strategy, protected route middleware, and the auth-related tRPC procedures. Login page follows the design system.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/lib/mock-data/users.ts: Mock user data array with 5+ users covering all roles (admin, supervisor, engineer, reviewer, viewer). Each user has: id (UUID), username, email, password (plaintext for mock - 'password123'), name, designation, department, section, employeeId, phone, role, isActive, lastLogin. Use realistic Indian Railways designations (CWE, Sr.SDE, SSE, JE, etc.)",
     "Create src/lib/auth/auth-options.ts: NextAuth.js v5 configuration with CredentialsProvider. Validates against mock users array. Returns user object with id, name, email, role, department, designation. JWT strategy with 15min access token simulation. Callbacks: jwt (adds role, userId to token), session (exposes role, userId to session)",
@@ -39,5 +39,5 @@
     "Run 'npm run lint' and confirm no errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "NextAuth v5 middleware shows deprecation warning in Next.js 16 (middleware convention deprecated in favor of proxy). Build and lint both pass. server-only package was added as dependency for tRPC server caller. Login page uses Suspense boundary around useSearchParams. AUTH_SECRET stored in .env (committed for dev). The middleware allows /api/trpc calls without auth (tRPC handles its own auth via context)."
 }
