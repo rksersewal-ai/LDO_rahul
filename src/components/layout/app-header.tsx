@@ -1,21 +1,14 @@
 "use client";
 
-import {
-  Bell,
-  CircleHelp,
-  Moon,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Search,
-  Sun,
-  User,
-} from "lucide-react";
+import { Bell, CircleHelp, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { BreadcrumbNav } from "@/components/layout/breadcrumb-nav";
 import { LiveClock } from "@/components/layout/live-clock";
 import { NotificationPanel } from "@/components/layout/notification-panel";
 import { CommandPalette } from "@/components/shared/command-palette";
+import { HelpCenter } from "@/components/shared/help-center";
+import { UserMenu } from "@/components/shared/user-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/stores/notification-store";
@@ -64,10 +57,12 @@ export function AppHeader() {
   const { theme, setTheme } = useTheme();
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   return (
     <>
       <CommandPalette />
+      <HelpCenter open={helpOpen} onOpenChange={setHelpOpen} />
       <header
         className="fixed top-0 left-0 right-0 z-30 grid h-[var(--header-height)] items-center border-b bg-background"
         style={{
@@ -108,7 +103,7 @@ export function AppHeader() {
           </button>
         </div>
 
-        {/* Right: notifications, clock, help, theme toggle, avatar */}
+        {/* Right: notifications, clock, help, theme toggle, user menu */}
         <div className="flex items-center justify-end gap-1 px-3">
           {/* Notification button */}
           <div className="relative">
@@ -125,7 +120,7 @@ export function AppHeader() {
           <LiveClock />
 
           {/* Help Center */}
-          <IconButton label="Help Center">
+          <IconButton onClick={() => setHelpOpen(true)} label="Help Center">
             <CircleHelp className="size-4" />
           </IconButton>
 
@@ -138,10 +133,8 @@ export function AppHeader() {
             <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           </IconButton>
 
-          {/* User avatar */}
-          <IconButton label="User menu">
-            <User className="size-4" />
-          </IconButton>
+          {/* User menu dropdown */}
+          <UserMenu />
         </div>
       </header>
     </>
