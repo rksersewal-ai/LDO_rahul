@@ -6,10 +6,14 @@
 
 import { MOCK_DOCUMENTS, type MockDocument } from "@/lib/mock-data/documents";
 import { MOCK_PL_NUMBERS, type MockPlNumber } from "@/lib/mock-data/pl-numbers";
+import { getWorkTypeByCode } from "@/lib/mock-data/work-categories";
+import { MOCK_WORK_RECORDS, type MockWorkRecord } from "@/lib/mock-data/work-records";
+import type { GetKPIsInput } from "@/lib/validators/work-records";
 
 // In-memory stores (mutable copies of mock data)
 let documents: MockDocument[] = [...MOCK_DOCUMENTS];
 let plNumbers: MockPlNumber[] = [...MOCK_PL_NUMBERS];
+let workRecords: MockWorkRecord[] = [...MOCK_WORK_RECORDS];
 
 // --- Generic helpers ---
 
@@ -228,4 +232,209 @@ export function searchPl(query: string, limit = 10): MockPlNumber[] {
 export function resetMockData() {
   documents = [...MOCK_DOCUMENTS];
   plNumbers = [...MOCK_PL_NUMBERS];
+  workRecords = [...MOCK_WORK_RECORDS];
+}
+
+// --- Work Records ---
+
+export interface WorkRecordListParams extends PaginationParams, SortParams {
+  search?: string;
+  userId?: string;
+  workCategory?: string;
+  status?: string;
+  priority?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export function listWorkRecords(params: WorkRecordListParams) {
+  let filtered = [...workRecords];
+
+  if (params.search) {
+    filtered = searchFilter(filtered, params.search, [
+      "description",
+      "referenceNumber",
+      "workTypeLabel",
+      "workTypeCode",
+    ]);
+  }
+  if (params.userId) {
+    filtered = filtered.filter((r) => r.userId === params.userId);
+  }
+  if (params.workCategory) {
+    filtered = filtered.filter((r) => r.workCategory === params.workCategory);
+  }
+  if (params.status) {
+    filtered = filtered.filter((r) => r.status === params.status);
+  }
+  if (params.priority) {
+    filtered = filtered.filter((r) => r.priority === params.priority);
+  }
+  if (params.dateFrom) {
+    const dateFrom = params.dateFrom;
+    filtered = filtered.filter((r) => r.date >= dateFrom);
+  }
+  if (params.dateTo) {
+    const dateTo = params.dateTo;
+    filtered = filtered.filter((r) => r.date <= dateTo);
+  }
+
+  const sorted = sortItems(filtered, params);
+  return paginate(sorted, params);
+}
+
+export function getWorkRecordById(id: string): MockWorkRecord | undefined {
+  return workRecords.find((r) => r.id === id);
+}
+
+export function createWorkRecord(input: {
+  date: string;
+  workCategory: string;
+  workTypeCode: string;
+  description: string;
+  referenceNumber: string;
+  plNumber?: string | null;
+  drawingNumber?: string | null;
+  specificationNumber?: string | null;
+  tenderNumber?: string | null;
+  remarks?: string | null;
+  priority: string;
+  concernedOfficer?: string | null;
+  userId: string;
+  userName: string;
+}): MockWorkRecord {
+  const workType = getWorkTypeByCode(input.workTypeCode);
+  const targetDays = workType?.targetDays || 7;
+
+  const newRecord: MockWorkRecord = {
+    id: `wr-${String(workRecords.length + 1).padStart(3, "0")}`,
+    userId: input.userId,
+    userName: input.userName,
+    date: input.date,
+    workCategory: input.workCategory as MockWorkRecord["workCategory"],
+    workTypeCode: input.workTypeCode,
+    workTypeLabel: workType?.label || input.workTypeCode,
+    description: input.description,
+    referenceNumber: input.referenceNumber,
+    plNumber: input.plNumber || null,
+    drawingNumber: input.drawingNumber || null,
+    specificationNumber: input.specificationNumber || null,
+    tenderNumber: input.tenderNumber || null,
+    targetDays,
+    startDate: input.date,
+    completedDate: null,
+    daysTaken: 1,
+    status: "OPEN",
+    priority: input.priority as MockWorkRecord["priority"],
+    concernedOfficer: input.concernedOfficer || null,
+    remarks: input.remarks || null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    submittedAt: null,
+    verifiedAt: null,
+    verifiedBy: null,
+    lockedAt: null,
+  };
+  workRecords.push(newRecord);
+  return newRecord;
+}
+
+export function updateWorkRecord(
+  id: string,
+  updates: Partial<MockWorkRecord>,
+): MockWorkRecord | undefined {
+  const index = workRecords.findIndex((r) => r.id === id);
+  if (index === -1) return undefined;
+  if (workRecords[index].status !== "OPEN") return undefined;
+  workRecords[index] = { ...workRecords[index], ...updates, updatedAt: new Date().toISOString() };
+  return workRecords[index];
+}
+
+export function submitWorkRecord(id: string): MockWorkRecord | undefined {
+  const index = workRecords.findIndex((r) => r.id === id);
+  if (index === -1) return undefined;
+  if (workRecords[index].status !== "OPEN") return undefined;
+  workRecords[index] = {
+    ...workRecords[index],
+    status: "SUBMITTED",
+    submittedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  return workRecords[index];
+}
+
+export function verifyWorkRecord(
+  id: string,
+  action: "verify" | "reject",
+  verifiedBy: string,
+  remarks?: string,
+): MockWorkRecord | undefined {
+  const index = workRecords.findIndex((r) => r.id === id);
+  if (index === -1) return undefined;
+  if (workRecords[index].status !== "SUBMITTED") return undefined;
+
+  if (action === "verify") {
+    workRecords[index] = {
+      ...workRecords[index],
+      status: "VERIFIED",
+      verifiedAt: new Date().toISOString(),
+      verifiedBy,
+      completedDate: new Date().toISOString().split("T")[0],
+      updatedAt: new Date().toISOString(),
+    };
+  } else {
+    workRecords[index] = {
+      ...workRecords[index],
+      status: "OPEN",
+      submittedAt: null,
+      remarks: remarks || workRecords[index].remarks,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  return workRecords[index];
+}
+
+export function lockWorkRecord(id: string): MockWorkRecord | undefined {
+  const index = workRecords.findIndex((r) => r.id === id);
+  if (index === -1) return undefined;
+  if (workRecords[index].status !== "VERIFIED") return undefined;
+  workRecords[index] = {
+    ...workRecords[index],
+    status: "CLOSED",
+    lockedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  return workRecords[index];
+}
+
+export function getWorkRecordKPIs(input: GetKPIsInput) {
+  let filtered = [...workRecords];
+
+  if (input.userId) {
+    filtered = filtered.filter((r) => r.userId === input.userId);
+  }
+  if (input.dateFrom) {
+    const dateFrom = input.dateFrom;
+    filtered = filtered.filter((r) => r.date >= dateFrom);
+  }
+  if (input.dateTo) {
+    const dateTo = input.dateTo;
+    filtered = filtered.filter((r) => r.date <= dateTo);
+  }
+
+  const total = filtered.length;
+  const onTime = filtered.filter((r) => r.daysTaken <= r.targetDays).length;
+  const atRisk = filtered.filter(
+    (r) => r.daysTaken > r.targetDays * 0.75 && r.daysTaken <= r.targetDays,
+  ).length;
+  const overdue = filtered.filter((r) => r.daysTaken > r.targetDays).length;
+  const onTimePercentage = total > 0 ? Math.round((onTime / total) * 100) : 0;
+
+  return {
+    total,
+    onTime,
+    atRisk,
+    overdue,
+    onTimePercentage,
+  };
 }

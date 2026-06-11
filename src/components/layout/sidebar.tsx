@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  BarChart3,
+  ClipboardList,
   Cpu,
   FileText,
   FolderOpen,
@@ -36,6 +38,8 @@ const navSections: NavSection[] = [
       { label: "Dashboard", href: "/", icon: LayoutDashboard },
       { label: "Documents", href: "/documents", icon: FileText },
       { label: "PL Knowledge Hub", href: "/pl", icon: Cpu },
+      { label: "Work Ledger", href: "/ledger", icon: ClipboardList },
+      { label: "Ledger Reports", href: "/ledger/reports", icon: BarChart3 },
       { label: "Folders", href: "/folders", icon: FolderOpen },
       { label: "Transmittals", href: "/transmittals", icon: Send },
     ],

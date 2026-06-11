@@ -2,7 +2,7 @@
   "id": "FEAT-009",
   "type": "feat",
   "description": "Work Ledger module - Daily work record tracking with disposal day targets, KPI indicators (green/amber/red), work categories, verification workflow, and ledger reports. Engineers create daily records, supervisors verify them. Includes the disposal compliance tracking that is core to Indian Railways operations.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/lib/mock-data/work-records.ts: 40+ mock work records covering all categories (DWG-001 through INSP-001). Each record has: user, date, work_category, work_type_code, work_type_label, description, reference_number, pl_number, target_days, days_taken (computed), status, priority. Include records in various states (OPEN, SUBMITTED, VERIFIED, CLOSED) and with various disposal statuses (on-time, at-risk, overdue)",
     "Create src/lib/mock-data/work-categories.ts: All work categories and type codes from Product Spec Section 12 with their disposal day targets. Export as typed array: {code, label, category, targetDays, priority}",
