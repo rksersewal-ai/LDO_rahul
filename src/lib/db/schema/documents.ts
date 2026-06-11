@@ -1,0 +1,88 @@
+import {
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
+
+export const documentCategoryEnum = pgEnum("document_category", [
+  "DRAWING",
+  "SPECIFICATION",
+  "ELIGIBILITY_CRITERIA",
+  "INSPECTION_REPORT",
+  "TEST_CERTIFICATE",
+  "MATERIAL_CERTIFICATE",
+  "PROCEDURE",
+  "WORK_ORDER",
+  "CORRESPONDENCE",
+  "MANUAL",
+  "OTHER",
+]);
+
+export const documentStatusEnum = pgEnum("document_status", [
+  "draft",
+  "pending_review",
+  "under_review",
+  "approved",
+  "rejected",
+  "superseded",
+  "archived",
+]);
+
+export const ocrStatusEnum = pgEnum("ocr_status", [
+  "not_required",
+  "queued",
+  "processing",
+  "completed",
+  "failed",
+]);
+
+export const documents = pgTable(
+  "documents",
+  {
+    id: text("id").primaryKey(),
+    documentNumber: varchar("document_number", { length: 64 }).notNull().unique(),
+    title: varchar("title", { length: 512 }).notNull(),
+    description: text("description"),
+    category: documentCategoryEnum("category").notNull(),
+    status: documentStatusEnum("status").notNull().default("draft"),
+    revision: varchar("revision", { length: 16 }).notNull().default("A"),
+    revisionDate: timestamp("revision_date", { withTimezone: true }),
+    fileHash: varchar("file_hash", { length: 64 }),
+    threePointHash: varchar("three_point_hash", { length: 64 }),
+    filePath: text("file_path"),
+    fileSize: integer("file_size"),
+    mimeType: varchar("mime_type", { length: 128 }),
+    originalFilename: varchar("original_filename", { length: 512 }),
+    ocrStatus: ocrStatusEnum("ocr_status").notNull().default("not_required"),
+    ocrConfidence: real("ocr_confidence"),
+    ocrText: text("ocr_text"),
+    pageCount: integer("page_count"),
+    thumbnailPath: text("thumbnail_path"),
+    workshop: varchar("workshop", { length: 128 }),
+    section: varchar("section", { length: 128 }),
+    tags: text("tags"),
+    metadata: text("metadata"),
+    isDeleted: integer("is_deleted").notNull().default(0),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_documents_document_number").on(table.documentNumber),
+    index("idx_documents_category").on(table.category),
+    index("idx_documents_status").on(table.status),
+    index("idx_documents_file_hash").on(table.fileHash),
+    index("idx_documents_three_point_hash").on(table.threePointHash),
+    index("idx_documents_created_at").on(table.createdAt),
+    index("idx_documents_ocr_status").on(table.ocrStatus),
+  ],
+);

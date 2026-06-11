@@ -2,7 +2,7 @@
   "id": "FEAT-006",
   "type": "feat",
   "description": "Database schema with Drizzle ORM, mock data layer, and tRPC routers for Documents and PL Numbers. Creates the full Drizzle schema (ready for PostgreSQL but not connected), implements a mock data service layer that mimics database operations, and builds the documents and pl tRPC routers with all CRUD operations using mock data. Includes file deduplication logic (metadata + 3-point 64kb hash).",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/lib/db/schema/users.ts: Drizzle ORM schema for users table exactly as defined in Product Spec Section 5. Use pgTable with all columns, indexes, and constraints",
     "Create src/lib/db/schema/pl-numbers.ts: Drizzle schema for pl_numbers table with all fields (pl_number CHAR(8), category, status, safety_critical, etc.) and the search_vector generated column",
