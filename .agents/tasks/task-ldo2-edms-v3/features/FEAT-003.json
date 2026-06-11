@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "App shell layout - Fixed 46px header, 232px collapsible sidebar with independent scroll, main content area with independent scroll, and page-frame centered container. Implements the exact layout architecture from design.md Section 4-6 including sidebar collapse, breadcrumbs, live clock, notification panel, theme toggle, help center access, and sidebar utility links fixed at bottom.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/components/layout/app-header.tsx: 46px fixed header with CSS grid (3 columns as per design.md). Left: sidebar collapse button + single breadcrumb. Center: search input (command palette trigger). Right: notification button with dot, live clock (HH:mm:ss), help center button, theme toggle (icon button), user avatar/menu. Use the icon-button pattern (30px square) from design.md",
     "Create src/components/layout/sidebar.tsx: 232px width (64px collapsed), grid-template-rows: auto 1fr auto. Brand area at top (LDO-2 EDMS branding with orange accent). Scrollable nav section in middle with nav items (30px height, 12px text, icon + label). Fixed utility section at bottom (Settings, Help Center, Search). Active item uses --primary background. Sections labeled with tiny muted uppercase text. Collapse state hides labels, shows icons only with tooltips",
@@ -36,5 +36,5 @@
     "Run 'npm run lint' and confirm no errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "base-ui/react Tooltip uses render prop (not asChild) - use render={<element />} pattern for custom trigger elements. Biome auto-fix handles import sorting. Protected layout at (protected)/layout.tsx is a client component since it uses Zustand store for sidebar collapse state."
 }
