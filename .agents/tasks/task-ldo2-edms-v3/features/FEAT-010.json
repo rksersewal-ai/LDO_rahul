@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-010",
+  "type": "feat",
+  "description": "BOM (Bill of Materials) module - Hierarchical product structure tree viewer with drag-and-drop reordering, PL linkage on each node, and product management. Implements the tree builder interface for locomotive assemblies using @dnd-kit for interactive tree manipulation.",
+  "status": "pending",
+  "steps": [
+    "Create src/lib/mock-data/bom.ts: Mock BOM data with 2-3 products (e.g., WAP-7 Locomotive, WAG-9 Locomotive). Each product has a tree structure 3-4 levels deep with realistic assemblies (Traction System > Traction Motor > Armature, Bogie Assembly > Frame > Suspension, etc.). Each node has: name, type (assembly/sub_assembly/component), pl_id reference, quantity, unit, material, weight, drawing_ref",
+    "Create src/server/routers/bom.ts: BOM tRPC router with procedures: products (list all), getProduct (full tree by product ID), createProduct, addEntry (add node to tree), moveEntry (reorder/reparent via position update), removeEntry, linkPL (link BOM entry to PL number). Uses mock-db service",
+    "Create src/lib/validators/bom.ts: Zod schemas for BOM operations (create product, add entry with type validation, move entry)",
+    "Create src/app/(protected)/bom/page.tsx: BOM Explorer page. PageFrame with PageHeader ('BOM Explorer', 'New Product' action). List of products as cards (product name, code, version, status, entry count). Click to navigate to product detail",
+    "Create src/app/(protected)/bom/[productId]/page.tsx: Product BOM view. Left panel: interactive tree view (collapsible nodes). Right panel: selected node details. Header: product name, version badge, export button. Tree shows: expand/collapse, drag handles, node type icons (assembly=folder, sub_assembly=folder-open, component=circle), PL number badge on each node, quantity display",
+    "Create src/components/bom/bom-tree.tsx: Interactive BOM tree component using @dnd-kit/sortable. Each node shows: type icon, name, PL number (if linked), quantity. Supports: expand/collapse, drag-to-reorder within same parent, drag-to-reparent (move between parents). Drop indicators show valid targets. Tree lines connecting nodes",
+    "Create src/components/bom/bom-tree-node.tsx: Single tree node component. Renders: indent level, expand arrow (if has children), type icon, name text, PL badge (clickable link to PL detail), quantity badge, action menu (edit, add child, remove, link PL). Drag handle on left. Selected state with highlight",
+    "Create src/components/bom/bom-node-detail.tsx: Right panel showing full details of selected BOM node. Fields: name, type, PL number (with search/link), quantity, unit, material, weight, specifications, drawing reference, vendor. Edit inline or via form dialog",
+    "Create src/components/bom/add-entry-dialog.tsx: Dialog for adding new BOM entry. Form fields: name, type (assembly/sub_assembly/component), PL number (search input with autocomplete from PL registry), quantity, unit, material, weight, drawing_ref. Parent context shown",
+    "Create src/app/(protected)/bom/new/page.tsx: Create Product form. Fields: product_name, product_code (unique), description. After creation redirects to empty product tree view",
+    "Create src/hooks/use-bom.ts: Hook wrapping tRPC queries for BOM (products list, product tree, mutations for add/move/remove/link)",
+    "Update src/server/routers/_app.ts to include bom router",
+    "Update sidebar navigation to include BOM Explorer link",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "BOM Explorer page lists products with metadata cards",
+    "Product view shows hierarchical tree with collapsible nodes",
+    "Tree nodes display: type icon, name, PL number badge, quantity",
+    "Drag-and-drop reordering works within same parent level",
+    "Selected node shows full details in right panel",
+    "Add entry dialog validates and creates new nodes in the tree",
+    "Each node can be linked to a PL number from the registry",
+    "Navigation sidebar includes BOM Explorer link",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

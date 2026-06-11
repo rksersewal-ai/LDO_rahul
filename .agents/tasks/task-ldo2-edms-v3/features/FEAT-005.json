@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Dashboard page with 5 KPI metric cards, trend chart, activity feed, and document table. Implements the full dashboard as described in Product Spec Section 16 and design.md Section 13, using mock data. Includes drill-down actions on KPI cards, chart range selectors, and the dense data table with full controls (search, filter, columns, density, export, pagination).",
+  "status": "pending",
+  "steps": [
+    "Create src/lib/mock-data/dashboard.ts: Mock dashboard data including - KPI metrics (Total Documents: 12847, Pending Approvals: 23, OCR Queue: 5 processing/2 failed, Open Cases: 3, Work Records: 8234), daily activity feed (10 items with upload/approve/verify actions), recent documents list (20 items with document_number, title, category, status, owner, date, ocr_status)",
+    "Build src/app/(protected)/page.tsx (Dashboard): Full dashboard page using PageFrame. Contains: KPI grid section (5 cards), trend chart section, recent documents table section. Uses the MetricCard component from FEAT-002. Each card shows: label, value, delta badge (up/down), context line, drill-down button",
+    "Create src/components/charts/trend-chart.tsx: Recharts area/line chart showing document upload trend (30 days). Orange primary line, muted secondary line. Range selectors: 7D, 30D, 3M, YTD. Compact panel header with title + controls. Responsive. Uses chart-1 and chart-2 colors from tokens",
+    "Create src/components/dashboard/activity-feed.tsx: Compact activity list showing recent actions. Each item: icon (by action type), description, timestamp, user. Scrollable with max-height. Links to relevant entity",
+    "Create src/components/dashboard/recent-documents-table.tsx: Dense data table using DataTable component. Columns: checkbox, Document#, Title, Category (badge), Status (StatusBadge), Owner, Date, OCR Status, Actions (row menu). Full toolbar: search input, filter button (with count badge), columns button, density select, refresh button, export menu (CSV/XLSX/PDF/JSON). Pagination footer: selected count, rows per page (10/25/50), page indicator, first/prev/next/last buttons. Table rows 38px, 12px font, sticky header",
+    "Create src/components/dashboard/kpi-drill-modal.tsx: Dialog/Sheet that opens when a KPI card is clicked. Shows a breakdown table or chart depending on the metric. For Total Documents: breakdown by category. For Approvals: list of pending items. For OCR Queue: processing status breakdown. For Cases: open cases list. For Work Records: by status",
+    "Create src/hooks/use-dashboard-data.ts: Hook that returns mock dashboard data. Structured to later be replaced with tRPC query (useQuery pattern). Returns { metrics, trendData, activities, recentDocuments, isLoading }",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes, dashboard renders with all 5 KPI cards and data table"
+  ],
+  "acceptance_criteria": [
+    "Dashboard shows 5 KPI cards in a single row on large screens (per design.md kpi-grid)",
+    "Each KPI card has: label, metric value, delta badge, context text, drill-down button",
+    "KPI cards have hover animation (translateY(-1px), border-color shift with primary)",
+    "Trend chart shows with range selectors (7D, 30D, 3M, YTD)",
+    "Recent documents table has all controls: search, filter, columns, density, refresh, export",
+    "Table pagination shows selected count, rows per page selector, page info, navigation buttons",
+    "Table rows are 38px height with 12px font size",
+    "Clicking a KPI card opens a drill-down modal with breakdown data",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

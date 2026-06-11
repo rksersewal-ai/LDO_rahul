@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Project scaffold with Next.js 15, Biome linting, graphify task tracker, and core dependencies. This establishes the monorepo structure, installs all dependencies from the product spec, configures Biome (not ESLint), sets up the graphify.json task dependency graph for tracking progress, and creates the base configuration files.",
+  "status": "in_progress",
+  "steps": [
+    "Initialize Next.js 15 project with App Router and TypeScript in /projects/sandbox/LDO_rahul using 'npx create-next-app@latest . --typescript --tailwind --app --src-dir --import-alias @/* --no-eslint --turbopack' (answer yes to all prompts, use --no-eslint since we use Biome)",
+    "Install core dependencies: @trpc/server @trpc/client @trpc/react-query @trpc/next @tanstack/react-query drizzle-orm drizzle-kit pg zod zustand react-hook-form @hookform/resolvers next-auth@beta bullmq ioredis sharp recharts framer-motion @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities lucide-react sonner next-themes class-variance-authority clsx tailwind-merge",
+    "Install dev dependencies: @biomejs/biome vitest @vitejs/plugin-react @testing-library/react @testing-library/jest-dom jsdom @types/pg typescript @types/node",
+    "Remove any default ESLint config (.eslintrc*, eslint.config.*) and replace with Biome config at biome.json with recommended rules, TypeScript support, format on save settings, and organize imports",
+    "Create graphify.json at project root - a task dependency graph JSON file with nodes (task IDs, status, description) and edges (dependencies between tasks). Initialize with all planned tasks as 'pending' nodes. Include metadata fields: lastUpdated, currentTask, completedTasks[], blockedTasks[]",
+    "Create scripts/update-graphify.ts - a simple Node script that updates graphify.json task status (marks task complete, updates edges, sets next available tasks)",
+    "Update package.json scripts: add 'lint': 'biome check .', 'lint:fix': 'biome check --write .', 'format': 'biome format --write .', 'graphify': 'npx tsx scripts/update-graphify.ts', 'test': 'vitest run', 'test:watch': 'vitest'",
+    "Create tsconfig.json path aliases: @/* maps to src/*, ensure strict mode is on",
+    "Create vitest.config.ts with React plugin, jsdom environment, path aliases matching tsconfig",
+    "Create .gitignore with node_modules, .next, .env*.local, storage/ (but not storage/.gitkeep), dist/",
+    "Create the directory structure: src/app/, src/components/ui/, src/components/layout/, src/components/shared/, src/lib/db/, src/lib/auth/, src/lib/storage/, src/lib/validators/, src/lib/mock-data/, src/server/routers/, src/server/services/, src/hooks/, src/stores/, src/styles/, storage/.gitkeep, scripts/",
+    "Create src/lib/utils.ts with cn() utility using clsx + tailwind-merge",
+    "Verify: run 'npm run lint' passes, 'npm run build' succeeds, graphify.json is valid JSON with all task nodes"
+  ],
+  "acceptance_criteria": [
+    "npm run build succeeds without errors",
+    "npm run lint (Biome) passes with no errors",
+    "graphify.json exists at root with all task nodes defined as pending",
+    "No ESLint config files exist - only Biome",
+    "All specified directories exist under src/",
+    "vitest.config.ts is configured and 'npm run test' command works (even if no tests yet)",
+    "TypeScript strict mode is enabled"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm it exits 0",
+    "Run 'npm run lint' and confirm it exits 0",
+    "Run 'cat graphify.json | node -e \"process.stdin.resume(); process.stdin.on('data', d => { JSON.parse(d); console.log('valid') })\"' to verify valid JSON"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

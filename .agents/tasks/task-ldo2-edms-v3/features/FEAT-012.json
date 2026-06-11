@@ -1,0 +1,43 @@
+{
+  "id": "FEAT-012",
+  "type": "feat",
+  "description": "Approvals, Cases, and Notifications modules - Approval queue with one-click approve/reject, case management for failure investigations, and the notification system with actionable items. These are related workflow modules that drive user actions.",
+  "status": "pending",
+  "steps": [
+    "Create src/lib/mock-data/approvals.ts: 15+ mock approval records covering types: document_release, work_verification, bom_change. Various statuses (PENDING, APPROVED, REJECTED). Include requester, approver, linked entities",
+    "Create src/lib/mock-data/cases.ts: 10+ mock cases for failure investigations, discrepancies, vendor issues. Various statuses and severities. Include case numbers (CASE-2026-001 format)",
+    "Create src/server/routers/approvals.ts: Approvals tRPC router: list (filterable by status/type/approver), getById, approve (with decision notes), reject (with reason), escalate. Protected with supervisor+ role",
+    "Create src/server/routers/cases.ts: Cases tRPC router: list, getById, create, update, close, assign. Protected with engineer+ role",
+    "Create src/server/routers/notifications.ts: Notifications tRPC router: list (paginated, filtered by read status), markRead, markAllRead, dismiss, getUnreadCount. Generates mock notifications from approval/case/document events",
+    "Create src/lib/validators/approvals.ts: Zod schemas for approval actions (approve/reject with notes, escalate with reason)",
+    "Create src/lib/validators/cases.ts: Zod schemas for case CRUD (case_number auto-generated, title, description, severity required)",
+    "Create src/app/(protected)/approvals/page.tsx: Approvals page. PageFrame with PageHeader ('Pending Approvals' with count badge). Quick filter tabs: All, Document Release, Work Verification, BOM Change. Data table: Title, Type (badge), Requester, Urgency, Due Date, Actions (Approve/Reject buttons inline). Approve/Reject opens confirmation dialog with notes field. One-click approve for non-critical items",
+    "Create src/components/approvals/approval-card.tsx: Card view for a single approval item. Shows: title, type badge, requester info, linked entity preview, urgency indicator, due date, approve/reject buttons. Expandable to show more context",
+    "Create src/components/approvals/approval-dialog.tsx: Confirmation dialog for approve/reject. Shows summary of what's being approved, textarea for decision notes, confirm button (primary for approve, destructive for reject)",
+    "Create src/app/(protected)/cases/page.tsx: Cases page. PageFrame with PageHeader ('Cases', 'New Case' action). Data table: Case#, Title, Type (badge), Status (StatusBadge), Severity (color-coded badge: LOW=green, MEDIUM=amber, HIGH=orange, CRITICAL=red), Assignee, PL Number, Created, Actions. Filters: status, severity, type, assignee. Full table controls",
+    "Create src/components/cases/case-form.tsx: Case creation/edit form. Fields: title, description (rich text area), type (select), severity (select with color preview), PL number (optional, 8-digit), vendor_name (optional), tender_number (optional), assignee (user select). Uses React Hook Form + Zod",
+    "Create src/app/(protected)/notifications/page.tsx: Full notifications page. Grouped by: Today, This Week, Earlier. Each notification: type icon, title, body, timestamp, action button, read/unread state. Bulk actions: Mark all read. Filter: unread only, by type",
+    "Update src/server/routers/_app.ts to include approvals, cases, notifications routers",
+    "Update sidebar navigation to include Approvals (with pending count badge) and Cases links",
+    "Update notification store to use tRPC data",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "Approvals page shows pending items with one-click approve/reject",
+    "Approve/Reject actions open confirmation dialogs with notes",
+    "Cases page shows all cases with severity color-coding",
+    "Case creation form validates required fields",
+    "Notifications page shows grouped notifications with action buttons",
+    "Notification bell in header shows unread count from tRPC",
+    "Clicking notification action navigates to relevant entity",
+    "Sidebar shows pending approval count badge",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

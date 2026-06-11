@@ -1,0 +1,41 @@
+{
+  "id": "FEAT-008",
+  "type": "feat",
+  "description": "Document Management module - Document Hub page with upload wizard, document detail/preview, revision control, and the full upload flow with deduplication. Includes file upload with drag-and-drop, SHA-256 hashing, 3-point 64kb dedup check, metadata entry form, and document lifecycle management.",
+  "status": "pending",
+  "steps": [
+    "Create src/app/(protected)/documents/page.tsx: Document Hub page. PageFrame with PageHeader ('Document Hub', 'Upload Document' primary action). Dense data table with columns: checkbox, Document# (monospace link), Title, Category (badge), Status (StatusBadge), Revision, Owner, Date, OCR Status (OCR badge), File Type, Size, Actions (view/download/edit/delete menu). Full toolbar with: search, category filter, status filter, OCR status filter, file type filter, date range, columns, density, refresh, export. Pagination footer",
+    "Create src/components/documents/document-table.tsx: Specialized DataTable for documents with OCR status badges (colored dot + status text), category badges, revision display, file size formatting",
+    "Create src/components/documents/document-filters.tsx: Filter panel for document table - category multi-select, status, OCR status, file type, owner, date range picker. Shows active filter count",
+    "Create src/app/(protected)/documents/upload/page.tsx: Upload wizard page. Multi-step form: Step 1 - File selection (drag-and-drop zone accepting PDF/TIFF/PNG/JPEG, max 500MB, progress bar during upload). Step 2 - Deduplication check (shows hash result, if duplicate found: shows existing doc details and asks confirm/abort). Step 3 - Metadata entry (document number, title, category, revision, agency, tags, PL linkages). Step 4 - Review and submit. Uses UploadDropzone component",
+    "Create src/components/documents/upload-dropzone.tsx: Drag-and-drop file upload component. Dashed border area, accepts configured file types, shows file preview/name/size after selection, progress bar during upload, error state for invalid files. Max 500MB enforcement",
+    "Create src/components/documents/dedup-check.tsx: Component showing deduplication results. Displays: SHA-256 hash, 3-point hash result (start/middle/end), match status. If duplicate found: shows existing document card with link. User decides: 'Link to existing' or 'Upload as new revision'",
+    "Create src/app/(protected)/documents/[id]/page.tsx: Document detail page. Header: document number (large), title, status badge, category badge, revision info. Action buttons: Download, Edit, Create Revision, Approve/Reject (role-dependent), Delete. Metadata section (2-column grid): all document fields. Linked PLs section: list of linked PL numbers with add/remove. OCR section: extraction results (if completed), confidence score, extracted fields. Revision history: timeline of all revisions",
+    "Create src/components/documents/document-metadata-form.tsx: Reusable metadata form (used in upload and edit). Fields: document_number (with format validation), title, category (select), revision, revision_date, agency, tags (multi-input), notes. Uses React Hook Form + Zod",
+    "Create src/components/documents/ocr-status-badge.tsx: OCR-specific badge showing status (PENDING=gray, PROCESSING=blue with animation, COMPLETED=green, FAILED=red, FLAGGED=yellow) and confidence percentage if available",
+    "Create src/components/documents/revision-timeline.tsx: Vertical timeline showing document revisions. Each entry: revision code, date, uploaded by, status, change description. Current revision highlighted",
+    "Create src/lib/validators/documents-form.ts: Zod schemas for upload form, metadata edit form, bulk actions",
+    "Create src/hooks/use-documents.ts: Hook wrapping tRPC queries for documents (list, detail, upload mutation, update, delete, link/unlink PL)",
+    "Create src/server/routers/documents.ts updates: Ensure upload procedure calls deduplication service, stores file via file-service, creates document record with proper metadata",
+    "Update sidebar navigation to include Documents link",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "Document Hub shows dense table with all mock documents and full controls",
+    "Upload wizard has 4 steps: file select, dedup check, metadata, review",
+    "Drag-and-drop zone accepts PDF/TIFF/PNG/JPEG up to 500MB",
+    "Deduplication check shows SHA-256 + 3-point 64kb hash results",
+    "Document detail page shows all metadata, linked PLs, OCR results, revision history",
+    "OCR status badges are color-coded with confidence percentage",
+    "Revision timeline shows version history",
+    "Navigation sidebar includes Documents link",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

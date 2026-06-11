@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-009",
+  "type": "feat",
+  "description": "Work Ledger module - Daily work record tracking with disposal day targets, KPI indicators (green/amber/red), work categories, verification workflow, and ledger reports. Engineers create daily records, supervisors verify them. Includes the disposal compliance tracking that is core to Indian Railways operations.",
+  "status": "pending",
+  "steps": [
+    "Create src/lib/mock-data/work-records.ts: 40+ mock work records covering all categories (DWG-001 through INSP-001). Each record has: user, date, work_category, work_type_code, work_type_label, description, reference_number, pl_number, target_days, days_taken (computed), status, priority. Include records in various states (OPEN, SUBMITTED, VERIFIED, CLOSED) and with various disposal statuses (on-time, at-risk, overdue)",
+    "Create src/lib/mock-data/work-categories.ts: All work categories and type codes from Product Spec Section 12 with their disposal day targets. Export as typed array: {code, label, category, targetDays, priority}",
+    "Create src/server/routers/work.ts: Work Records tRPC router with procedures: list (paginated, filterable by user/date/category/status/priority), getById, create, update, submit (changes status to SUBMITTED), verify (supervisor - changes to VERIFIED), lock, getKPIs (calculates on-time %, at-risk count, overdue count per period). Uses mock-db service",
+    "Create src/lib/validators/work-records.ts: Zod schemas for work record creation (category, type code, description required; PL number must be 8 digits if provided; target_days auto-set from category)",
+    "Create src/app/(protected)/ledger/page.tsx: Work Ledger main page. PageFrame with PageHeader ('Work Ledger', 'New Record' primary action). KPI summary row at top: 4 cards (Total Records this month, On-Time %, At-Risk items, Overdue items). Dense data table below with columns: checkbox, Date, Category (badge), Type Code, Description (truncated), PL Number (link), Reference, Status (StatusBadge), Days/Target (KPI indicator), Priority, Actions. Full toolbar: search, category filter, status filter, priority filter, date range, my records toggle, columns, density, refresh, export",
+    "Create src/components/ledger/work-kpi-badge.tsx: Visual KPI indicator showing days_taken vs target_days. Green circle if on-time (<=target), amber if at-risk (>75% of target), red if overdue (>target). Shows 'X/Y days' text. Tooltip explains the threshold",
+    "Create src/components/ledger/work-record-form.tsx: Form for creating/editing work records. Fields: date (default today), work_category (select), work_type (select - filtered by category), description (textarea), reference_number, pl_number (8-digit input with link to PL lookup), drawing_number, specification_number, tender_number, remarks, priority, concerned_officer. Auto-sets target_days from selected type. Uses React Hook Form + Zod",
+    "Create src/components/ledger/work-record-detail.tsx: Detail view (Sheet/Dialog) showing full work record info. All fields displayed in organized sections. Status workflow buttons: Submit (if OPEN), Verify (if SUBMITTED and user is supervisor), Return (rejected back to OPEN). Audit trail of status changes",
+    "Create src/app/(protected)/ledger/reports/page.tsx: Ledger Reports page. Cards/charts showing: Category breakdown (bar chart), Disposal compliance (percentage over time - line chart), User productivity (records per user - horizontal bar), Overdue items list (table), Monthly trend (line chart). Date range selector at top. Export all as PDF/CSV",
+    "Create src/components/ledger/disposal-chart.tsx: Recharts line chart showing disposal compliance % over time. Green above 90%, amber 75-90%, red below 75%. Date range selectable",
+    "Create src/components/ledger/category-breakdown-chart.tsx: Recharts horizontal bar chart showing records by work category. Color-coded by category",
+    "Create src/hooks/use-work-records.ts: Hook wrapping tRPC queries for work records (list, create, update, submit, verify, getKPIs)",
+    "Update sidebar navigation to include Work Ledger link with sub-items (Ledger, Reports)",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "Work Ledger page shows KPI summary + dense table with all work records",
+    "KPI badges show green/amber/red based on days_taken vs target_days thresholds",
+    "Work record form auto-sets target_days from selected work type",
+    "Category and type code dropdowns are properly linked (types filtered by category)",
+    "Status workflow: OPEN -> SUBMITTED -> VERIFIED -> CLOSED with role checks",
+    "Reports page shows category breakdown chart, disposal compliance line, productivity chart",
+    "Overdue items are prominently flagged in the table",
+    "Navigation sidebar includes Work Ledger with sub-links",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

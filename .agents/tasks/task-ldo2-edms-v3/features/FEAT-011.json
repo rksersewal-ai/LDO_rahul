@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-011",
+  "type": "feat",
+  "description": "Global Search system with cross-entity full-text search, faceted filters, typeahead suggestions, and search page. Implements the Command Palette (Ctrl+K) for quick navigation, and the dedicated Search Explorer page with faceted results across documents, PL numbers, work records, and cases.",
+  "status": "pending",
+  "steps": [
+    "Create src/server/routers/search.ts: Search tRPC router with procedures: global (cross-entity search returning typed results from documents, PL numbers, work records, cases), documents (document-specific with category/status facets), facets (return filter counts for each category/status combination), suggest (typeahead - top 5 matches as user types). Search implementation: simple string matching on mock data for now (structure ready for PostgreSQL FTS later)",
+    "Create src/lib/validators/search.ts: Zod schemas for search queries (query string min 2 chars, entity type filter, pagination, facet request)",
+    "Create src/components/shared/command-palette.tsx: Command Palette component using shadcn Command (cmdk). Opens with Ctrl+K or clicking header search. Sections: Recent searches (last 5), Quick navigation (page links), Search results (live as user types). Results grouped by entity type with icons. Enter to navigate to result. Shows keyboard shortcuts. Result items: type icon, title/identifier, subtitle/context, category badge",
+    "Create src/app/(protected)/search/page.tsx: Search Explorer page. Full search interface with: large search input at top, entity type tabs (All, Documents, PL Numbers, Work Records, Cases), faceted sidebar (category counts, status counts, date ranges), results list with highlighting, sort options (relevance, date, name), pagination. Each result card shows: type icon, primary text (highlighted match), secondary context, badges, action buttons (view, open in new tab)",
+    "Create src/components/search/search-result-card.tsx: Individual search result component. Props: type, title, subtitle, matchHighlight, badges, actions. Highlights the matched text portion. Different layouts per entity type: document shows doc# + title + category, PL shows pl_number + name + category badge, work record shows type + description + status, case shows case# + title + severity",
+    "Create src/components/search/search-facets.tsx: Faceted filter sidebar. Shows clickable facets with counts: Document Category (DRAWING: 45, SPECIFICATION: 23, ...), Status (ACTIVE: 120, DRAFT: 34, ...), OCR Status, Date Added (This week, This month, Last 3 months). Clicking a facet filters results",
+    "Create src/components/search/recent-searches.tsx: Component showing last 10 search queries with ability to re-run or remove. Stored in localStorage via Zustand",
+    "Create src/stores/search-store.ts: Zustand store for search state: recentSearches (persisted to localStorage), savedFilters, searchHistory",
+    "Create src/hooks/use-search.ts: Hook wrapping tRPC search queries with debouncing (300ms) for typeahead. Returns { results, facets, suggestions, isLoading, search }",
+    "Update the header search input in src/components/layout/app-header.tsx to trigger the command palette on click/focus",
+    "Update sidebar navigation to include Search link",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "Ctrl+K opens the command palette overlay",
+    "Command palette shows recent searches, quick nav links, and live search results",
+    "Search Explorer page shows faceted results grouped by entity type",
+    "Results highlight matched text",
+    "Facet sidebar shows counts per category/status that update on filter click",
+    "Typeahead suggestions appear after 300ms debounce with min 2 chars",
+    "Recent searches persist across page navigation (localStorage)",
+    "Search works across documents, PL numbers, work records, cases",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

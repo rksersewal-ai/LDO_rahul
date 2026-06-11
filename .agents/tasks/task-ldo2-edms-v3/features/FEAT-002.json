@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Design system implementation - Global CSS tokens, Tailwind v4 config, and shadcn/ui base components following design.md exactly. Implements the OKLCH color system, orange #d38738 primary accent, dense spacing tokens, Geist/Inter typography, dark/light theme support via next-themes, and installs the core shadcn/ui primitives needed across the app.",
+  "status": "pending",
+  "steps": [
+    "Install shadcn/ui: run 'npx shadcn@latest init' with style=new-york, tailwindcss, typescript, globals.css path=src/styles/globals.css, aliases configured. Then install components: button, card, input, select, dialog, sheet, dropdown-menu, tabs, table, badge, tooltip, popover, command, progress, skeleton, switch, checkbox, separator, scroll-area, avatar, label, textarea, form",
+    "Replace/update src/styles/globals.css with the full OKLCH token system from design.md: light theme tokens (:root) and dark theme tokens (.dark class). Include --primary: #d38738, all --sidebar-*, --shadow-*, --radius-*, --space-*, --text-* tokens exactly as specified in design.md Section 2 and 3",
+    "Configure Tailwind CSS to use the CSS variable tokens. Update tailwind.config.ts to extend colors with the CSS variable references (background, foreground, card, primary, secondary, muted, accent, destructive, border, input, ring, sidebar tokens), extend fontFamily with Geist/Inter/mono stack, extend fontSize with the design system scale",
+    "Create src/components/ui/theme-provider.tsx using next-themes ThemeProvider with attribute='class', defaultTheme='system', enableSystem=true",
+    "Update src/app/layout.tsx: import Geist font from next/font/google (or local), wrap children with ThemeProvider, set html lang='en' with suppressHydrationWarning, apply font-sans class to body, import globals.css",
+    "Create src/components/ui/sonner-provider.tsx - Toaster from sonner with theme awareness",
+    "Create src/components/ui/metric-card.tsx - Reusable KPI card component following design.md Section 7: interactive-card hover, card-top with label + delta badge, metric value (24px bold), context line, drill-down button. Props: title, value, delta, deltaDirection, context, drillAction, tooltip",
+    "Create src/components/ui/status-badge.tsx - Status badge component per design.md Section 11: dot + label in a pill. Props: status (done|in_process|pending|failed|blocked), label, size (sm|md). Uses dot colors: green for done, neutral for in_process, muted for pending, destructive for failed, warning for blocked",
+    "Create src/components/ui/data-table.tsx - Reusable dense table wrapper using TanStack Table v8. Include: sticky header, 38px rows, checkbox selection, row hover highlight, sort indicators. This is the base - toolbar/pagination added as separate composable components",
+    "Create src/components/ui/page-header.tsx - Page title component with title (18-22px), optional subtitle, optional actions slot, optional breadcrumb override",
+    "Create src/components/ui/empty-state.tsx - Compact empty state: icon, title, one sentence, action button. Per design.md Section 16",
+    "Create src/components/ui/loading-state.tsx - Skeleton rows for tables, small spinner for inline. Per design.md Section 16",
+    "Verify: run 'npm run build' to ensure all components compile, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "src/styles/globals.css contains all OKLCH tokens from design.md for both light and dark themes",
+    "--primary is #d38738 (orange/amber accent)",
+    "All shadcn/ui components listed are installed and importable",
+    "ThemeProvider wraps the app and theme toggle works (class-based dark mode)",
+    "MetricCard component renders with proper hover animation (translateY(-1px), border color shift)",
+    "DataTable component provides sticky header, 38px row height, selection checkboxes",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm it exits 0",
+    "Run 'npm run lint' and confirm no errors",
+    "Verify src/styles/globals.css contains '--primary: #d38738' in root"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

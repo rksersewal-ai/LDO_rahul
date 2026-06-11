@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-013",
+  "type": "feat",
+  "description": "Admin module - System health dashboard, user management CRUD, OCR monitor, storage stats, deduplication viewer, audit log, system settings, and banner management. Admin-only pages providing full system administration capabilities.",
+  "status": "pending",
+  "steps": [
+    "Create src/lib/mock-data/admin.ts: Mock admin data including: system health metrics (DB status, Redis status, OCR queue depth, storage usage, uptime), user list (10+ users with all roles), audit log entries (50+ with various actions), OCR queue jobs (processing, failed, completed), storage breakdown by category, duplicate document groups, system settings",
+    "Create src/server/routers/admin.ts: Admin tRPC router (admin-only): getHealth (system status), getUsers/createUser/updateUser/deactivateUser, getOcrQueue/retryOcrJob/cancelOcrJob, getStorageStats, getDuplicateGroups/mergeDuplicates, getAuditLog (paginated), getSettings/updateSetting, getBanners/createBanner/deleteBanner. All guarded with adminProcedure",
+    "Create src/app/(protected)/admin/page.tsx: Admin Dashboard. PageFrame with PageHeader ('System Administration'). Service health cards row: Database (green/red), Redis (green/red), OCR Workers (status + queue depth), Storage (usage bar). Quick stats: Total Users, Active Sessions, Documents Today, OCR Jobs Today. Links to sub-pages",
+    "Create src/app/(protected)/admin/users/page.tsx: User Management page. Data table: Name, Username, Email, Role (badge), Department, Status (active/inactive badge), Last Login, Actions (edit/deactivate). Create User button opens form dialog. Role filter, department filter, status filter. Edit role via inline select or dialog",
+    "Create src/components/admin/user-form.tsx: User create/edit form. Fields: username, email, name, password (create only), role (select), designation, department, section, employee_id, phone, is_active toggle. Zod validation",
+    "Create src/app/(protected)/admin/health/page.tsx: System Health detail page. Real-time status cards for each service. Uptime counter. Response time history (chart). Active connections. Memory/CPU usage indicators. Auto-refresh every 30s",
+    "Create src/app/(protected)/admin/ocr/page.tsx: OCR Monitor page. Queue summary cards: Queued, Processing, Completed (today), Failed. Job table: Document, Status, Progress (pages processed / total), Started, Duration, Error (if failed), Actions (retry/cancel). Auto-refresh. Failed jobs highlighted",
+    "Create src/app/(protected)/admin/audit/page.tsx: Audit Log page. Searchable, filterable log table. Columns: Timestamp, User, Action (badge), Resource Type, Resource ID, IP, Details (expandable). Filters: action type, user, resource type, date range. Export. Shows hash chain integrity status",
+    "Create src/app/(protected)/admin/dedup/page.tsx: Deduplication page. Shows groups of duplicate documents (same file_hash or matching 3-point hash). Each group shows: file hash, count, documents in group (with metadata). Actions: Merge (keep one, link others), Keep All (mark as not-duplicate), View Differences",
+    "Create src/app/(protected)/admin/settings/page.tsx: System Settings page. Grouped settings: Work Types (editable table of categories/codes/target days), Agencies (list management), Document Categories, Max Upload Size, OCR Toggle, Maintenance Mode, Session Timeout. Save per section. Shows last updated timestamp",
+    "Create src/app/(protected)/admin/banners/page.tsx: Banner Management page. Create system-wide announcements. Fields: message, type (info/warning/critical), active toggle, start/end dates. Active banners shown at top of all pages",
+    "Create src/components/admin/health-card.tsx: Service health card with status dot (green/amber/red), service name, status text, response time, uptime percentage",
+    "Update sidebar navigation to include Admin section (visible only to admin role) with sub-links: Dashboard, Users, Health, OCR, Audit, Dedup, Settings, Banners",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "Admin Dashboard shows health status cards for all services",
+    "User Management supports CRUD operations with role assignment",
+    "OCR Monitor shows queue status with retry/cancel actions",
+    "Audit Log is searchable and filterable with expandable details",
+    "Deduplication page groups duplicate documents and offers merge actions",
+    "Settings page allows editing system configuration",
+    "Banner management creates/removes system announcements",
+    "Admin pages are only accessible to admin role users",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

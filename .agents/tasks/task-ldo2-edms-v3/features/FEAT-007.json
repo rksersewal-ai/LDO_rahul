@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-007",
+  "type": "feat",
+  "description": "PL Knowledge Hub page - the central intelligence view for PL numbers. Searchable/filterable registry with category badges (CAT-A/B/C/D color-coded), safety-critical flags, linked document counts, and detail view with tabbed sections (Overview, Documents, BOM, Work Records, Cases, History). Uses the dense table design with all controls.",
+  "status": "pending",
+  "steps": [
+    "Create src/app/(protected)/pl/page.tsx: PL Knowledge Hub main page. PageFrame with PageHeader ('PL Knowledge Hub' title, 'Create PL' primary action button). Full data table below with columns: PL Number (monospace), Name, Category (color-coded badge: CAT-A=red, CAT-B=orange, CAT-C=blue, CAT-D=green), Status (StatusBadge), Safety (flag icon if critical), Agency, Documents (count badge), Actions. Full toolbar: search, category filter, status filter, agency filter, safety-only toggle, columns, density, refresh, export",
+    "Create src/components/pl/pl-table.tsx: Specialized data table for PL numbers extending the base DataTable. Implements category-specific badge colors, safety-critical icon indicator, document count badges. Row click navigates to PL detail. Supports sorting by all columns",
+    "Create src/components/pl/pl-filters.tsx: Filter panel for PL table - category multi-select (CAT-A/B/C/D), status multi-select, agency dropdown, safety-critical toggle, controlling supervisor filter. Active filter count shown on filter button",
+    "Create src/app/(protected)/pl/[id]/page.tsx: PL Detail page with tabbed sections. Header shows: PL Number (large, monospace), Name, Category badge, Status badge, Safety classification if applicable. Tabs component below with: Overview, Documents, BOM, Work Records, Cases, History",
+    "Create src/components/pl/pl-overview-tab.tsx: Overview tab content showing all PL metadata in a dense 2-column grid layout. Groups: Basic Info (PL#, name, description, category, status), Safety (classification, severity, consequences), Technical (drawing numbers, spec numbers, used_in, mother_part), Administrative (agency, supervisors, e-office file, vendor type, UVAM ID)",
+    "Create src/components/pl/pl-documents-tab.tsx: Documents tab showing linked documents in a mini data table. Columns: Document#, Title, Category, Revision, Status, OCR Status. Actions: Unlink, View. Add document link button opens a search dialog to find and link documents",
+    "Create src/components/pl/pl-bom-tab.tsx: BOM tab placeholder showing where this PL appears in product structures (data comes from BOM module later)",
+    "Create src/components/pl/pl-work-tab.tsx: Work Records tab showing work records referencing this PL. Mini table with: Date, Category, Description, Status, Officer",
+    "Create src/components/pl/pl-cases-tab.tsx: Cases tab showing cases for this PL. Mini table with: Case#, Title, Status, Severity, Assignee",
+    "Create src/app/(protected)/pl/new/page.tsx: Create PL form page. Multi-section form using React Hook Form + Zod validation. Sections: Basic (PL number input with 8-digit validation, name, description, category select, status), Safety (conditional - shown when CAT-A or CAT-B: safety classification, severity of failure, consequences), Technical (drawing numbers array, spec numbers array, application area, used_in), Administrative (controlling agency, supervisors, e-office, vendor type). Submit creates PL via tRPC mutation",
+    "Create src/hooks/use-pl-data.ts: Hook wrapping tRPC queries for PL data (useQuery for list/detail, useMutation for create/update/link)",
+    "Create src/lib/validators/pl-form.ts: Zod schema for PL creation form with conditional validation (safety fields required when CAT-A/B)",
+    "Update sidebar navigation to include PL Knowledge Hub link with appropriate icon",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "PL Hub page shows dense table with all PL numbers from mock data",
+    "Category badges are color-coded (CAT-A red, CAT-B orange, CAT-C blue, CAT-D green)",
+    "Safety-critical PLs show a prominent flag/icon",
+    "Table has full controls: search, multi-select filters, columns, density, export, pagination",
+    "PL detail page shows all metadata in tabbed sections",
+    "Documents tab shows linked documents with link/unlink capability",
+    "Create PL form validates 8-digit PL number and enforces conditional safety fields",
+    "Navigation sidebar includes PL Knowledge Hub link",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

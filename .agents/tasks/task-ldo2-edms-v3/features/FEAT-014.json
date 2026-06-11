@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-014",
+  "type": "feat",
+  "description": "OCR Pipeline infrastructure - BullMQ job queue setup, OCR worker stub, job status tracking, and the tRPC router for OCR operations. Implements the queue-based architecture for document processing with mock OCR results. The actual Tesseract integration will be ready when the system connects to real infrastructure.",
+  "status": "pending",
+  "steps": [
+    "Create src/lib/ocr/pipeline-config.ts: OCR pipeline configuration as defined in Product Spec Section 14. Export config object with: tile_size (4096), overlap_percent (15), dpi_target (400), min_dimension_for_tiling (5000), max_pixels, max_file_size_mb (500), max_pages (100), worker_concurrency (4), ocr_timeout_seconds (300), retry_count (3), confidence_threshold (60), dedup_threshold (0.6). Also export type definitions for OCR structured output",
+    "Create src/lib/ocr/ocr-service.ts: OCR service that manages the processing pipeline. Functions: queueDocument(docId) - creates OCR job record in mock-db, simulates processing stages. processDocument(jobId) - mock implementation that generates realistic structured extraction results (drawing_number, title, revision, pl_numbers array, confidence score). extractStructuredData(ocrText) - parse OCR text to find PL numbers (8-digit patterns), drawing numbers, revision codes",
+    "Create src/lib/ocr/structured-extraction.ts: Logic to extract structured data from OCR text. Regex patterns for: PL numbers (/\\b\\d{8}\\b/), drawing numbers (/[A-Z]{2,4}\\/[A-Z]+\\/[A-Z]+\\/\\d{4}/), revision codes (/R\\d+|Rev\\.?\\s*\\d+/i), dates, title block fields. Returns typed OcrStructuredOutput",
+    "Create src/lib/ocr/tile-processor.ts: Tile calculation logic (no actual image processing in mock). Functions: calculateTiles(width, height, tileSize, overlap) - returns array of tile coordinates. mergeTileResults(tiles[]) - combines OCR text from overlapping tiles with deduplication. Exported for future Tesseract integration",
+    "Create src/server/routers/ocr.ts: OCR tRPC router: getQueue (list jobs by status), getJob (single job detail with progress), queueDocument (create new OCR job), retryJob, cancelJob, getStats (processing rate, avg confidence, failure rate). Uses mock-db service",
+    "Create src/lib/mock-data/ocr-jobs.ts: Mock OCR job data - 20+ jobs in various states (QUEUED, PROCESSING with partial progress, COMPLETED with results, FAILED with errors). Completed jobs include realistic structured extraction output",
+    "Create src/server/services/ocr-worker.ts: Mock OCR worker service. Simulates: job pickup, status progression (QUEUED -> PROCESSING -> COMPLETED/FAILED), progress updates (pages processed, tiles processed), confidence calculation, structured data extraction. Uses setTimeout to simulate async processing in dev mode",
+    "Create src/components/documents/ocr-results-panel.tsx: Component showing OCR extraction results on document detail page. Displays: confidence score (progress bar with color), extracted fields in organized grid (drawing#, title, revision, PL numbers found, sheet info, scale, date, approved_by), raw text toggle, warnings list. Each extracted PL number is a clickable link to PL registry",
+    "Update the documents detail page to include OCR results panel when ocr_status is COMPLETED",
+    "Update src/server/routers/_app.ts to include ocr router",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "OCR pipeline config matches Product Spec Section 14 parameters",
+    "Structured extraction regex correctly identifies PL numbers (8 digits), drawing numbers, revision codes",
+    "OCR service can queue documents and generate mock extraction results",
+    "tRPC ocr router provides queue status, job details, retry/cancel actions",
+    "Tile calculation logic correctly splits dimensions into overlapping tiles",
+    "Document detail page shows OCR results with confidence and extracted fields",
+    "Mock worker simulates job progression through status states",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
