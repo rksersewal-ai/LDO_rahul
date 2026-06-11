@@ -1,4 +1,13 @@
-import { index, integer, pgEnum, pgTable, real, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { documents } from "./documents";
 
 export const ocrJobStatusEnum = pgEnum("ocr_job_status", [

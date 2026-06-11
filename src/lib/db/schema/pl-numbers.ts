@@ -1,19 +1,6 @@
-import {
-  boolean,
-  index,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  varchar,
-} from "drizzle-orm/pg-core";
+import { boolean, index, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
-export const plCategoryEnum = pgEnum("pl_category", [
-  "CAT-A",
-  "CAT-B",
-  "CAT-C",
-  "CAT-D",
-]);
+export const plCategoryEnum = pgEnum("pl_category", ["CAT-A", "CAT-B", "CAT-C", "CAT-D"]);
 
 export const plStatusEnum = pgEnum("pl_status", [
   "active",

@@ -7,12 +7,7 @@ export const caseStatusEnum = pgEnum("case_status", [
   "closed",
 ]);
 
-export const casePriorityEnum = pgEnum("case_priority", [
-  "low",
-  "medium",
-  "high",
-  "critical",
-]);
+export const casePriorityEnum = pgEnum("case_priority", ["low", "medium", "high", "critical"]);
 
 export const cases = pgTable(
   "cases",
