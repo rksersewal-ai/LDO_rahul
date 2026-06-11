@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "feat",
   "description": "Dashboard page with 5 KPI metric cards, trend chart, activity feed, and document table. Implements the full dashboard as described in Product Spec Section 16 and design.md Section 13, using mock data. Includes drill-down actions on KPI cards, chart range selectors, and the dense data table with full controls (search, filter, columns, density, export, pagination).",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/lib/mock-data/dashboard.ts: Mock dashboard data including - KPI metrics (Total Documents: 12847, Pending Approvals: 23, OCR Queue: 5 processing/2 failed, Open Cases: 3, Work Records: 8234), daily activity feed (10 items with upload/approve/verify actions), recent documents list (20 items with document_number, title, category, status, owner, date, ocr_status)",
     "Build src/app/(protected)/page.tsx (Dashboard): Full dashboard page using PageFrame. Contains: KPI grid section (5 cards), trend chart section, recent documents table section. Uses the MetricCard component from FEAT-002. Each card shows: label, value, delta badge (up/down), context line, drill-down button",
@@ -30,5 +30,5 @@
     "Run 'npm run lint' and confirm no errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Recharts emits a width/height warning during SSR static generation (chart renders at 0x0 during server-side build). This is expected behavior and not a runtime issue - the chart renders correctly in the browser. Used biome check --write to auto-fix import ordering and formatting. The DataTable component from FEAT-002 does not include pagination internally, so custom pagination was implemented in the RecentDocumentsTable wrapper. The Dialog component uses @base-ui/react primitives."
 }
