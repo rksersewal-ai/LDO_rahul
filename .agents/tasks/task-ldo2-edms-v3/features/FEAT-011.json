@@ -2,7 +2,7 @@
   "id": "FEAT-011",
   "type": "feat",
   "description": "Global Search system with cross-entity full-text search, faceted filters, typeahead suggestions, and search page. Implements the Command Palette (Ctrl+K) for quick navigation, and the dedicated Search Explorer page with faceted results across documents, PL numbers, work records, and cases.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/server/routers/search.ts: Search tRPC router with procedures: global (cross-entity search returning typed results from documents, PL numbers, work records, cases), documents (document-specific with category/status facets), facets (return filter counts for each category/status combination), suggest (typeahead - top 5 matches as user types). Search implementation: simple string matching on mock data for now (structure ready for PostgreSQL FTS later)",
     "Create src/lib/validators/search.ts: Zod schemas for search queries (query string min 2 chars, entity type filter, pagination, facet request)",
@@ -34,5 +34,5 @@
     "Run 'npm run lint' and confirm no errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Build and lint pass cleanly for all new files. The search page needed a Suspense boundary wrapper for useSearchParams() as required by Next.js 16 static generation. The sidebar already had a Search link in the utility section pointing to /search. Pre-existing lint issues in graphify.json and other schema files were not touched. The CommandPalette uses document.dispatchEvent for the header button to open the palette since the component manages its own open state via the keyboard listener."
 }
