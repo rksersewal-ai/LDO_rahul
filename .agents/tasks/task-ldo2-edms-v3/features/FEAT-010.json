@@ -2,7 +2,7 @@
   "id": "FEAT-010",
   "type": "feat",
   "description": "BOM (Bill of Materials) module - Hierarchical product structure tree viewer with drag-and-drop reordering, PL linkage on each node, and product management. Implements the tree builder interface for locomotive assemblies using @dnd-kit for interactive tree manipulation.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/lib/mock-data/bom.ts: Mock BOM data with 2-3 products (e.g., WAP-7 Locomotive, WAG-9 Locomotive). Each product has a tree structure 3-4 levels deep with realistic assemblies (Traction System > Traction Motor > Armature, Bogie Assembly > Frame > Suspension, etc.). Each node has: name, type (assembly/sub_assembly/component), pl_id reference, quantity, unit, material, weight, drawing_ref",
     "Create src/server/routers/bom.ts: BOM tRPC router with procedures: products (list all), getProduct (full tree by product ID), createProduct, addEntry (add node to tree), moveEntry (reorder/reparent via position update), removeEntry, linkPL (link BOM entry to PL number). Uses mock-db service",
