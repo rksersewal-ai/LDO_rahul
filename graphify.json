@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-11T16:28:42.459Z",
+    "lastUpdated": "2026-06-11T16:40:50.705Z",
     "currentTask": "FEAT-007",
     "completedTasks": [
       "FEAT-001",
@@ -14,7 +14,8 @@
       "FEAT-010",
       "FEAT-011",
       "FEAT-012",
-      "FEAT-013"
+      "FEAT-013",
+      "FEAT-014"
     ],
     "blockedTasks": []
   },
@@ -132,7 +133,7 @@
     {
       "id": "FEAT-014",
       "description": "Settings and configuration pages",
-      "status": "pending",
+      "status": "completed",
       "dependsOn": [
         "FEAT-006"
       ]

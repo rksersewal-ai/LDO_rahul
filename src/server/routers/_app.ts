@@ -6,6 +6,7 @@ import { bomRouter } from "./bom";
 import { casesRouter } from "./cases";
 import { documentsRouter } from "./documents";
 import { notificationsRouter } from "./notifications";
+import { ocrRouter } from "./ocr";
 import { plRouter } from "./pl";
 import { searchRouter } from "./search";
 import { workRouter } from "./work";
@@ -18,6 +19,7 @@ export const appRouter = router({
   cases: casesRouter,
   documents: documentsRouter,
   notifications: notificationsRouter,
+  ocr: ocrRouter,
   pl: plRouter,
   search: searchRouter,
   work: workRouter,

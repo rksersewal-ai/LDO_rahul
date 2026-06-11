@@ -2,7 +2,7 @@
   "id": "FEAT-014",
   "type": "feat",
   "description": "OCR Pipeline infrastructure - BullMQ job queue setup, OCR worker stub, job status tracking, and the tRPC router for OCR operations. Implements the queue-based architecture for document processing with mock OCR results. The actual Tesseract integration will be ready when the system connects to real infrastructure.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/lib/ocr/pipeline-config.ts: OCR pipeline configuration as defined in Product Spec Section 14. Export config object with: tile_size (4096), overlap_percent (15), dpi_target (400), min_dimension_for_tiling (5000), max_pixels, max_file_size_mb (500), max_pages (100), worker_concurrency (4), ocr_timeout_seconds (300), retry_count (3), confidence_threshold (60), dedup_threshold (0.6). Also export type definitions for OCR structured output",
     "Create src/lib/ocr/ocr-service.ts: OCR service that manages the processing pipeline. Functions: queueDocument(docId) - creates OCR job record in mock-db, simulates processing stages. processDocument(jobId) - mock implementation that generates realistic structured extraction results (drawing_number, title, revision, pl_numbers array, confidence score). extractStructuredData(ocrText) - parse OCR text to find PL numbers (8-digit patterns), drawing numbers, revision codes",

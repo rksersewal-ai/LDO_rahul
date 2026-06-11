@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
+import { OcrResultsPanel } from "@/components/documents/ocr-results-panel";
 import { OcrStatusBadge } from "@/components/documents/ocr-status-badge";
 import { type RevisionEntry, RevisionTimeline } from "@/components/documents/revision-timeline";
 import { PageFrame } from "@/components/layout/page-frame";
@@ -20,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
 import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
+import { MOCK_OCR_JOBS } from "@/lib/mock-data/ocr-jobs";
 import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
 import { cn } from "@/lib/utils";
 
@@ -246,42 +248,63 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 </h3>
                 <OcrStatusBadge status={doc.ocrStatus} confidence={doc.ocrConfidence} />
               </div>
-              {doc.ocrStatus === "COMPLETED" && doc.ocrText ? (
-                <div className="flex flex-col gap-2">
-                  {doc.ocrConfidence != null && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-muted-foreground">Confidence:</span>
-                      <span
-                        className={cn(
-                          "text-xs font-semibold",
-                          doc.ocrConfidence >= 90
-                            ? "text-success"
-                            : doc.ocrConfidence >= 75
-                              ? "text-warning"
-                              : "text-destructive",
-                        )}
-                      >
-                        {doc.ocrConfidence}%
-                      </span>
+              {doc.ocrStatus === "COMPLETED" &&
+                (() => {
+                  const ocrJob = MOCK_OCR_JOBS.find(
+                    (j) => j.documentId === doc.id && j.status === "COMPLETED",
+                  );
+                  if (ocrJob?.structuredOutput) {
+                    return (
+                      <OcrResultsPanel
+                        structuredOutput={ocrJob.structuredOutput}
+                        rawText={ocrJob.rawText}
+                        confidence={ocrJob.confidence ?? doc.ocrConfidence ?? 0}
+                      />
+                    );
+                  }
+                  // Fallback to raw text display
+                  return doc.ocrText ? (
+                    <div className="flex flex-col gap-2">
+                      {doc.ocrConfidence != null && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">Confidence:</span>
+                          <span
+                            className={cn(
+                              "text-xs font-semibold",
+                              doc.ocrConfidence >= 90
+                                ? "text-success"
+                                : doc.ocrConfidence >= 75
+                                  ? "text-warning"
+                                  : "text-destructive",
+                            )}
+                          >
+                            {doc.ocrConfidence}%
+                          </span>
+                        </div>
+                      )}
+                      <div className="rounded-md bg-muted/50 p-3">
+                        <p className="text-xs font-mono leading-relaxed whitespace-pre-wrap">
+                          {doc.ocrText}
+                        </p>
+                      </div>
                     </div>
-                  )}
-                  <div className="rounded-md bg-muted/50 p-3">
-                    <p className="text-xs font-mono leading-relaxed whitespace-pre-wrap">
-                      {doc.ocrText}
-                    </p>
-                  </div>
-                </div>
-              ) : doc.ocrStatus === "PROCESSING" ? (
+                  ) : null;
+                })()}
+              {doc.ocrStatus === "PROCESSING" && (
                 <p className="text-xs text-muted-foreground">OCR processing in progress...</p>
-              ) : doc.ocrStatus === "FAILED" ? (
+              )}
+              {doc.ocrStatus === "FAILED" && (
                 <p className="text-xs text-destructive">
                   OCR processing failed. You may retry or manually enter data.
                 </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  No OCR results available for this document.
-                </p>
               )}
+              {doc.ocrStatus !== "COMPLETED" &&
+                doc.ocrStatus !== "PROCESSING" &&
+                doc.ocrStatus !== "FAILED" && (
+                  <p className="text-xs text-muted-foreground">
+                    No OCR results available for this document.
+                  </p>
+                )}
             </div>
 
             {/* Linked PLs Section */}
