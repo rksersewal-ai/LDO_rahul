@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  AlertTriangle,
   BarChart3,
+  CheckSquare,
   ClipboardList,
   Cpu,
   FileText,
@@ -25,6 +27,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
 }
 
 interface NavSection {
@@ -42,6 +45,8 @@ const navSections: NavSection[] = [
       { label: "Work Ledger", href: "/ledger", icon: ClipboardList },
       { label: "Ledger Reports", href: "/ledger/reports", icon: BarChart3 },
       { label: "BOM Explorer", href: "/bom", icon: FolderTree },
+      { label: "Approvals", href: "/approvals", icon: CheckSquare, badge: 11 },
+      { label: "Cases", href: "/cases", icon: AlertTriangle },
       { label: "Folders", href: "/folders", icon: FolderOpen },
       { label: "Transmittals", href: "/transmittals", icon: Send },
     ],
@@ -85,13 +90,23 @@ function NavLink({
     >
       <Icon className="size-4 shrink-0" />
       {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && item.badge != null && item.badge > 0 && (
+        <span className="ml-auto inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold min-w-[16px] h-4 px-1">
+          {item.badge}
+        </span>
+      )}
+      {collapsed && item.badge != null && item.badge > 0 && (
+        <span className="absolute top-0 right-0.5 inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[8px] font-bold min-w-[14px] h-3.5 px-0.5">
+          {item.badge}
+        </span>
+      )}
     </Link>
   );
 
   if (collapsed) {
     return (
       <Tooltip>
-        <TooltipTrigger render={<span className="block" />}>{link}</TooltipTrigger>
+        <TooltipTrigger render={<span className="block relative" />}>{link}</TooltipTrigger>
         <TooltipContent side="right">
           <span>{item.label}</span>
         </TooltipContent>

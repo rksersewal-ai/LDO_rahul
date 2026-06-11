@@ -2,7 +2,7 @@
   "id": "FEAT-012",
   "type": "feat",
   "description": "Approvals, Cases, and Notifications modules - Approval queue with one-click approve/reject, case management for failure investigations, and the notification system with actionable items. These are related workflow modules that drive user actions.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/lib/mock-data/approvals.ts: 15+ mock approval records covering types: document_release, work_verification, bom_change. Various statuses (PENDING, APPROVED, REJECTED). Include requester, approver, linked entities",
     "Create src/lib/mock-data/cases.ts: 10+ mock cases for failure investigations, discrepancies, vendor issues. Various statuses and severities. Include case numbers (CASE-2026-001 format)",

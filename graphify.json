@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-11T16:04:29.263Z",
+    "lastUpdated": "2026-06-11T16:15:14.414Z",
     "currentTask": "FEAT-007",
     "completedTasks": [
       "FEAT-001",
@@ -12,7 +12,8 @@
       "FEAT-008",
       "FEAT-009",
       "FEAT-010",
-      "FEAT-011"
+      "FEAT-011",
+      "FEAT-012"
     ],
     "blockedTasks": []
   },
@@ -111,7 +112,7 @@
     {
       "id": "FEAT-012",
       "description": "Notifications and activity feed",
-      "status": "pending",
+      "status": "completed",
       "dependsOn": [
         "FEAT-006",
         "FEAT-003"
