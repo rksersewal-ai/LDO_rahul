@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Cpu,
   FileText,
   FolderOpen,
   HelpCircle,
@@ -34,6 +35,7 @@ const navSections: NavSection[] = [
     items: [
       { label: "Dashboard", href: "/", icon: LayoutDashboard },
       { label: "Documents", href: "/documents", icon: FileText },
+      { label: "PL Knowledge Hub", href: "/pl", icon: Cpu },
       { label: "Folders", href: "/folders", icon: FolderOpen },
       { label: "Transmittals", href: "/transmittals", icon: Send },
     ],
