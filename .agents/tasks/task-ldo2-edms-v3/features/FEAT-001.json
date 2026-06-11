@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "chore",
   "description": "Project scaffold with Next.js 15, Biome linting, graphify task tracker, and core dependencies. This establishes the monorepo structure, installs all dependencies from the product spec, configures Biome (not ESLint), sets up the graphify.json task dependency graph for tracking progress, and creates the base configuration files.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Initialize Next.js 15 project with App Router and TypeScript in /projects/sandbox/LDO_rahul using 'npx create-next-app@latest . --typescript --tailwind --app --src-dir --import-alias @/* --no-eslint --turbopack' (answer yes to all prompts, use --no-eslint since we use Biome)",
     "Install core dependencies: @trpc/server @trpc/client @trpc/react-query @trpc/next @tanstack/react-query drizzle-orm drizzle-kit pg zod zustand react-hook-form @hookform/resolvers next-auth@beta bullmq ioredis sharp recharts framer-motion @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities lucide-react sonner next-themes class-variance-authority clsx tailwind-merge",
@@ -33,5 +33,5 @@
     "Run 'cat graphify.json | node -e \"process.stdin.resume(); process.stdin.on('data', d => { JSON.parse(d); console.log('valid') })\"' to verify valid JSON"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Node.js 22 installed via mise (MISE_NODE_VERIFY=false needed due to missing gpg-agent). Biome 2.x has different config schema than 1.x (no organizeImports top-level, uses assist.actions.source.organizeImports instead; files uses 'includes' not 'ignore'; CSS needs tailwindDirectives: true in parser). create-next-app rejects uppercase directory names so used temp-proj workaround. vitest run needs --passWithNoTests flag to exit 0 when no test files exist. graphify.json FEAT-001 marked complete via the graphify script."
 }
