@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Design system implementation - Global CSS tokens, Tailwind v4 config, and shadcn/ui base components following design.md exactly. Implements the OKLCH color system, orange #d38738 primary accent, dense spacing tokens, Geist/Inter typography, dark/light theme support via next-themes, and installs the core shadcn/ui primitives needed across the app.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Install shadcn/ui: run 'npx shadcn@latest init' with style=new-york, tailwindcss, typescript, globals.css path=src/styles/globals.css, aliases configured. Then install components: button, card, input, select, dialog, sheet, dropdown-menu, tabs, table, badge, tooltip, popover, command, progress, skeleton, switch, checkbox, separator, scroll-area, avatar, label, textarea, form",
     "Replace/update src/styles/globals.css with the full OKLCH token system from design.md: light theme tokens (:root) and dark theme tokens (.dark class). Include --primary: #d38738, all --sidebar-*, --shadow-*, --radius-*, --space-*, --text-* tokens exactly as specified in design.md Section 2 and 3",
@@ -34,5 +34,5 @@
     "Verify src/styles/globals.css contains '--primary: #d38738' in root"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "shadcn@latest init uses base-nova style with @base-ui/react primitives (not Radix). Tailwind v4 uses CSS-based config (@theme inline) not tailwind.config.ts. The Checkbox component uses boolean checked + indeterminate prop, not the string 'indeterminate'. TooltipProvider uses 'delay' prop not 'delayDuration'. globals.css is at src/app/globals.css (not src/styles/). The form component needed manual creation as latest shadcn does not generate it as a separate file. Biome a11y rules (noStaticElementInteractions, useSemanticElements, useKeyWithClickEvents, noLabelWithoutControl) disabled for UI component patterns. Primary color oklch(0.66 0.14 62) is the OKLCH equivalent of #d38738."
 }
