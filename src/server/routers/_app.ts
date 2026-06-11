@@ -1,4 +1,5 @@
 import { router } from "@/server/trpc";
+import { adminRouter } from "./admin";
 import { approvalsRouter } from "./approvals";
 import { authRouter } from "./auth";
 import { bomRouter } from "./bom";
@@ -10,6 +11,7 @@ import { searchRouter } from "./search";
 import { workRouter } from "./work";
 
 export const appRouter = router({
+  admin: adminRouter,
   approvals: approvalsRouter,
   auth: authRouter,
   bom: bomRouter,

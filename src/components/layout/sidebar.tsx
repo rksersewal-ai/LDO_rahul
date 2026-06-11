@@ -11,14 +11,19 @@ import {
   FolderTree,
   HelpCircle,
   LayoutDashboard,
+  Megaphone,
+  MonitorCheck,
   Package,
   Search,
   Send,
   Settings,
+  Shield,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores/sidebar-store";
@@ -33,6 +38,7 @@ interface NavItem {
 interface NavSection {
   title: string;
   items: NavItem[];
+  adminOnly?: boolean;
 }
 
 const navSections: NavSection[] = [
@@ -56,6 +62,20 @@ const navSections: NavSection[] = [
     items: [
       { label: "Projects", href: "/projects", icon: Package },
       { label: "Users", href: "/users", icon: Users },
+    ],
+  },
+  {
+    title: "Admin",
+    adminOnly: true,
+    items: [
+      { label: "Admin Dashboard", href: "/admin", icon: ShieldCheck },
+      { label: "User Management", href: "/admin/users", icon: Users },
+      { label: "System Health", href: "/admin/health", icon: MonitorCheck },
+      { label: "OCR Monitor", href: "/admin/ocr", icon: Cpu },
+      { label: "Audit Log", href: "/admin/audit", icon: Shield },
+      { label: "Deduplication", href: "/admin/dedup", icon: FileText },
+      { label: "Settings", href: "/admin/settings", icon: Settings },
+      { label: "Banners", href: "/admin/banners", icon: Megaphone },
     ],
   },
 ];
@@ -120,6 +140,10 @@ function NavLink({
 export function Sidebar() {
   const { collapsed } = useSidebarStore();
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
+
+  const visibleSections = navSections.filter((section) => !section.adminOnly || isAdmin);
 
   return (
     <aside
@@ -154,7 +178,7 @@ export function Sidebar() {
 
       {/* Scrollable nav section */}
       <nav className="overflow-y-auto px-2 py-2">
-        {navSections.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.title} className="mb-3">
             {!collapsed && (
               <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -167,7 +191,9 @@ export function Sidebar() {
                   key={item.href}
                   item={item}
                   collapsed={collapsed}
-                  active={pathname === item.href}
+                  active={
+                    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+                  }
                 />
               ))}
             </div>
