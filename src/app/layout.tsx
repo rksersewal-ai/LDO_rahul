@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { SessionProvider } from "@/components/providers/session-provider";
+import { TRPCProvider } from "@/components/providers/trpc-provider";
 import { SonnerProvider } from "@/components/ui/sonner-provider";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -38,10 +40,14 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <TooltipProvider delay={300}>
-            {children}
-            <SonnerProvider />
-          </TooltipProvider>
+          <SessionProvider>
+            <TRPCProvider>
+              <TooltipProvider delay={300}>
+                {children}
+                <SonnerProvider />
+              </TooltipProvider>
+            </TRPCProvider>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>
