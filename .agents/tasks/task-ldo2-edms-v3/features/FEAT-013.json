@@ -2,7 +2,7 @@
   "id": "FEAT-013",
   "type": "feat",
   "description": "Admin module - System health dashboard, user management CRUD, OCR monitor, storage stats, deduplication viewer, audit log, system settings, and banner management. Admin-only pages providing full system administration capabilities.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/lib/mock-data/admin.ts: Mock admin data including: system health metrics (DB status, Redis status, OCR queue depth, storage usage, uptime), user list (10+ users with all roles), audit log entries (50+ with various actions), OCR queue jobs (processing, failed, completed), storage breakdown by category, duplicate document groups, system settings",
     "Create src/server/routers/admin.ts: Admin tRPC router (admin-only): getHealth (system status), getUsers/createUser/updateUser/deactivateUser, getOcrQueue/retryOcrJob/cancelOcrJob, getStorageStats, getDuplicateGroups/mergeDuplicates, getAuditLog (paginated), getSettings/updateSetting, getBanners/createBanner/deleteBanner. All guarded with adminProcedure",
@@ -36,5 +36,5 @@
     "Run 'npm run lint' and confirm no errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Build succeeds with all admin pages. Pre-existing lint errors remain in src/lib/db/schema/ files (not related to this feature). Select component from base-ui requires handling nullable onValueChange (val || fallback pattern). Sidebar admin section uses useSession from next-auth/react for role-gated visibility. graphify.json updated."
 }
