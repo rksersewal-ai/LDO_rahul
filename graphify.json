@@ -1,0 +1,165 @@
+{
+  "metadata": {
+    "lastUpdated": "2026-06-11T18:00:00.000Z",
+    "currentTask": "FEAT-015",
+    "completedTasks": [
+      "FEAT-001",
+      "FEAT-002",
+      "FEAT-003",
+      "FEAT-004",
+      "FEAT-005",
+      "FEAT-006",
+      "FEAT-007",
+      "FEAT-008",
+      "FEAT-009",
+      "FEAT-010",
+      "FEAT-011",
+      "FEAT-012",
+      "FEAT-013",
+      "FEAT-014",
+      "FEAT-015"
+    ],
+    "blockedTasks": []
+  },
+  "tasks": [
+    {
+      "id": "FEAT-001",
+      "description": "Project scaffold with Next.js 15, Biome linting, graphify task tracker, and core dependencies",
+      "status": "completed",
+      "dependsOn": []
+    },
+    {
+      "id": "FEAT-002",
+      "description": "Database schema design with Drizzle ORM",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-001"
+      ]
+    },
+    {
+      "id": "FEAT-003",
+      "description": "tRPC API layer and server routers",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-002"
+      ]
+    },
+    {
+      "id": "FEAT-004",
+      "description": "Authentication system with NextAuth",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-001"
+      ]
+    },
+    {
+      "id": "FEAT-005",
+      "description": "File upload and content-addressed storage",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-003",
+        "FEAT-004"
+      ]
+    },
+    {
+      "id": "FEAT-006",
+      "description": "UI component library and design system",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-001"
+      ]
+    },
+    {
+      "id": "FEAT-007",
+      "description": "Dashboard layout and KPI cards",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-006",
+        "FEAT-003"
+      ]
+    },
+    {
+      "id": "FEAT-008",
+      "description": "Document list view with filtering and sorting",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-006",
+        "FEAT-003"
+      ]
+    },
+    {
+      "id": "FEAT-009",
+      "description": "Document detail and metadata editing",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-006",
+        "FEAT-003"
+      ]
+    },
+    {
+      "id": "FEAT-010",
+      "description": "Document workflow and status management",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-006",
+        "FEAT-003"
+      ]
+    },
+    {
+      "id": "FEAT-011",
+      "description": "Search and advanced filtering",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-006"
+      ]
+    },
+    {
+      "id": "FEAT-012",
+      "description": "Notifications and activity feed",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-006",
+        "FEAT-003"
+      ]
+    },
+    {
+      "id": "FEAT-013",
+      "description": "User management and role-based access",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-006",
+        "FEAT-003",
+        "FEAT-004"
+      ]
+    },
+    {
+      "id": "FEAT-014",
+      "description": "Settings and configuration pages",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-006"
+      ]
+    },
+    {
+      "id": "FEAT-015",
+      "description": "Profile, Help Center, Keyboard Shortcuts, System Banner, and final polish",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-001",
+        "FEAT-002",
+        "FEAT-003",
+        "FEAT-004",
+        "FEAT-005",
+        "FEAT-006",
+        "FEAT-007",
+        "FEAT-008",
+        "FEAT-009",
+        "FEAT-010",
+        "FEAT-011",
+        "FEAT-012",
+        "FEAT-013",
+        "FEAT-014"
+      ]
+    }
+  ]
+}

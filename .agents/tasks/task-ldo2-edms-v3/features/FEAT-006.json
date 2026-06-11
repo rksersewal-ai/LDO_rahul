@@ -1,0 +1,51 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Database schema with Drizzle ORM, mock data layer, and tRPC routers for Documents and PL Numbers. Creates the full Drizzle schema (ready for PostgreSQL but not connected), implements a mock data service layer that mimics database operations, and builds the documents and pl tRPC routers with all CRUD operations using mock data. Includes file deduplication logic (metadata + 3-point 64kb hash).",
+  "status": "completed",
+  "steps": [
+    "Create src/lib/db/schema/users.ts: Drizzle ORM schema for users table exactly as defined in Product Spec Section 5. Use pgTable with all columns, indexes, and constraints",
+    "Create src/lib/db/schema/pl-numbers.ts: Drizzle schema for pl_numbers table with all fields (pl_number CHAR(8), category, status, safety_critical, etc.) and the search_vector generated column",
+    "Create src/lib/db/schema/documents.ts: Drizzle schema for documents table with all fields (document_number, title, category, status, revision, file_hash, file_path, ocr_status, ocr_confidence, etc.) including partition definition",
+    "Create src/lib/db/schema/document-pl-links.ts: Many-to-many link table schema",
+    "Create src/lib/db/schema/work-records.ts: Drizzle schema for work_records with all disposal tracking fields",
+    "Create src/lib/db/schema/approvals.ts: Drizzle schema for approvals table",
+    "Create src/lib/db/schema/cases.ts: Drizzle schema for cases table",
+    "Create src/lib/db/schema/bom.ts: Drizzle schemas for bom_products and bom_entries tables",
+    "Create src/lib/db/schema/ocr-jobs.ts: Drizzle schema for ocr_jobs table",
+    "Create src/lib/db/schema/audit-log.ts: Drizzle schema for audit_log table with hash chain fields",
+    "Create src/lib/db/schema/notifications.ts: Drizzle schema for notifications table",
+    "Create src/lib/db/schema/settings.ts: Drizzle schema for settings table",
+    "Create src/lib/db/schema/index.ts: Export all schemas from a single barrel file",
+    "Create src/lib/mock-data/documents.ts: 50+ mock documents covering all categories (DRAWING, SPECIFICATION, ELIGIBILITY_CRITERIA, etc.) with realistic Indian Railways data (CLW drawing numbers, revision codes, PL linkages)",
+    "Create src/lib/mock-data/pl-numbers.ts: 30+ mock PL numbers with realistic 8-digit codes, names (Traction Motor, Armature Assembly, Bogie Frame, etc.), categories (CAT-A through CAT-D), safety classifications",
+    "Create src/lib/mock-data/index.ts: Barrel export for all mock data",
+    "Create src/server/services/mock-db.ts: In-memory mock database service that provides CRUD operations (list with pagination/filter/sort, getById, create, update, delete) against mock data arrays. Supports search with simple text matching. This is the adapter that will be swapped for real Drizzle queries later",
+    "Create src/lib/storage/deduplication.ts: File deduplication logic - compute SHA-256 hash, implement 3-point 64kb hash calculation (read 64kb from start, 64kb from middle, 64kb from end of file, hash all three). Export checkDuplicate(fileBuffer, metadata) function that returns {isDuplicate, existingDocId, hash}",
+    "Create src/lib/storage/file-service.ts: File storage service for network drive. Functions: storeFile(buffer, hash) -> stores at /storage/originals/sha256/aa/bb/<hash>, getFilePath(hash), generateThumbnailPath(docId), deleteFile(hash). Content-addressed storage pattern",
+    "Create src/lib/validators/documents.ts: Zod schemas for document operations (create, update, list filters, upload, link-pl, approve, bulk-action)",
+    "Create src/lib/validators/pl-numbers.ts: Zod schemas for PL operations (create, update, list filters, search). PL number validation: exactly 8 digits",
+    "Create src/server/routers/documents.ts: Documents tRPC router with all procedures from Product Spec Section 6: list (paginated, filterable), getById, upload (with dedup check), update, delete (soft), linkPL, unlinkPL, approve, getPreview, bulkAction. Uses mock-db service. Protected with appropriate role guards",
+    "Create src/server/routers/pl.ts: PL Numbers tRPC router: list, getById, create, update, getLinkedDocs, getLinkedWork, getLinkedCases, search. Uses mock-db service",
+    "Update src/server/routers/_app.ts to include documents and pl routers",
+    "Create drizzle.config.ts: Drizzle Kit config pointing to schema files, PostgreSQL dialect, connection string from env (DATABASE_URL). This won't connect yet but enables future 'npx drizzle-kit push' when DB is available",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "All Drizzle schemas compile without TypeScript errors",
+    "Mock data includes 50+ documents and 30+ PL numbers with realistic Indian Railways data",
+    "documents tRPC router provides list (paginated), getById, upload (with dedup), update, delete, linkPL, approve",
+    "pl tRPC router provides list, getById, create, update, getLinkedDocs, search",
+    "Deduplication service implements 3-point 64kb hash calculation",
+    "File storage service uses content-addressed paths (sha256/aa/bb/<hash>)",
+    "Zod validators enforce PL number as exactly 8 digits",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -1,0 +1,43 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Authentication system with NextAuth.js v5, role-based access control, mock user data, login page, and tRPC context. Implements credentials provider with mock users (admin, supervisor, engineer, reviewer, viewer roles), JWT session strategy, protected route middleware, and the auth-related tRPC procedures. Login page follows the design system.",
+  "status": "completed",
+  "steps": [
+    "Create src/lib/mock-data/users.ts: Mock user data array with 5+ users covering all roles (admin, supervisor, engineer, reviewer, viewer). Each user has: id (UUID), username, email, password (plaintext for mock - 'password123'), name, designation, department, section, employeeId, phone, role, isActive, lastLogin. Use realistic Indian Railways designations (CWE, Sr.SDE, SSE, JE, etc.)",
+    "Create src/lib/auth/auth-options.ts: NextAuth.js v5 configuration with CredentialsProvider. Validates against mock users array. Returns user object with id, name, email, role, department, designation. JWT strategy with 15min access token simulation. Callbacks: jwt (adds role, userId to token), session (exposes role, userId to session)",
+    "Create src/lib/auth/index.ts: Export auth handlers, signIn, signOut, auth() session getter using NextAuth v5 API",
+    "Create src/app/api/auth/[...nextauth]/route.ts: NextAuth route handler",
+    "Create src/middleware.ts: Next.js middleware that protects all routes under (protected) group. Redirects unauthenticated users to /login. Allows /login, /api/auth/* without auth",
+    "Create src/lib/auth/permissions.ts: Role-permission matrix as defined in Product Spec Section 7. Export hasPermission(role, action) function. Actions: view_documents, search, download, upload, create_work_records, create_pl, edit_bom, approve_documents, verify_work, manage_cases, manage_users, system_settings, view_audit",
+    "Build the login page at src/app/login/page.tsx: Clean login form following design system. Card centered on page, LDO-2 EDMS branding with orange accent, username + password inputs (30px height), 'Sign In' primary button, error message display, loading state. Dark/light theme aware",
+    "Create src/server/trpc.ts: tRPC initialization with context (session from NextAuth). Define publicProcedure, protectedProcedure (requires auth), engineerProcedure (requires engineer+), supervisorProcedure (requires supervisor+), adminProcedure (requires admin)",
+    "Create src/server/routers/_app.ts: Root tRPC router that merges sub-routers. Start with just auth router",
+    "Create src/server/routers/auth.ts: Auth router with procedures - getSession (returns current user), getProfile (returns full user profile from mock data)",
+    "Create src/app/api/trpc/[trpc]/route.ts: tRPC HTTP handler for Next.js App Router",
+    "Create src/lib/trpc/client.ts: tRPC client setup for client components (uses @trpc/react-query)",
+    "Create src/lib/trpc/server.ts: tRPC caller for server components",
+    "Create src/components/providers/query-provider.tsx: TanStack Query provider wrapper",
+    "Create src/components/providers/trpc-provider.tsx: tRPC + QueryClient provider for client components",
+    "Update src/app/layout.tsx to wrap with TRPCProvider and QueryProvider",
+    "Create src/hooks/use-auth.ts: Custom hook returning session, user, role, hasPermission helper",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes"
+  ],
+  "acceptance_criteria": [
+    "Login page renders with username/password form following design system",
+    "Signing in with mock credentials (e.g., admin/password123) creates a session",
+    "Protected routes redirect to /login when not authenticated",
+    "tRPC context includes the authenticated user session",
+    "Role-based permission checking works (hasPermission function)",
+    "protectedProcedure rejects unauthenticated requests",
+    "engineerProcedure rejects viewer/reviewer roles for write operations",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": "NextAuth v5 middleware shows deprecation warning in Next.js 16 (middleware convention deprecated in favor of proxy). Build and lint both pass. server-only package was added as dependency for tRPC server caller. Login page uses Suspense boundary around useSearchParams. AUTH_SECRET stored in .env (committed for dev). The middleware allows /api/trpc calls without auth (tRPC handles its own auth via context)."
+}

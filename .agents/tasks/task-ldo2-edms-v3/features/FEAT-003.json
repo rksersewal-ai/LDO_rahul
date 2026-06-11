@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "App shell layout - Fixed 46px header, 232px collapsible sidebar with independent scroll, main content area with independent scroll, and page-frame centered container. Implements the exact layout architecture from design.md Section 4-6 including sidebar collapse, breadcrumbs, live clock, notification panel, theme toggle, help center access, and sidebar utility links fixed at bottom.",
+  "status": "completed",
+  "steps": [
+    "Create src/components/layout/app-header.tsx: 46px fixed header with CSS grid (3 columns as per design.md). Left: sidebar collapse button + single breadcrumb. Center: search input (command palette trigger). Right: notification button with dot, live clock (HH:mm:ss), help center button, theme toggle (icon button), user avatar/menu. Use the icon-button pattern (30px square) from design.md",
+    "Create src/components/layout/sidebar.tsx: 232px width (64px collapsed), grid-template-rows: auto 1fr auto. Brand area at top (LDO-2 EDMS branding with orange accent). Scrollable nav section in middle with nav items (30px height, 12px text, icon + label). Fixed utility section at bottom (Settings, Help Center, Search). Active item uses --primary background. Sections labeled with tiny muted uppercase text. Collapse state hides labels, shows icons only with tooltips",
+    "Create src/components/layout/notification-panel.tsx: Dropdown panel (360px wide) from notification button. Shows grouped notifications (Needs action, FYI, System). Each item: title, context, timestamp, action button. Action buttons navigate to relevant pages. Mark read, snooze, dismiss secondary actions. Empty state when no notifications",
+    "Create src/components/layout/live-clock.tsx: Compact clock component using useEffect + setInterval. Displays HH:mm:ss in mono font, muted color. Timezone in tooltip",
+    "Create src/components/layout/breadcrumb-nav.tsx: Simple breadcrumb showing current location. Single level for simple pages, parent/current for nested. Slash separator, 12-13px, muted parent + strong current",
+    "Create src/components/layout/page-frame.tsx: Centered content wrapper - width: min(100% - 32px, 1480px), margin: 18px auto 32px. Variants: sm (960px), md (1180px), lg (1480px), xl (1680px)",
+    "Create src/app/(protected)/layout.tsx: Protected route group layout. Uses CSS grid: full height, grid-template-rows 46px 1fr for header + body. Body grid: sidebar-width 1fr. Applies independent overflow:auto on main-scroll and sidebar-scroll. Wraps content in the shell structure from design.md Section 4",
+    "Create src/stores/sidebar-store.ts: Zustand store for sidebar state (collapsed: boolean, toggle function). Persists to localStorage",
+    "Create src/stores/notification-store.ts: Zustand store for notifications (items array, unreadCount, markRead, dismiss functions). Initially populated with mock notifications",
+    "Update src/app/layout.tsx to only contain the root providers (ThemeProvider, QueryProvider). The shell layout is in the (protected) group",
+    "Create src/app/(protected)/page.tsx as a placeholder dashboard page that uses PageFrame and shows 'Dashboard' text (will be built out in FEAT-005)",
+    "Create src/app/login/page.tsx as a simple login page placeholder (will be built out in FEAT-004)",
+    "Verify: 'npm run build' succeeds, 'npm run lint' passes, dev server shows the shell layout correctly"
+  ],
+  "acceptance_criteria": [
+    "Header is exactly 46px height with 3-column grid layout",
+    "Sidebar is 232px expanded, 64px collapsed, with independent scroll on nav links",
+    "Sidebar utility links (Settings, Help Center, Search) are fixed at bottom and do not scroll",
+    "Collapse button is in the header (not the sidebar)",
+    "Main content area has independent scroll from sidebar",
+    "Live clock shows HH:mm:ss in header right section",
+    "Theme toggle switches between light and dark modes",
+    "Notification panel opens as dropdown with actionable items",
+    "Page frame centers content with proper max-width and top margin",
+    "npm run build succeeds",
+    "npm run lint passes"
+  ],
+  "verification": [
+    "Run 'npm run build' and confirm exit 0",
+    "Run 'npm run lint' and confirm no errors"
+  ],
+  "blocked_reason": null,
+  "findings": "base-ui/react Tooltip uses render prop (not asChild) - use render={<element />} pattern for custom trigger elements. Biome auto-fix handles import sorting. Protected layout at (protected)/layout.tsx is a client component since it uses Zustand store for sidebar collapse state."
+}
