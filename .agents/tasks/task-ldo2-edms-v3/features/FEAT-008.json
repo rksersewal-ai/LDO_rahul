@@ -2,7 +2,7 @@
   "id": "FEAT-008",
   "type": "feat",
   "description": "Document Management module - Document Hub page with upload wizard, document detail/preview, revision control, and the full upload flow with deduplication. Includes file upload with drag-and-drop, SHA-256 hashing, 3-point 64kb dedup check, metadata entry form, and document lifecycle management.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/app/(protected)/documents/page.tsx: Document Hub page. PageFrame with PageHeader ('Document Hub', 'Upload Document' primary action). Dense data table with columns: checkbox, Document# (monospace link), Title, Category (badge), Status (StatusBadge), Revision, Owner, Date, OCR Status (OCR badge), File Type, Size, Actions (view/download/edit/delete menu). Full toolbar with: search, category filter, status filter, OCR status filter, file type filter, date range, columns, density, refresh, export. Pagination footer",
     "Create src/components/documents/document-table.tsx: Specialized DataTable for documents with OCR status badges (colored dot + status text), category badges, revision display, file size formatting",
