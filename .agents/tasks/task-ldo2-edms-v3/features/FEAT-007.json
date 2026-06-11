@@ -2,7 +2,7 @@
   "id": "FEAT-007",
   "type": "feat",
   "description": "PL Knowledge Hub page - the central intelligence view for PL numbers. Searchable/filterable registry with category badges (CAT-A/B/C/D color-coded), safety-critical flags, linked document counts, and detail view with tabbed sections (Overview, Documents, BOM, Work Records, Cases, History). Uses the dense table design with all controls.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/app/(protected)/pl/page.tsx: PL Knowledge Hub main page. PageFrame with PageHeader ('PL Knowledge Hub' title, 'Create PL' primary action button). Full data table below with columns: PL Number (monospace), Name, Category (color-coded badge: CAT-A=red, CAT-B=orange, CAT-C=blue, CAT-D=green), Status (StatusBadge), Safety (flag icon if critical), Agency, Documents (count badge), Actions. Full toolbar: search, category filter, status filter, agency filter, safety-only toggle, columns, density, refresh, export",
     "Create src/components/pl/pl-table.tsx: Specialized data table for PL numbers extending the base DataTable. Implements category-specific badge colors, safety-critical icon indicator, document count badges. Row click navigates to PL detail. Supports sorting by all columns",
@@ -36,5 +36,5 @@
     "Run 'npm run lint' and confirm no errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Button component uses base-ui render prop (not asChild) for Link rendering. Select onValueChange passes string|null. Pre-existing lint errors in src/lib/db/schema/ and graphify.json format (not from this feature). Build passes cleanly with /pl, /pl/[id], /pl/new routes."
 }
