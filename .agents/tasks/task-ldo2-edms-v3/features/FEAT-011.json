@@ -2,7 +2,7 @@
   "id": "FEAT-011",
   "type": "feat",
   "description": "Global Search system with cross-entity full-text search, faceted filters, typeahead suggestions, and search page. Implements the Command Palette (Ctrl+K) for quick navigation, and the dedicated Search Explorer page with faceted results across documents, PL numbers, work records, and cases.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/server/routers/search.ts: Search tRPC router with procedures: global (cross-entity search returning typed results from documents, PL numbers, work records, cases), documents (document-specific with category/status facets), facets (return filter counts for each category/status combination), suggest (typeahead - top 5 matches as user types). Search implementation: simple string matching on mock data for now (structure ready for PostgreSQL FTS later)",
     "Create src/lib/validators/search.ts: Zod schemas for search queries (query string min 2 chars, entity type filter, pagination, facet request)",

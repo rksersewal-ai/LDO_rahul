@@ -3,6 +3,7 @@ import { authRouter } from "./auth";
 import { bomRouter } from "./bom";
 import { documentsRouter } from "./documents";
 import { plRouter } from "./pl";
+import { searchRouter } from "./search";
 import { workRouter } from "./work";
 
 export const appRouter = router({
@@ -10,6 +11,7 @@ export const appRouter = router({
   bom: bomRouter,
   documents: documentsRouter,
   pl: plRouter,
+  search: searchRouter,
   work: workRouter,
 });
 
