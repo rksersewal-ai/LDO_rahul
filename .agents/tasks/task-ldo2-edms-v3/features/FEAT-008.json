@@ -2,7 +2,7 @@
   "id": "FEAT-008",
   "type": "feat",
   "description": "Document Management module - Document Hub page with upload wizard, document detail/preview, revision control, and the full upload flow with deduplication. Includes file upload with drag-and-drop, SHA-256 hashing, 3-point 64kb dedup check, metadata entry form, and document lifecycle management.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/app/(protected)/documents/page.tsx: Document Hub page. PageFrame with PageHeader ('Document Hub', 'Upload Document' primary action). Dense data table with columns: checkbox, Document# (monospace link), Title, Category (badge), Status (StatusBadge), Revision, Owner, Date, OCR Status (OCR badge), File Type, Size, Actions (view/download/edit/delete menu). Full toolbar with: search, category filter, status filter, OCR status filter, file type filter, date range, columns, density, refresh, export. Pagination footer",
     "Create src/components/documents/document-table.tsx: Specialized DataTable for documents with OCR status badges (colored dot + status text), category badges, revision display, file size formatting",
@@ -37,5 +37,5 @@
     "Run 'npm run lint' and confirm no errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Build passes successfully with all document routes registered. Lint has 6 pre-existing errors in src/lib/db/schema/ files (not related to this feature). Select component onValueChange can return null - needs guard. @hookform/resolvers v5 has type conflicts with react-hook-form v7 requiring explicit Resolver type cast. Sidebar already had Documents link from FEAT-006/007. base-ui DropdownMenu uses render prop pattern instead of asChild."
 }
