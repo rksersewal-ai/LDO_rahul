@@ -26,6 +26,7 @@ import { SearchMetricCard } from "@/components/search/search-metric-card";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { Badge } from "@/components/ui/badge";
 import { useSearch } from "@/hooks/use-search";
+import { useSearchHistory } from "@/hooks/use-search-history";
 import { cn } from "@/lib/utils";
 import type { EntityType } from "@/lib/validators/search";
 import { type SearchScope, type SortField, useSearchStore } from "@/stores/search-store";
@@ -69,6 +70,8 @@ function SearchPageContent() {
     sortDirection,
     setSortDirection,
   } = useSearchStore();
+
+  const { addEntry: addHistoryEntry } = useSearchHistory();
 
   const activeEntityType = SCOPE_OPTIONS.find((s) => s.scope === scope)?.entityType ?? "all";
 
@@ -283,6 +286,12 @@ function SearchPageContent() {
               if (e.key === "Enter" && query.length >= 2) {
                 search(query);
                 addRecentSearch(query);
+                addHistoryEntry({
+                  query: query.trim(),
+                  scope,
+                  resultCount: results?.total ?? 0,
+                  timestamp: new Date().toISOString(),
+                });
               }
             }}
             placeholder="Search across documents, PL numbers, work records, and cases..."

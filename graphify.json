@@ -1,7 +1,7 @@
 {
   "metadata": {
     "lastUpdated": "2026-06-12T18:00:00.000Z",
-    "currentTask": "FEAT-029",
+    "currentTask": "FEAT-030",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -31,11 +31,18 @@
       "FEAT-026",
       "FEAT-027",
       "FEAT-028",
-      "FEAT-029"
+      "FEAT-029",
+      "FEAT-030"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-030",
+      "description": "Client-side utility services - NavigationHistoryService, SearchHistoryService, SavedFiltersService, PreferencesService with localStorage persistence and React hooks",
+      "status": "completed",
+      "dependsOn": ["FEAT-024", "FEAT-029"]
+    },
     {
       "id": "FEAT-029",
       "description": "Grid/List view toggle on Document Hub - Toggle between table and responsive grid card view with localStorage persistence",
