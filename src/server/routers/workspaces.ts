@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { userWorkspaces, workspaces } from "@/lib/db/schema";
@@ -40,6 +40,7 @@ export const workspacesRouter = router({
     const userId = ctx.session.user?.id;
     if (!userId) return null;
 
+    // Single query: join workspaces with user_workspaces filtering by both workspaceId AND userId
     const rows = await db
       .select({
         id: workspaces.id,
@@ -56,17 +57,14 @@ export const workspacesRouter = router({
         isPrimary: userWorkspaces.isPrimary,
       })
       .from(workspaces)
-      .innerJoin(userWorkspaces, eq(userWorkspaces.workspaceId, workspaces.id))
+      .innerJoin(
+        userWorkspaces,
+        and(
+          eq(userWorkspaces.workspaceId, workspaces.id),
+          eq(userWorkspaces.userId, userId),
+        ),
+      )
       .where(eq(workspaces.id, input.id));
-
-    // Verify the current user has access to this workspace
-    const accessRows = await db
-      .select()
-      .from(userWorkspaces)
-      .where(eq(userWorkspaces.workspaceId, input.id));
-
-    const hasAccess = accessRows.some((r) => r.userId === userId);
-    if (!hasAccess) return null;
 
     const workspace = rows[0];
     if (!workspace) return null;
