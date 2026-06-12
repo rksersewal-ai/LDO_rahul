@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T15:00:00.000Z",
-    "currentTask": "FEAT-026",
+    "lastUpdated": "2026-06-12T19:00:00.000Z",
+    "currentTask": "FEAT-031",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -28,11 +28,46 @@
       "FEAT-023",
       "FEAT-024",
       "FEAT-025",
-      "FEAT-026"
+      "FEAT-026",
+      "FEAT-027",
+      "FEAT-028",
+      "FEAT-029",
+      "FEAT-030",
+      "FEAT-031"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-031",
+      "description": "Feature flags system - FeatureFlagService singleton, useFeatureFlag hook, LARGE_DRAWING_VIEWER and AI_SUGGESTIONS flags, gate search analytics and bulk upload behind flags",
+      "status": "completed",
+      "dependsOn": ["FEAT-016", "FEAT-025", "FEAT-030"]
+    },
+    {
+      "id": "FEAT-030",
+      "description": "Client-side utility services - NavigationHistoryService, SearchHistoryService, SavedFiltersService, PreferencesService with localStorage persistence and React hooks",
+      "status": "completed",
+      "dependsOn": ["FEAT-024", "FEAT-029"]
+    },
+    {
+      "id": "FEAT-029",
+      "description": "Grid/List view toggle on Document Hub - Toggle between table and responsive grid card view with localStorage persistence",
+      "status": "completed",
+      "dependsOn": ["FEAT-008", "FEAT-028"]
+    },
+    {
+      "id": "FEAT-028",
+      "description": "Enhanced card interactions and GlassCard pattern - Reusable GlassCard component using design tokens with hover translateY(-1px) + border-primary/30 transition. Applied to MetricCard, BomProductCard, and SearchMetricCard.",
+      "status": "completed",
+      "dependsOn": ["FEAT-027", "FEAT-006"]
+    },
+    {
+      "id": "FEAT-027",
+      "description": "BOM Explorer redesign - product cards with CSS-only hover animations, lifecycle badges, category filter pills, summary stats strip, recently modified list, and export dropdown",
+      "status": "completed",
+      "dependsOn": ["FEAT-020", "FEAT-026"]
+    },
     {
       "id": "FEAT-026",
       "description": "Work Ledger Create form enhancement - PL number lookup typeahead, supervisor assignment dropdown, DatePicker components, auto days-taken calculation, duplicate work detection, file attachment drag-and-drop, e-Office case number required field, target days auto-banner, consent field conditional on work type.",

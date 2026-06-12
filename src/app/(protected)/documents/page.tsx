@@ -2,16 +2,32 @@
 
 import { Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type DocumentFilterState, DocumentFilters } from "@/components/documents/document-filters";
+import { DocumentGrid } from "@/components/documents/document-grid";
 import { DocumentTable } from "@/components/documents/document-table";
+import { type ViewMode, ViewToggle } from "@/components/documents/view-toggle";
 import { PageFrame } from "@/components/layout/page-frame";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
+import { useSavedFilters } from "@/hooks/use-saved-filters";
 import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
 
+const VIEW_MODE_KEY = "doc-hub-view-mode";
+
+function getInitialViewMode(): ViewMode {
+  if (typeof window === "undefined") return "list";
+  const stored = localStorage.getItem(VIEW_MODE_KEY);
+  if (stored === "grid" || stored === "list") return stored;
+  return "list";
+}
+
 export default function DocumentHubPage() {
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
+  const bulkUploadEnabled = useFeatureFlag("bulk_upload");
   const [filters, setFilters] = useState<DocumentFilterState>({
     search: "",
     category: "",
@@ -21,6 +37,33 @@ export default function DocumentHubPage() {
     dateFrom: "",
     dateTo: "",
   });
+
+  const {
+    filters: savedFilterPresets,
+    save: saveFilter,
+    remove: removeFilter,
+  } = useSavedFilters("documents");
+
+  const hasActiveFilters = Object.values(filters).some((v) => v !== "");
+
+  const handleSaveCurrentFilter = () => {
+    if (!hasActiveFilters) return;
+    const parts: string[] = [];
+    if (filters.category) parts.push(filters.category);
+    if (filters.status) parts.push(filters.status);
+    if (filters.fileType) parts.push(filters.fileType);
+    if (filters.search) parts.push(`"${filters.search}"`);
+    const label = parts.length > 0 ? parts.join(" + ") : "Custom Filter";
+    saveFilter(label, filters as unknown as Record<string, unknown>);
+  };
+
+  const handleApplySavedFilter = (filterData: Record<string, unknown>) => {
+    setFilters(filterData as unknown as DocumentFilterState);
+  };
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
   // Apply filters to mock data client-side for now
   const filteredData = MOCK_DOCUMENTS.filter((doc) => {
@@ -87,6 +130,16 @@ export default function DocumentHubPage() {
                 rows={exportRows}
                 filenamePrefix="documents"
               />
+              {bulkUploadEnabled && (
+                <Button
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  render={<Link href="/documents/upload" />}
+                >
+                  <Plus className="h-3 w-3" />
+                  Bulk Upload
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="h-7 text-xs gap-1"
@@ -102,15 +155,56 @@ export default function DocumentHubPage() {
         {/* Filters toolbar */}
         <DocumentFilters filters={filters} onFiltersChange={setFilters} />
 
-        {/* Results info */}
+        {/* Saved Filter Presets */}
+        {(savedFilterPresets.length > 0 || hasActiveFilters) && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-[11px] gap-1 px-2"
+                onClick={handleSaveCurrentFilter}
+              >
+                <Plus className="h-3 w-3" />
+                Save Filter
+              </Button>
+            )}
+            {savedFilterPresets.map((preset) => (
+              <div key={preset.id} className="flex items-center gap-0.5">
+                <Badge
+                  variant="secondary"
+                  className="cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors text-[11px] px-2 py-0.5"
+                  onClick={() => handleApplySavedFilter(preset.filters)}
+                >
+                  {preset.label}
+                </Badge>
+                <button
+                  type="button"
+                  onClick={() => removeFilter(preset.id)}
+                  className="text-muted-foreground hover:text-destructive text-[10px] transition-colors"
+                  title="Remove saved filter"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Results info + View Toggle */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
             Showing {filteredData.length} of {MOCK_DOCUMENTS.length} documents
           </p>
+          <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </div>
 
-        {/* Data Table */}
-        <DocumentTable data={filteredData} />
+        {/* Data Table or Grid */}
+        {viewMode === "list" ? (
+          <DocumentTable data={filteredData} />
+        ) : (
+          <DocumentGrid data={filteredData} />
+        )}
       </div>
     </PageFrame>
   );

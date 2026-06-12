@@ -54,6 +54,8 @@ export const bomRouter = router({
       description: input.description,
       version: "1.0",
       status: "draft",
+      category: input.category,
+      lifecycle: input.lifecycle,
       createdBy: ctx.session.user?.id || "unknown",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

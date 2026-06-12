@@ -94,6 +94,26 @@ export const MOCK_FEATURE_TOGGLES: FeatureToggle[] = [
     lastModified: "2024-11-01T10:00:00Z",
     modifiedBy: "Shri R.K. Sharma",
   },
+  {
+    id: "ft-010",
+    name: "Large Drawing Viewer",
+    key: "large_drawing_viewer",
+    description:
+      "Enhanced viewer for large-format engineering drawings with pan, zoom, and annotation",
+    enabled: false,
+    lastModified: "2024-12-20T09:00:00Z",
+    modifiedBy: "Shri T.K. Bansal",
+  },
+  {
+    id: "ft-011",
+    name: "AI Suggestions",
+    key: "ai_suggestions",
+    description:
+      "AI-powered suggestions for document metadata, tagging, and related document discovery",
+    enabled: false,
+    lastModified: "2024-12-22T11:00:00Z",
+    modifiedBy: "Shri R.K. Sharma",
+  },
 ];
 
 // --- Security Policies ---
