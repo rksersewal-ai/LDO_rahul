@@ -14,6 +14,7 @@ import { notificationsRouter } from "./notifications";
 import { ocrRouter } from "./ocr";
 import { plRouter } from "./pl";
 import { searchRouter } from "./search";
+import { settingsRouter } from "./settings";
 import { tagsRouter } from "./tags";
 import { workRouter } from "./work";
 import { workspacesRouter } from "./workspaces";
@@ -34,6 +35,7 @@ export const appRouter = router({
   ocr: ocrRouter,
   pl: plRouter,
   search: searchRouter,
+  settings: settingsRouter,
   tags: tagsRouter,
   work: workRouter,
   workspaces: workspacesRouter,

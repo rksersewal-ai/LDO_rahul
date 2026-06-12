@@ -643,7 +643,7 @@ export const adminRouter = router({
     const rows = await db
       .select()
       .from(settingsTable)
-      .orderBy(settingsTable.category, settingsTable.key);
+      .orderBy(settingsTable.scope, settingsTable.key);
     return rows;
   }),
 
@@ -653,7 +653,7 @@ export const adminRouter = router({
         key: z.string(),
         value: z.string(),
         description: z.string().optional(),
-        category: z.string().optional(),
+        scope: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -668,7 +668,6 @@ export const adminRouter = router({
         updatedBy: ctx.session.user?.id ?? "system",
       };
       if (input.description) setValues.description = input.description;
-      if (input.category) setValues.category = input.category;
 
       let result: typeof existing | undefined;
       if (existing) {
@@ -678,13 +677,15 @@ export const adminRouter = router({
           .where(eq(settingsTable.key, input.key))
           .returning();
       } else {
+        const { nanoid } = await import("nanoid");
         [result] = await db
           .insert(settingsTable)
           .values({
+            id: nanoid(),
             key: input.key,
             value: input.value,
+            scope: "system",
             description: input.description ?? null,
-            category: input.category ?? "general",
             updatedBy: ctx.session.user?.id ?? "system",
           })
           .returning();
