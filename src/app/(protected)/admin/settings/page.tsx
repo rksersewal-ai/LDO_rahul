@@ -19,13 +19,7 @@ import { useRef, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
@@ -38,7 +32,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { Permission } from "@/lib/auth/permissions";
-import type { UserRole } from "@/lib/mock-data/users";
 import {
   type ComplianceSettings,
   type FeatureToggle,
@@ -51,6 +44,7 @@ import {
   type SecurityPolicies,
   type SystemConfiguration,
 } from "@/lib/mock-data/admin-settings";
+import type { UserRole } from "@/lib/mock-data/users";
 
 type TabId =
   | "overview"
@@ -113,7 +107,13 @@ export default function SettingsPage() {
         {/* Tab Content */}
         <div className="min-h-[500px]">
           {activeTab === "overview" && (
-            <OverviewTab features={features} setFeatures={setFeatures} security={security} compliance={compliance} sysConfig={sysConfig} />
+            <OverviewTab
+              features={features}
+              setFeatures={setFeatures}
+              security={security}
+              compliance={compliance}
+              sysConfig={sysConfig}
+            />
           )}
           {activeTab === "features" && (
             <FeatureTogglesTab features={features} setFeatures={setFeatures} />
@@ -121,9 +121,7 @@ export default function SettingsPage() {
           {activeTab === "security" && (
             <SecurityTab security={security} setSecurity={setSecurity} />
           )}
-          {activeTab === "roles" && (
-            <RolesTab rolePerms={rolePerms} setRolePerms={setRolePerms} />
-          )}
+          {activeTab === "roles" && <RolesTab rolePerms={rolePerms} setRolePerms={setRolePerms} />}
           {activeTab === "system" && (
             <SystemTab sysConfig={sysConfig} setSysConfig={setSysConfig} />
           )}
@@ -248,9 +246,7 @@ function OverviewTab({
             <Shield className="h-4 w-4 text-[#d38738]" />
             Compliance
           </CardTitle>
-          <CardDescription className="text-[10px]">
-            Audit & approval configuration
-          </CardDescription>
+          <CardDescription className="text-[10px]">Audit & approval configuration</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="flex items-center justify-between">
@@ -328,16 +324,14 @@ function OverviewTab({
           <CardDescription className="text-[10px]">Permission distribution</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          {(["admin", "supervisor", "reviewer", "engineer", "viewer"] as UserRole[]).map(
-            (role) => (
-              <div key={role} className="flex items-center justify-between">
-                <span className="text-[11px] capitalize">{role}</span>
-                <Badge variant="outline" className="text-[10px] h-4">
-                  13/13 perms
-                </Badge>
-              </div>
-            ),
-          )}
+          {(["admin", "supervisor", "reviewer", "engineer", "viewer"] as UserRole[]).map((role) => (
+            <div key={role} className="flex items-center justify-between">
+              <span className="text-[11px] capitalize">{role}</span>
+              <Badge variant="outline" className="text-[10px] h-4">
+                13/13 perms
+              </Badge>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
@@ -399,7 +393,9 @@ function FeatureTogglesTab({
   const handleToggle = (id: string, enabled: boolean) => {
     setFeatures(
       features.map((f) =>
-        f.id === id ? { ...f, enabled, lastModified: new Date().toISOString(), modifiedBy: "Admin" } : f,
+        f.id === id
+          ? { ...f, enabled, lastModified: new Date().toISOString(), modifiedBy: "Admin" }
+          : f,
       ),
     );
   };
@@ -433,10 +429,7 @@ function FeatureTogglesTab({
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium">{ft.name}</span>
-                <Badge
-                  variant={ft.enabled ? "default" : "secondary"}
-                  className="text-[9px] h-4"
-                >
+                <Badge variant={ft.enabled ? "default" : "secondary"} className="text-[9px] h-4">
                   {ft.enabled ? "Enabled" : "Disabled"}
                 </Badge>
               </div>
@@ -812,10 +805,7 @@ function RolesTab({
                 Permission
               </th>
               {ALL_ROLES.map((role) => (
-                <th
-                  key={role}
-                  className="text-center p-2 font-medium capitalize min-w-[90px]"
-                >
+                <th key={role} className="text-center p-2 font-medium capitalize min-w-[90px]">
                   {role}
                 </th>
               ))}
@@ -824,9 +814,7 @@ function RolesTab({
           <tbody>
             {ALL_PERMISSIONS.map((permission) => (
               <tr key={permission} className="border-b last:border-0 hover:bg-muted/30">
-                <td className="p-2 font-medium">
-                  {permission.replace(/_/g, " ")}
-                </td>
+                <td className="p-2 font-medium">{permission.replace(/_/g, " ")}</td>
                 {ALL_ROLES.map((role) => {
                   const hasIt = rolePerms[role]?.includes(permission);
                   const isAdmin = role === "admin";
@@ -1269,7 +1257,12 @@ function ComplianceTab({
                     ...compliance,
                     auditRetention: {
                       ...compliance.auditRetention,
-                      retentionPeriod: v as "1_year" | "3_years" | "5_years" | "10_years" | "indefinite",
+                      retentionPeriod: v as
+                        | "1_year"
+                        | "3_years"
+                        | "5_years"
+                        | "10_years"
+                        | "indefinite",
                     },
                   })
                 }
@@ -1539,7 +1532,8 @@ function ImportExportTab({
         const parsed = JSON.parse(text);
         setImportPreview(text);
         const changes: string[] = [];
-        if (parsed.featureToggles) changes.push(`Feature Toggles: ${parsed.featureToggles.length} items`);
+        if (parsed.featureToggles)
+          changes.push(`Feature Toggles: ${parsed.featureToggles.length} items`);
         if (parsed.securityPolicies) changes.push("Security Policies: will be updated");
         if (parsed.rolePermissions) changes.push("Role Permissions: will be updated");
         if (parsed.systemConfiguration) changes.push("System Configuration: will be updated");

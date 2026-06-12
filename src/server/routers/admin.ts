@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Permission } from "@/lib/auth/permissions";
 import {
   type Banner,
   MOCK_ADMIN_USERS,
@@ -25,7 +26,6 @@ import {
   type SecurityPolicies,
   type SystemConfiguration,
 } from "@/lib/mock-data/admin-settings";
-import type { Permission } from "@/lib/auth/permissions";
 import type { MockUser, UserRole } from "@/lib/mock-data/users";
 import { adminProcedure, router } from "@/server/trpc";
 
@@ -105,6 +105,12 @@ export const adminRouter = router({
         ...input,
         isActive: true,
         lastLogin: null,
+        passwordChangedAt: new Date().toISOString(),
+        forcePasswordChange: true,
+        failedLoginAttempts: 0,
+        lockedAt: null,
+        lockedBy: null,
+        lockReason: null,
       };
       users.push(newUser);
       return newUser;
@@ -137,6 +143,74 @@ export const adminRouter = router({
     if (idx === -1) return null;
     users[idx].isActive = false;
     return users[idx];
+  }),
+
+  // --- User Security Management ---
+  getSecurityInfo: adminProcedure.input(z.object({ userId: z.string() })).query(({ input }) => {
+    const user = users.find((u) => u.id === input.userId);
+    if (!user) return null;
+    return {
+      userId: user.id,
+      username: user.username,
+      name: user.name,
+      passwordChangedAt: user.passwordChangedAt,
+      forcePasswordChange: user.forcePasswordChange,
+      failedLoginAttempts: user.failedLoginAttempts,
+      lockedAt: user.lockedAt,
+      lockedBy: user.lockedBy,
+      lockReason: user.lockReason,
+    };
+  }),
+
+  resetPassword: adminProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        newPassword: z.string().min(6),
+      }),
+    )
+    .mutation(({ input }) => {
+      const idx = users.findIndex((u) => u.id === input.userId);
+      if (idx === -1) return null;
+      users[idx].password = input.newPassword;
+      users[idx].passwordChangedAt = new Date().toISOString();
+      users[idx].forcePasswordChange = true;
+      return { success: true, userId: input.userId };
+    }),
+
+  forcePasswordChange: adminProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(({ input }) => {
+      const idx = users.findIndex((u) => u.id === input.userId);
+      if (idx === -1) return null;
+      users[idx].forcePasswordChange = true;
+      return { success: true, userId: input.userId };
+    }),
+
+  lockAccount: adminProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        reason: z.string().min(1),
+      }),
+    )
+    .mutation(({ input }) => {
+      const idx = users.findIndex((u) => u.id === input.userId);
+      if (idx === -1) return null;
+      users[idx].lockedAt = new Date().toISOString();
+      users[idx].lockedBy = "u-001-admin";
+      users[idx].lockReason = input.reason;
+      return { success: true, userId: input.userId };
+    }),
+
+  unlockAccount: adminProcedure.input(z.object({ userId: z.string() })).mutation(({ input }) => {
+    const idx = users.findIndex((u) => u.id === input.userId);
+    if (idx === -1) return null;
+    users[idx].lockedAt = null;
+    users[idx].lockedBy = null;
+    users[idx].lockReason = null;
+    users[idx].failedLoginAttempts = 0;
+    return { success: true, userId: input.userId };
   }),
 
   // --- OCR Queue ---
@@ -475,9 +549,7 @@ export const adminRouter = router({
         storage: z
           .object({
             autoArchiveAfterDays: z.number().optional(),
-            retentionPolicy: z
-              .enum(["indefinite", "5_years", "10_years", "20_years"])
-              .optional(),
+            retentionPolicy: z.enum(["indefinite", "5_years", "10_years", "20_years"]).optional(),
             compressionEnabled: z.boolean().optional(),
           })
           .optional(),
