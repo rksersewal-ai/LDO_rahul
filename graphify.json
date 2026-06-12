@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T12:00:00.000Z",
-    "currentTask": "FEAT-022",
+    "lastUpdated": "2026-06-12T13:00:00.000Z",
+    "currentTask": "FEAT-023",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -24,11 +24,18 @@
       "FEAT-019",
       "FEAT-020",
       "FEAT-021",
-      "FEAT-022"
+      "FEAT-022",
+      "FEAT-023"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-023",
+      "description": "Document Preview Page Part 2 - Side panel with OCR intelligence, linked PL workspace navigation, search & dedup panel, document summary grid",
+      "status": "completed",
+      "dependsOn": ["FEAT-022"]
+    },
     {
       "id": "FEAT-022",
       "description": "Document Preview Page rewrite Part 1 - Full floating overlay with PDF/image viewer, keyboard shortcuts, minimize/restore, back navigation, status/dedup badges",
