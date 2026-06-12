@@ -8,8 +8,35 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { MockPlNumber, PlCategory } from "@/lib/mock-data/pl-numbers";
 import { cn } from "@/lib/utils";
+
+export interface PlRow {
+  id: string;
+  plNumber: string;
+  name: string;
+  description: string | null;
+  category: "CAT-A" | "CAT-B" | "CAT-C" | "CAT-D";
+  status: "active" | "inactive" | "deprecated" | "under_review" | "obsolete";
+  safetyCritical: boolean;
+  drawingRef: string | null;
+  specification: string | null;
+  unit: string | null;
+  workshop: string | null;
+  manufacturer: string | null;
+  vendorCode: string | null;
+  partFamily: string | null;
+  lifecycleStage: "draft" | "active" | "restricted" | "obsolete" | "deprecated" | null;
+  lastUsedAt: Date | string | null;
+  metadataJson: string | null;
+  searchVector: string | null;
+  workspaceId: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+type PlCategory = "CAT-A" | "CAT-B" | "CAT-C" | "CAT-D";
 
 function getCategoryBadgeClass(category: PlCategory): string {
   switch (category) {
@@ -39,7 +66,7 @@ function mapPlStatus(status: string): StatusType {
   }
 }
 
-const columns: ColumnDef<MockPlNumber, unknown>[] = [
+const columns: ColumnDef<PlRow, unknown>[] = [
   {
     accessorKey: "plNumber",
     header: "PL Number",
@@ -87,6 +114,20 @@ const columns: ColumnDef<MockPlNumber, unknown>[] = [
     size: 120,
   },
   {
+    accessorKey: "lifecycleStage",
+    header: "Lifecycle",
+    cell: ({ row }) => {
+      const stage = row.original.lifecycleStage;
+      if (!stage) return <span className="text-xs text-muted-foreground">-</span>;
+      return (
+        <span className="text-xs capitalize text-muted-foreground">
+          {stage.replace("_", " ")}
+        </span>
+      );
+    },
+    size: 100,
+  },
+  {
     accessorKey: "safetyCritical",
     header: "Safety",
     cell: ({ row }) =>
@@ -108,7 +149,7 @@ const columns: ColumnDef<MockPlNumber, unknown>[] = [
     accessorKey: "workshop",
     header: "Workshop",
     cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">{row.original.workshop}</span>
+      <span className="text-xs text-muted-foreground">{row.original.workshop ?? "-"}</span>
     ),
     size: 140,
   },
@@ -137,7 +178,7 @@ const columns: ColumnDef<MockPlNumber, unknown>[] = [
 ];
 
 interface PlTableProps {
-  data: MockPlNumber[];
+  data: PlRow[];
   className?: string;
 }
 

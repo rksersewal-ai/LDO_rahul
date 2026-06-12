@@ -1,81 +1,200 @@
 "use client";
 
 import { Wrench } from "lucide-react";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadingState } from "@/components/ui/loading-state";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
+import { trpc } from "@/lib/trpc/client";
 
-// Mock work records data for demonstration
-const mockWorkRecords = [
-  {
-    id: "wr-001",
-    date: "2024-12-10",
-    category: "Inspection",
-    description: "Periodic dimensional inspection",
-    status: "Completed",
-    officer: "S.K. Sharma",
-  },
-  {
-    id: "wr-002",
-    date: "2024-11-22",
-    category: "Maintenance",
-    description: "Routine maintenance check",
-    status: "Completed",
-    officer: "R.P. Singh",
-  },
-  {
-    id: "wr-003",
-    date: "2024-11-05",
-    category: "Testing",
-    description: "Performance validation test",
-    status: "In Progress",
-    officer: "A.K. Gupta",
-  },
+interface PlWorkTabProps {
+  plId: string;
+}
+
+function mapWorkStatus(status: string): StatusType {
+  switch (status) {
+    case "completed":
+      return "done";
+    case "in_progress":
+      return "in_process";
+    case "open":
+      return "pending";
+    case "on_hold":
+      return "blocked";
+    case "cancelled":
+      return "failed";
+    default:
+      return "pending";
+  }
+}
+
+const statusOptions = [
+  { value: "", label: "All Statuses" },
+  { value: "open", label: "Open" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "completed", label: "Completed" },
+  { value: "on_hold", label: "On Hold" },
+  { value: "cancelled", label: "Cancelled" },
 ];
 
-export function PlWorkTab() {
-  if (mockWorkRecords.length === 0) {
+export function PlWorkTab({ plId }: PlWorkTabProps) {
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("");
+  const pageSize = 10;
+
+  const { data, isLoading, error } = trpc.pl.getWorkRecords.useQuery({
+    plId,
+    page,
+    pageSize,
+    status: statusFilter || undefined,
+  });
+
+  if (isLoading) {
+    return <LoadingState variant="table" rows={5} />;
+  }
+
+  if (error) {
     return (
-      <EmptyState
-        icon={<Wrench className="h-5 w-5" />}
-        title="No work records"
-        description="Work records referencing this PL number will appear here."
-      />
+      <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
+        <p className="text-sm text-destructive">Failed to load work records: {error.message}</p>
+      </div>
     );
   }
 
+  if (!data || data.data.length === 0) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val ?? ""); setPage(1); }}>
+            <SelectTrigger size="sm" className="w-[140px] text-xs">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              {statusOptions.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <EmptyState
+          icon={<Wrench className="h-5 w-5" />}
+          title="No work records"
+          description="Work records referencing this PL number will appear here."
+        />
+      </div>
+    );
+  }
+
+  const totalPages = Math.ceil(data.totalCount / pageSize);
+
   return (
-    <div className="rounded-md border">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b bg-muted/50">
-            <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-              Date
-            </th>
-            <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-              Category
-            </th>
-            <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-              Description
-            </th>
-            <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-              Status
-            </th>
-            <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-              Officer
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {mockWorkRecords.map((record) => (
-            <tr key={record.id} className="border-b last:border-b-0 hover:bg-muted/30">
-              <td className="px-3 py-2 text-muted-foreground">{record.date}</td>
-              <td className="px-3 py-2">{record.category}</td>
-              <td className="px-3 py-2">{record.description}</td>
-              <td className="px-3 py-2">{record.status}</td>
-              <td className="px-3 py-2 text-muted-foreground">{record.officer}</td>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val ?? ""); setPage(1); }}>
+          <SelectTrigger size="sm" className="w-[140px] text-xs">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            {statusOptions.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          {data.totalCount} record{data.totalCount !== 1 ? "s" : ""}
+        </p>
+      </div>
+
+      <div className="rounded-md border">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Work Order #
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Title
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Priority
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Workshop
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Created
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.data.map((record) => (
+              <tr key={record.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                <td className="px-3 py-2 font-mono font-medium">{record.workOrderNumber}</td>
+                <td className="px-3 py-2 truncate max-w-[200px]">{record.title}</td>
+                <td className="px-3 py-2">
+                  <StatusBadge
+                    status={mapWorkStatus(record.status)}
+                    label={record.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <Badge variant="outline" className="text-[10px]">
+                    {record.priority}
+                  </Badge>
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">{record.workshop}</td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {new Date(record.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-xs"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-xs"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

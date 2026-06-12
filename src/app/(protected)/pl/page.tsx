@@ -8,8 +8,9 @@ import { type PlFilterState, PlFilters } from "@/components/pl/pl-filters";
 import { PlTable } from "@/components/pl/pl-table";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Button } from "@/components/ui/button";
+import { LoadingState } from "@/components/ui/loading-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { trpc } from "@/lib/trpc/client";
 
 export default function PlHubPage() {
   const [filters, setFilters] = useState<PlFilterState>({
@@ -17,37 +18,46 @@ export default function PlHubPage() {
     category: "",
     status: "",
     workshop: "",
+    lifecycleStage: "",
     safetyOnly: false,
   });
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(25);
 
-  // Apply filters to mock data client-side for now
-  const filteredData = MOCK_PL_NUMBERS.filter((pl) => {
-    if (
-      filters.search &&
-      !pl.plNumber.includes(filters.search) &&
-      !pl.name.toLowerCase().includes(filters.search.toLowerCase()) &&
-      !pl.description.toLowerCase().includes(filters.search.toLowerCase())
-    ) {
-      return false;
-    }
-    if (filters.category && pl.category !== filters.category) return false;
-    if (filters.status && pl.status !== filters.status) return false;
-    if (filters.workshop && pl.workshop !== filters.workshop) return false;
-    if (filters.safetyOnly && !pl.safetyCritical) return false;
-    return true;
+  const { data, isLoading, error, refetch } = trpc.pl.list.useQuery({
+    search: filters.search || undefined,
+    category: (filters.category as "CAT-A" | "CAT-B" | "CAT-C" | "CAT-D") || undefined,
+    status:
+      (filters.status as
+        | "active"
+        | "inactive"
+        | "deprecated"
+        | "under_review"
+        | "obsolete") || undefined,
+    workshop: filters.workshop || undefined,
+    lifecycleStage:
+      (filters.lifecycleStage as
+        | "draft"
+        | "active"
+        | "restricted"
+        | "obsolete"
+        | "deprecated") || undefined,
+    safetyCritical: filters.safetyOnly ? true : undefined,
+    page,
+    pageSize,
   });
 
   const exportRows = useMemo(
     () =>
-      filteredData.map((pl) => [
+      (data?.data ?? []).map((pl) => [
         pl.plNumber,
         pl.name,
         pl.category,
         pl.status,
-        pl.workshop,
+        pl.workshop ?? "",
         pl.safetyCritical ? "Yes" : "No",
       ]),
-    [filteredData],
+    [data],
   );
 
   return (
@@ -58,7 +68,12 @@ export default function PlHubPage() {
           subtitle="Central registry of all Parts List numbers"
           actions={
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => refetch()}
+              >
                 <RefreshCw className="h-3 w-3" />
                 Refresh
               </Button>
@@ -77,17 +92,51 @@ export default function PlHubPage() {
         />
 
         {/* Filters toolbar */}
-        <PlFilters filters={filters} onFiltersChange={setFilters} />
+        <PlFilters filters={filters} onFiltersChange={(f) => { setFilters(f); setPage(1); }} />
 
         {/* Results info */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            Showing {filteredData.length} of {MOCK_PL_NUMBERS.length} PL numbers
+            {data
+              ? `Showing ${data.data.length} of ${data.totalCount} PL numbers (page ${data.page})`
+              : "Loading..."}
           </p>
+          {data && data.totalCount > pageSize && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs"
+                disabled={page * pageSize >= data.totalCount}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* Data Table */}
-        <PlTable data={filteredData} />
+        {/* Loading / Error / Data Table */}
+        {isLoading ? (
+          <LoadingState variant="table" rows={8} />
+        ) : error ? (
+          <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
+            <p className="text-sm text-destructive">
+              Failed to load PL numbers: {error.message}
+            </p>
+          </div>
+        ) : (
+          <PlTable data={data?.data ?? []} />
+        )}
       </div>
     </PageFrame>
   );

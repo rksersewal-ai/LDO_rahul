@@ -12,10 +12,10 @@ import { PlOverviewTab } from "@/components/pl/pl-overview-tab";
 import { PlWorkTab } from "@/components/pl/pl-work-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadingState } from "@/components/ui/loading-state";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 function getCategoryBadgeClass(category: string): string {
@@ -50,13 +50,23 @@ function mapPlStatus(status: string): StatusType {
 
 export default function PlDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const pl = MOCK_PL_NUMBERS.find((p) => p.id === id);
+  const { data: pl, isLoading, error } = trpc.pl.getById.useQuery({ id });
 
-  if (!pl) {
+  if (isLoading) {
+    return (
+      <PageFrame>
+        <LoadingState variant="card" rows={3} />
+      </PageFrame>
+    );
+  }
+
+  if (error || !pl) {
     return (
       <PageFrame>
         <div className="flex flex-col items-center justify-center gap-4 py-20">
-          <p className="text-sm text-muted-foreground">PL number not found</p>
+          <p className="text-sm text-muted-foreground">
+            {error ? error.message : "PL number not found"}
+          </p>
           <Button variant="outline" size="sm" render={<Link href="/pl" />}>
             Back to PL Hub
           </Button>
@@ -64,9 +74,6 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
       </PageFrame>
     );
   }
-
-  // Get linked documents
-  const linkedDocuments = MOCK_DOCUMENTS.filter((doc) => doc.linkedPlIds.includes(pl.id));
 
   return (
     <PageFrame size="xl">
@@ -97,6 +104,11 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
                 status={mapPlStatus(pl.status)}
                 label={pl.status.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
               />
+              {pl.lifecycleStage && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {pl.lifecycleStage.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                </Badge>
+              )}
               {pl.safetyCritical && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
                   <Shield className="h-3 w-3" />
@@ -113,16 +125,10 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
         <Tabs defaultValue="overview">
           <TabsList variant="line">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="documents">
-              Documents
-              {linkedDocuments.length > 0 && (
-                <Badge variant="secondary" className="ml-1.5 text-[10px] h-4 px-1.5">
-                  {linkedDocuments.length}
-                </Badge>
-              )}
-            </TabsTrigger>
+            <TabsTrigger value="documents">Documents</TabsTrigger>
             <TabsTrigger value="bom">BOM</TabsTrigger>
             <TabsTrigger value="work">Work Records</TabsTrigger>
+            <TabsTrigger value="traceability">Traceability</TabsTrigger>
             <TabsTrigger value="cases">Cases</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
@@ -132,15 +138,19 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
           </TabsContent>
 
           <TabsContent value="documents" className="mt-4">
-            <PlDocumentsTab documents={linkedDocuments} plId={pl.id} />
+            <PlDocumentsTab plId={pl.id} />
           </TabsContent>
 
           <TabsContent value="bom" className="mt-4">
-            <PlBomTab />
+            <PlBomTab plId={pl.id} />
           </TabsContent>
 
           <TabsContent value="work" className="mt-4">
-            <PlWorkTab />
+            <PlWorkTab plId={pl.id} />
+          </TabsContent>
+
+          <TabsContent value="traceability" className="mt-4">
+            <TraceabilityTab plId={pl.id} />
           </TabsContent>
 
           <TabsContent value="cases" className="mt-4">
@@ -153,5 +163,48 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
         </Tabs>
       </div>
     </PageFrame>
+  );
+}
+
+// Inline traceability tab for the detail page
+function TraceabilityTab({ plId }: { plId: string }) {
+  const { data: summary, isLoading: summaryLoading } = trpc.pl.getTraceabilitySummary.useQuery({ plId });
+
+  if (summaryLoading) {
+    return <LoadingState variant="card" rows={2} />;
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">Documents</p>
+            <p className="text-2xl font-bold">{summary.documents}</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">BOM Products</p>
+            <p className="text-2xl font-bold">{summary.bomProducts}</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">BOM Components</p>
+            <p className="text-2xl font-bold">{summary.bomComponents}</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">Work Records</p>
+            <p className="text-2xl font-bold">{summary.workRecords}</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">OCR Hits</p>
+            <p className="text-2xl font-bold">{summary.ocrHits}</p>
+          </div>
+        </div>
+      )}
+      <div className="text-xs text-muted-foreground">
+        <Link href={`/pl/${plId}/traceability`} className="text-primary hover:underline">
+          View full traceability details
+        </Link>
+      </div>
+    </div>
   );
 }

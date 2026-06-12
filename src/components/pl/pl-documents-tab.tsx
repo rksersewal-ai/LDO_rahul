@@ -1,118 +1,40 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
-import { Link2, Plus, Unlink } from "lucide-react";
+import { Link2, Plus } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
-import type { MockDocument } from "@/lib/mock-data/documents";
+import { LoadingState } from "@/components/ui/loading-state";
+import { trpc } from "@/lib/trpc/client";
 
 interface PlDocumentsTabProps {
-  documents: MockDocument[];
   plId: string;
 }
 
-function mapDocStatus(status: string): StatusType {
-  switch (status) {
-    case "ACTIVE":
-    case "APPROVED":
-      return "done";
-    case "UNDER_REVIEW":
-      return "in_process";
-    case "DRAFT":
-      return "pending";
-    case "OBSOLETE":
-      return "failed";
-    default:
-      return "pending";
+export function PlDocumentsTab({ plId }: PlDocumentsTabProps) {
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  const { data, isLoading, error } = trpc.pl.getDocuments.useQuery({
+    plId,
+    page,
+    pageSize,
+  });
+
+  if (isLoading) {
+    return <LoadingState variant="table" rows={5} />;
   }
-}
 
-function mapOcrStatus(status: string): StatusType {
-  switch (status) {
-    case "COMPLETED":
-      return "done";
-    case "PROCESSING":
-      return "in_process";
-    case "PENDING":
-      return "pending";
-    case "FAILED":
-    case "FLAGGED":
-      return "failed";
-    default:
-      return "pending";
+  if (error) {
+    return (
+      <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
+        <p className="text-sm text-destructive">Failed to load documents: {error.message}</p>
+      </div>
+    );
   }
-}
 
-const columns: ColumnDef<MockDocument, unknown>[] = [
-  {
-    accessorKey: "documentNumber",
-    header: "Document #",
-    cell: ({ row }) => (
-      <span className="font-mono text-xs font-medium">{row.original.documentNumber}</span>
-    ),
-    size: 130,
-  },
-  {
-    accessorKey: "title",
-    header: "Title",
-    cell: ({ row }) => (
-      <span className="truncate text-xs max-w-[200px] block">{row.original.title}</span>
-    ),
-    size: 200,
-  },
-  {
-    accessorKey: "category",
-    header: "Category",
-    cell: ({ row }) => (
-      <Badge variant="secondary" className="text-[10px]">
-        {row.original.category}
-      </Badge>
-    ),
-    size: 120,
-  },
-  {
-    accessorKey: "revision",
-    header: "Rev",
-    cell: ({ row }) => <span className="text-xs">{row.original.revision}</span>,
-    size: 60,
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <StatusBadge
-        status={mapDocStatus(row.original.status)}
-        label={row.original.status.replace("_", " ")}
-      />
-    ),
-    size: 110,
-  },
-  {
-    accessorKey: "ocrStatus",
-    header: "OCR",
-    cell: ({ row }) => (
-      <StatusBadge status={mapOcrStatus(row.original.ocrStatus)} label={row.original.ocrStatus} />
-    ),
-    size: 110,
-  },
-  {
-    id: "actions",
-    header: "",
-    cell: () => (
-      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" title="Unlink document">
-        <Unlink className="h-3 w-3 text-muted-foreground" />
-      </Button>
-    ),
-    size: 40,
-    enableSorting: false,
-  },
-];
-
-export function PlDocumentsTab({ documents, plId: _plId }: PlDocumentsTabProps) {
-  if (documents.length === 0) {
+  if (!data || data.data.length === 0) {
     return (
       <EmptyState
         icon={<Link2 className="h-5 w-5" />}
@@ -124,18 +46,98 @@ export function PlDocumentsTab({ documents, plId: _plId }: PlDocumentsTabProps) 
     );
   }
 
+  const totalPages = Math.ceil(data.totalCount / pageSize);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          {documents.length} document{documents.length !== 1 ? "s" : ""} linked
+          {data.totalCount} document{data.totalCount !== 1 ? "s" : ""} linked
         </p>
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
           <Plus className="h-3 w-3" />
           Link Document
         </Button>
       </div>
-      <DataTable columns={columns} data={documents} />
+
+      <div className="rounded-md border">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Document #
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Title
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Category
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Link Type
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Confidence
+              </th>
+              <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                Linked At
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.data.map((doc) => (
+              <tr key={doc.linkId} className="border-b last:border-b-0 hover:bg-muted/30">
+                <td className="px-3 py-2 font-mono font-medium">{doc.documentNumber}</td>
+                <td className="px-3 py-2 truncate max-w-[200px]">{doc.title}</td>
+                <td className="px-3 py-2">
+                  <Badge variant="secondary" className="text-[10px]">
+                    {doc.category}
+                  </Badge>
+                </td>
+                <td className="px-3 py-2">
+                  <Badge variant="outline" className="text-[10px]">
+                    {doc.linkType.replace(/_/g, " ")}
+                  </Badge>
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {doc.confidence != null ? `${Math.round(doc.confidence * 100)}%` : "-"}
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {doc.linkedAt ? new Date(doc.linkedAt).toLocaleDateString() : "-"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-xs"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-xs"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
