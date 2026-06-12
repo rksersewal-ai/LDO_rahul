@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T10:00:00.000Z",
-    "currentTask": "FEAT-020",
+    "lastUpdated": "2026-06-12T11:00:00.000Z",
+    "currentTask": "FEAT-021",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -22,11 +22,18 @@
       "FEAT-017",
       "FEAT-018",
       "FEAT-019",
-      "FEAT-020"
+      "FEAT-020",
+      "FEAT-021"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-021",
+      "description": "Enhanced DataTable component with density toggle (dense 34px / normal 38px), pagination with page info, column visibility toggle dropdown, and bulk action toolbar when rows selected",
+      "status": "completed",
+      "dependsOn": ["FEAT-006", "FEAT-020"]
+    },
     {
       "id": "FEAT-020",
       "description": "Multi-format Export Service (Excel/Word/PDF) with dropdown menus on all major tables - install xlsx, create ExportService utility, add ExportDropdown component, wire into DocumentHub, WorkLedger, BOM, PL pages",
