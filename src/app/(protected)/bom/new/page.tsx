@@ -47,6 +47,8 @@ export default function NewProductPage() {
       description: description.trim(),
       version: "1.0",
       status: "draft",
+      category: "locomotive",
+      lifecycle: "development",
       createdBy: "u-001-admin",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
