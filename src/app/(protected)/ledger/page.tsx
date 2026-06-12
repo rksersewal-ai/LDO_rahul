@@ -147,7 +147,7 @@ export default function WorkLedgerPage() {
                   <Plus className="h-3 w-3" />
                   New Record
                 </DialogTrigger>
-                <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-10xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Create Work Record</DialogTitle>
                     <DialogDescription>
