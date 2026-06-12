@@ -1,4 +1,4 @@
-import { index, integer, pgTable, real, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, real, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { plNumbers } from "./pl-numbers";
 
 export const bomProducts = pgTable(
@@ -13,6 +13,10 @@ export const bomProducts = pgTable(
     createdBy: text("created_by"),
     updatedBy: text("updated_by"),
     workspaceId: text("workspace_id"),
+    approvalStatus: varchar("approval_status", { length: 16 }).notNull().default("draft"),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    cloneSourceId: text("clone_source_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -39,6 +43,11 @@ export const bomEntries = pgTable(
     specification: varchar("specification", { length: 255 }),
     drawingRef: varchar("drawing_ref", { length: 64 }),
     remarks: text("remarks"),
+    parentId: text("parent_id"),
+    position: integer("position").notNull().default(0),
+    type: varchar("type", { length: 32 }),
+    effectivityDate: timestamp("effectivity_date", { withTimezone: true }),
+    isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
