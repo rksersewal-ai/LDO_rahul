@@ -5,6 +5,9 @@ declare module "next-auth" {
     role?: string;
     department?: string;
     designation?: string;
+    workspaceId?: string | null;
+    clearanceLevel?: string | null;
+    forcePasswordChange?: boolean;
   }
 
   interface Session {
@@ -15,6 +18,9 @@ declare module "next-auth" {
       role: string;
       department: string;
       designation: string;
+      workspaceId: string | null;
+      clearanceLevel: string | null;
+      forcePasswordChange: boolean;
     };
   }
 }
@@ -25,5 +31,8 @@ declare module "next-auth/jwt" {
     userId?: string;
     department?: string;
     designation?: string;
+    workspaceId?: string | null;
+    clearanceLevel?: string | null;
+    forcePasswordChange?: boolean;
   }
 }

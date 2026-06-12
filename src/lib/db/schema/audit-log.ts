@@ -16,6 +16,9 @@ export const auditLog = pgTable(
     userAgent: text("user_agent"),
     hashChain: varchar("hash_chain", { length: 64 }),
     previousHash: varchar("previous_hash", { length: 64 }),
+    workspaceId: text("workspace_id"),
+    oldValue: text("old_value"),
+    newValue: text("new_value"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

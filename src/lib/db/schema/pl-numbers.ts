@@ -26,6 +26,7 @@ export const plNumbers = pgTable(
     searchVector: text("search_vector"),
     createdBy: text("created_by"),
     updatedBy: text("updated_by"),
+    workspaceId: text("workspace_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

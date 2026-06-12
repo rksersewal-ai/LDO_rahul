@@ -40,6 +40,7 @@ export const workRecords = pgTable(
     dueDate: timestamp("due_date", { withTimezone: true }),
     createdBy: text("created_by"),
     updatedBy: text("updated_by"),
+    workspaceId: text("workspace_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

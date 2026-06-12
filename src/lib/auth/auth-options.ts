@@ -1,6 +1,11 @@
+import bcrypt from "bcryptjs";
+import { eq, or } from "drizzle-orm";
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { MOCK_USERS } from "@/lib/mock-data/users";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
+
+const MAX_FAILED_ATTEMPTS = 5;
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -16,11 +21,48 @@ export const authConfig: NextAuthConfig = {
 
         if (!username || !password) return null;
 
-        const user = MOCK_USERS.find(
-          (u) => u.username === username && u.password === password && u.isActive,
-        );
+        // Query user by username or email, must be active
+        const [user] = await db
+          .select()
+          .from(users)
+          .where(or(eq(users.username, username), eq(users.email, username)))
+          .limit(1);
 
-        if (!user) return null;
+        if (!user?.isActive) return null;
+
+        // Check if account is locked
+        if (user.lockedAt) {
+          return null;
+        }
+
+        // Verify password with bcrypt
+        const isValid = await bcrypt.compare(password, user.passwordHash);
+
+        if (!isValid) {
+          // Increment failed attempts
+          const newAttempts = user.failedLoginAttempts + 1;
+          const updateData: Record<string, unknown> = {
+            failedLoginAttempts: newAttempts,
+          };
+
+          // Lock account if threshold reached
+          if (newAttempts >= MAX_FAILED_ATTEMPTS) {
+            updateData.lockedAt = new Date();
+            updateData.lockReason = "Account locked due to multiple failed login attempts";
+          }
+
+          await db.update(users).set(updateData).where(eq(users.id, user.id));
+          return null;
+        }
+
+        // Successful login: reset failed attempts, update lastLogin
+        await db
+          .update(users)
+          .set({
+            failedLoginAttempts: 0,
+            lastLogin: new Date(),
+          })
+          .where(eq(users.id, user.id));
 
         return {
           id: user.id,
@@ -29,6 +71,9 @@ export const authConfig: NextAuthConfig = {
           role: user.role,
           department: user.department,
           designation: user.designation,
+          workspaceId: user.workspaceId,
+          clearanceLevel: user.clearanceLevel,
+          forcePasswordChange: user.forcePasswordChange,
         };
       },
     }),
@@ -43,10 +88,14 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
+        const u = user as Record<string, unknown>;
+        token.role = u.role;
         token.userId = user.id;
-        token.department = user.department;
-        token.designation = user.designation;
+        token.department = u.department;
+        token.designation = u.designation;
+        token.workspaceId = u.workspaceId;
+        token.clearanceLevel = u.clearanceLevel;
+        token.forcePasswordChange = u.forcePasswordChange;
       }
       return token;
     },
@@ -56,6 +105,9 @@ export const authConfig: NextAuthConfig = {
         session.user.role = token.role as string;
         session.user.department = token.department as string;
         session.user.designation = token.designation as string;
+        session.user.workspaceId = (token.workspaceId as string) ?? null;
+        session.user.clearanceLevel = (token.clearanceLevel as string) ?? null;
+        session.user.forcePasswordChange = (token.forcePasswordChange as boolean) ?? false;
       }
       return session;
     },

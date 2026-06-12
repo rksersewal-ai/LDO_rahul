@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { auth } from "@/lib/auth";
 import { isRoleAtLeast } from "@/lib/auth/permissions";
-import type { UserRole } from "@/lib/mock-data/users";
+import type { UserRole } from "@/lib/types/auth";
 
 export async function createContext() {
   const session = await auth();

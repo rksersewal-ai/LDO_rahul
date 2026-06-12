@@ -23,6 +23,7 @@ export const notifications = pgTable(
     isRead: boolean("is_read").notNull().default(false),
     readAt: timestamp("read_at", { withTimezone: true }),
     actionUrl: text("action_url"),
+    workspaceId: text("workspace_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
