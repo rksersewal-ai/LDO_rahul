@@ -385,6 +385,7 @@ export const approvalsRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
+      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
       const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
 
       const [request] = await db
@@ -399,6 +400,27 @@ export const approvalsRouter = router({
 
       if (request.status !== "pending") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Approval request is not pending" });
+      }
+
+      // Verify user has the required role for the current step
+      if (request.currentStep) {
+        const [currentStep] = await db
+          .select()
+          .from(approvalSteps)
+          .where(
+            and(
+              eq(approvalSteps.requestId, input.requestId),
+              eq(approvalSteps.stepOrder, request.currentStep),
+            ),
+          )
+          .limit(1);
+
+        if (currentStep && !isRoleAtLeast(userRole, currentStep.roleRequired as UserRole)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Requires role "${currentStep.roleRequired}" or higher to reject this request`,
+          });
+        }
       }
 
       const now = new Date();

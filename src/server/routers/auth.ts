@@ -1,3 +1,4 @@
+// TODO: Add rate limiting
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
