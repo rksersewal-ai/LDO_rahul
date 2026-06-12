@@ -25,6 +25,7 @@ export const ocrJobs = pgTable(
     documentId: text("document_id")
       .notNull()
       .references(() => documents.id),
+    workspaceId: text("workspace_id"),
     status: ocrJobStatusEnum("ocr_job_status").notNull().default("queued"),
     engine: varchar("engine", { length: 64 }).default("tesseract"),
     language: varchar("language", { length: 16 }).default("eng"),
