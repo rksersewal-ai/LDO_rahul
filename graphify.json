@@ -23,6 +23,12 @@
   },
   "tasks": [
     {
+      "id": "FEAT-018",
+      "description": "Work Assignment Notifications and My Pending Works - auto-generate notifications on work assignment, My Pending Works tab in notifications page, supervisor work assignment endpoint",
+      "status": "completed",
+      "dependsOn": ["FEAT-012", "FEAT-017"]
+    },
+    {
       "id": "FEAT-017",
       "description": "Admin-Controlled Security and Password Management - password reset, force change on next login, account lock/unlock in user management",
       "status": "completed",

@@ -35,6 +35,9 @@ export interface MockWorkRecord {
   verifiedAt: string | null;
   verifiedBy: string | null;
   lockedAt: string | null;
+  assignedAt?: string | null;
+  assignedBy?: string | null;
+  assignedByName?: string | null;
 }
 
 function daysFromDates(start: string, end: string | null): number {
@@ -161,6 +164,9 @@ export const MOCK_WORK_RECORDS: MockWorkRecord[] = [
     verifiedAt: null,
     verifiedBy: null,
     lockedAt: null,
+    assignedAt: "2024-12-05T09:15:00Z",
+    assignedBy: "user-003",
+    assignedByName: "Shri A.K. Verma",
   },
   // Specification records
   {
@@ -250,6 +256,9 @@ export const MOCK_WORK_RECORDS: MockWorkRecord[] = [
     verifiedAt: null,
     verifiedBy: null,
     lockedAt: null,
+    assignedAt: "2024-12-05T11:30:00Z",
+    assignedBy: "user-003",
+    assignedByName: "Shri R.K. Sharma",
   },
   // Tender records
   {
@@ -310,6 +319,9 @@ export const MOCK_WORK_RECORDS: MockWorkRecord[] = [
     verifiedAt: null,
     verifiedBy: null,
     lockedAt: null,
+    assignedAt: "2024-12-06T09:10:00Z",
+    assignedBy: "user-003",
+    assignedByName: "Shri A.K. Verma",
   },
   {
     id: "wr-010",
@@ -457,6 +469,9 @@ export const MOCK_WORK_RECORDS: MockWorkRecord[] = [
     verifiedAt: null,
     verifiedBy: null,
     lockedAt: null,
+    assignedAt: "2024-12-10T09:05:00Z",
+    assignedBy: "user-003",
+    assignedByName: "Shri A.K. Verma",
   },
   // Testing records
   {

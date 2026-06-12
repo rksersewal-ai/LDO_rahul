@@ -1,6 +1,15 @@
 "use client";
 
-import { AlertCircle, Bell, CheckCircle2, FileText, Filter, Info, Shield } from "lucide-react";
+import {
+  AlertCircle,
+  Bell,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  Filter,
+  Info,
+  Shield,
+} from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
@@ -13,8 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MOCK_WORK_RECORDS } from "@/lib/mock-data/work-records";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/stores/notification-store";
+
+const CURRENT_USER_ID = "user-001";
 
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   approval: Shield,
@@ -51,9 +63,28 @@ function getTimeGroup(timestamp: string): "today" | "this_week" | "earlier" {
   return "earlier";
 }
 
+const priorityColors: Record<string, string> = {
+  CRITICAL: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  HIGH: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  MEDIUM: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  LOW: "bg-gray-100 text-gray-700 dark:bg-gray-800/30 dark:text-gray-300",
+};
+
+const statusColors: Record<string, string> = {
+  OPEN: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+  SUBMITTED: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+};
+
+function getDaysColor(daysTaken: number, targetDays: number): string {
+  if (daysTaken > targetDays) return "text-red-600 dark:text-red-400";
+  if (daysTaken > targetDays * 0.75) return "text-orange-600 dark:text-orange-400";
+  return "text-green-600 dark:text-green-400";
+}
+
 export default function NotificationsPage() {
   const { items, markRead, markAllRead, dismiss } = useNotificationStore();
   const [filter, setFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"notifications" | "pending">("notifications");
 
   const handleFilterChange = (value: string | null) => {
     setFilter(value ?? "all");
@@ -80,6 +111,25 @@ export default function NotificationsPage() {
 
   const unreadCount = items.filter((n) => !n.read).length;
 
+  const pendingWorks = useMemo(() => {
+    const pending = MOCK_WORK_RECORDS.filter(
+      (r) => r.userId === CURRENT_USER_ID && (r.status === "OPEN" || r.status === "SUBMITTED"),
+    );
+    const priorityOrder: Record<string, number> = {
+      CRITICAL: 0,
+      HIGH: 1,
+      MEDIUM: 2,
+      LOW: 3,
+    };
+    pending.sort((a, b) => {
+      const pa = priorityOrder[a.priority] ?? 4;
+      const pb = priorityOrder[b.priority] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return b.daysTaken - a.daysTaken;
+    });
+    return pending;
+  }, []);
+
   return (
     <PageFrame size="lg">
       <div className="flex flex-col gap-4">
@@ -100,72 +150,211 @@ export default function NotificationsPage() {
           }
         />
 
-        {/* Filter bar */}
-        <div className="flex items-center gap-3">
-          <Filter className="size-3.5 text-muted-foreground" />
-          <Select value={filter} onValueChange={handleFilterChange}>
-            <SelectTrigger className="w-[140px] h-7 text-xs">
-              <SelectValue placeholder="Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs">
-                All
-              </SelectItem>
-              <SelectItem value="unread" className="text-xs">
-                Unread only
-              </SelectItem>
-              <SelectItem value="action" className="text-xs">
-                Needs Action
-              </SelectItem>
-              <SelectItem value="fyi" className="text-xs">
-                FYI
-              </SelectItem>
-              <SelectItem value="system" className="text-xs">
-                System
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground ml-auto">
-            {filteredItems.length} notifications
-          </span>
+        {/* Tab navigation */}
+        <div className="flex items-center gap-1 border-b">
+          <button
+            type="button"
+            className={cn(
+              "px-4 py-2 text-xs font-semibold border-b-2 transition-colors",
+              activeTab === "notifications"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => setActiveTab("notifications")}
+          >
+            Notifications
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "px-4 py-2 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5",
+              activeTab === "pending"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => setActiveTab("pending")}
+          >
+            My Pending Works
+            {pendingWorks.length > 0 && (
+              <span className="inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold min-w-[16px] h-4 px-1">
+                {pendingWorks.length}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Notification groups */}
-        <div className="flex flex-col gap-6">
-          {filteredItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Bell className="size-10 text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">No notifications</p>
+        {activeTab === "notifications" && (
+          <>
+            {/* Filter bar */}
+            <div className="flex items-center gap-3">
+              <Filter className="size-3.5 text-muted-foreground" />
+              <Select value={filter} onValueChange={handleFilterChange}>
+                <SelectTrigger className="w-[140px] h-7 text-xs">
+                  <SelectValue placeholder="Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">
+                    All
+                  </SelectItem>
+                  <SelectItem value="unread" className="text-xs">
+                    Unread only
+                  </SelectItem>
+                  <SelectItem value="action" className="text-xs">
+                    Needs Action
+                  </SelectItem>
+                  <SelectItem value="fyi" className="text-xs">
+                    FYI
+                  </SelectItem>
+                  <SelectItem value="system" className="text-xs">
+                    System
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {filteredItems.length} notifications
+              </span>
             </div>
-          ) : (
-            <>
-              {grouped.today.length > 0 && (
-                <NotificationGroup
-                  title="Today"
-                  items={grouped.today}
-                  onMarkRead={markRead}
-                  onDismiss={dismiss}
-                />
+
+            {/* Notification groups */}
+            <div className="flex flex-col gap-6">
+              {filteredItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Bell className="size-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">No notifications</p>
+                </div>
+              ) : (
+                <>
+                  {grouped.today.length > 0 && (
+                    <NotificationGroup
+                      title="Today"
+                      items={grouped.today}
+                      onMarkRead={markRead}
+                      onDismiss={dismiss}
+                    />
+                  )}
+                  {grouped.this_week.length > 0 && (
+                    <NotificationGroup
+                      title="This Week"
+                      items={grouped.this_week}
+                      onMarkRead={markRead}
+                      onDismiss={dismiss}
+                    />
+                  )}
+                  {grouped.earlier.length > 0 && (
+                    <NotificationGroup
+                      title="Earlier"
+                      items={grouped.earlier}
+                      onMarkRead={markRead}
+                      onDismiss={dismiss}
+                    />
+                  )}
+                </>
               )}
-              {grouped.this_week.length > 0 && (
-                <NotificationGroup
-                  title="This Week"
-                  items={grouped.this_week}
-                  onMarkRead={markRead}
-                  onDismiss={dismiss}
-                />
-              )}
-              {grouped.earlier.length > 0 && (
-                <NotificationGroup
-                  title="Earlier"
-                  items={grouped.earlier}
-                  onMarkRead={markRead}
-                  onDismiss={dismiss}
-                />
-              )}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === "pending" && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                {pendingWorks.length} pending work record{pendingWorks.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+
+            {pendingWorks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <CheckCircle2 className="size-10 text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground">No pending works</p>
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-muted/50 border-b">
+                      <th className="text-left px-3 py-2 font-semibold text-muted-foreground">
+                        Date
+                      </th>
+                      <th className="text-left px-3 py-2 font-semibold text-muted-foreground">
+                        Category
+                      </th>
+                      <th className="text-left px-3 py-2 font-semibold text-muted-foreground">
+                        Description
+                      </th>
+                      <th className="text-left px-3 py-2 font-semibold text-muted-foreground">
+                        Priority
+                      </th>
+                      <th className="text-left px-3 py-2 font-semibold text-muted-foreground">
+                        Days/Target
+                      </th>
+                      <th className="text-left px-3 py-2 font-semibold text-muted-foreground">
+                        Status
+                      </th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingWorks.map((record) => (
+                      <tr
+                        key={record.id}
+                        className="border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                        style={{ height: "38px" }}
+                      >
+                        <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">
+                          {record.date}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                            {record.workCategory}
+                          </span>
+                        </td>
+                        <td
+                          className="px-3 py-1.5 max-w-[280px] truncate"
+                          title={record.description}
+                        >
+                          {record.description}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                              priorityColors[record.priority],
+                            )}
+                          >
+                            {record.priority}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          <span className={getDaysColor(record.daysTaken, record.targetDays)}>
+                            {record.daysTaken}/{record.targetDays}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                              statusColors[record.status],
+                            )}
+                          >
+                            {record.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <Link
+                            href="/ledger"
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            <ExternalLink className="size-3.5" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </PageFrame>
   );

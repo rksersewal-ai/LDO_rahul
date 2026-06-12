@@ -83,4 +83,58 @@ export const workRouter = router({
   getKPIs: protectedProcedure.input(getKPIsSchema).query(({ input }) => {
     return getWorkRecordKPIs(input);
   }),
+
+  assignWork: supervisorProcedure
+    .input(
+      z.object({
+        workRecordId: z.string(),
+        assignToUserId: z.string(),
+        assignToUserName: z.string(),
+      }),
+    )
+    .mutation(({ input, ctx }) => {
+      const record = getWorkRecordById(input.workRecordId);
+      if (!record) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Work record not found" });
+      }
+      const updated = updateWorkRecord(input.workRecordId, {
+        userId: input.assignToUserId,
+        userName: input.assignToUserName,
+        assignedAt: new Date().toISOString(),
+        assignedBy: ctx.session.user?.id || "unknown",
+        assignedByName: ctx.session.user?.name || "Unknown",
+      });
+      if (!updated) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot assign work record - it may not be in OPEN status",
+        });
+      }
+      return updated;
+    }),
+
+  getMyPendingWorks: protectedProcedure.query(({ ctx }) => {
+    const userId = ctx.session.user?.id || "";
+    const allRecords = listWorkRecords({
+      userId,
+      limit: 200,
+      offset: 0,
+      sortBy: "date",
+      sortOrder: "desc",
+    });
+    const pending = allRecords.data.filter((r) => r.status === "OPEN" || r.status === "SUBMITTED");
+    const priorityOrder: Record<string, number> = {
+      CRITICAL: 0,
+      HIGH: 1,
+      MEDIUM: 2,
+      LOW: 3,
+    };
+    pending.sort((a, b) => {
+      const pa = priorityOrder[a.priority] ?? 4;
+      const pb = priorityOrder[b.priority] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return b.daysTaken - a.daysTaken;
+    });
+    return pending;
+  }),
 });
