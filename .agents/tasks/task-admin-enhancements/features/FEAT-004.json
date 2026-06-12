@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Hierarchical KPI Reports - Admin/Supervisor can view individual user's work ledger and KPI. Add user dropdown filter on reports page, comparative team view (all members side by side), individual performance dashboard, and export capabilities for individual/team KPI reports.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Update the getKPIs endpoint in src/server/routers/work.ts to also accept an optional 'userIds' array parameter (in addition to the existing single userId). When userIds is provided, return KPI data for each user separately as an array of {userId, userName, ...kpiData}. This enables the comparative view. Use protectedProcedure but add a role check: if caller is not admin/supervisor, only allow querying own userId.",
     "2. Add a new endpoint 'getUserProductivity' in src/server/routers/work.ts (supervisorProcedure) that takes optional filters (dateFrom, dateTo) and returns an array of user productivity objects: {userId, userName, role, department, totalRecords, completedRecords, onTimeRecords, overdueRecords, avgDaysTaken, onTimePercentage} for all users. This powers the comparative view.",
@@ -29,5 +29,5 @@
     "Verify the build output includes /ledger/reports route without errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Build passes cleanly. Lint passes with zero issues after fixing non-null assertions in work.ts. The reports page uses client-side rendering (use client) with useSession for role-based UI. Chart width warnings during static generation are pre-existing (not viewport-specific). Used protectedProcedure for getUserProductivity endpoint per user instruction. The Select component uses base-ui pattern with value/onValueChange props."
 }
