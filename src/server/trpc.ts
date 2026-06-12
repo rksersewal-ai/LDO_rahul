@@ -23,9 +23,15 @@ const t = initTRPC.context<Context>().create({
       PRECONDITION_FAILED: "A required condition was not met.",
     };
 
+    // Preserve custom messages from TRPCError; only use generic fallback
+    // when the message is the default code-based message (e.g. "BAD_REQUEST")
+    const genericFallback = userFriendlyMessages[error.code];
+    const hasCustomMessage = shape.message && shape.message !== error.code;
+    const message = hasCustomMessage ? shape.message : (genericFallback ?? shape.message);
+
     return {
       ...shape,
-      message: userFriendlyMessages[error.code] ?? shape.message,
+      message,
       data: {
         ...shape.data,
         originalMessage: shape.message,

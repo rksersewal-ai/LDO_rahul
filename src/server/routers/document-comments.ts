@@ -148,6 +148,11 @@ export const documentCommentsRouter = router({
       eq(documentComments.workspaceId, workspaceId),
     ];
 
+    // Filter by versionId when provided
+    if (input.versionId) {
+      conditions.push(eq(documentComments.versionId, input.versionId));
+    }
+
     const allComments = await db
       .select({
         id: documentComments.id,
@@ -241,6 +246,14 @@ export const documentCommentsRouter = router({
 
     if (!comment) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Comment not found" });
+    }
+
+    // Only comment owner can delete their own comment
+    if (comment.createdBy !== userId) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "You can only delete your own comments",
+      });
     }
 
     // Soft delete

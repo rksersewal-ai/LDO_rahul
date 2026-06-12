@@ -1,4 +1,4 @@
-import { index, pgTable, primaryKey, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import { foreignKey, index, pgTable, primaryKey, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
 import { documents } from "./documents";
 
 export const cabinets = pgTable(
@@ -19,6 +19,7 @@ export const cabinets = pgTable(
     unique("uq_cabinets_workspace_parent_name").on(table.workspaceId, table.parentId, table.name),
     index("idx_cabinets_workspace_id").on(table.workspaceId),
     index("idx_cabinets_parent_id").on(table.parentId),
+    foreignKey({ columns: [table.parentId], foreignColumns: [table.id] }),
   ],
 );
 

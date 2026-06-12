@@ -98,43 +98,48 @@ export const documentVersionsRouter = router({
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
 
-    // Get next version number
-    const [maxResult] = await db
-      .select({ maxVersion: max(documentVersions.versionNumber) })
-      .from(documentVersions)
-      .where(eq(documentVersions.documentId, input.documentId));
-
-    const nextVersion = (maxResult?.maxVersion ?? 0) + 1;
-
-    // Unset previous current version
-    await db
-      .update(documentVersions)
-      .set({ isCurrentVersion: 0 })
-      .where(
-        and(
-          eq(documentVersions.documentId, input.documentId),
-          eq(documentVersions.isCurrentVersion, 1),
-        ),
-      );
-
-    // Insert new version
     const id = randomUUID();
     const now = new Date();
 
-    const [created] = await db
-      .insert(documentVersions)
-      .values({
-        id,
-        documentId: input.documentId,
-        versionNumber: nextVersion,
-        revision: input.revision ?? null,
-        changeNote: input.changeNote ?? null,
-        uploadedBy: userId,
-        uploadedAt: now,
-        isCurrentVersion: 1,
-        workspaceId,
-      })
-      .returning();
+    // Use transaction to prevent race conditions with concurrent uploads
+    const created = await db.transaction(async (tx) => {
+      // Get next version number
+      const [maxResult] = await tx
+        .select({ maxVersion: max(documentVersions.versionNumber) })
+        .from(documentVersions)
+        .where(eq(documentVersions.documentId, input.documentId));
+
+      const nextVersion = (maxResult?.maxVersion ?? 0) + 1;
+
+      // Unset previous current version
+      await tx
+        .update(documentVersions)
+        .set({ isCurrentVersion: 0 })
+        .where(
+          and(
+            eq(documentVersions.documentId, input.documentId),
+            eq(documentVersions.isCurrentVersion, 1),
+          ),
+        );
+
+      // Insert new version
+      const [inserted] = await tx
+        .insert(documentVersions)
+        .values({
+          id,
+          documentId: input.documentId,
+          versionNumber: nextVersion,
+          revision: input.revision ?? null,
+          changeNote: input.changeNote ?? null,
+          uploadedBy: userId,
+          uploadedAt: now,
+          isCurrentVersion: 1,
+          workspaceId,
+        })
+        .returning();
+
+      return inserted;
+    });
 
     await createAuditEntry(db, {
       userId,
@@ -142,8 +147,8 @@ export const documentVersionsRouter = router({
       action: "document_version.upload",
       resourceType: "document_version",
       resourceId: id,
-      resourceTitle: `${doc.title} v${nextVersion}`,
-      details: `Uploaded version ${nextVersion} for document "${doc.title}"${input.changeNote ? `: ${input.changeNote}` : ""}`,
+      resourceTitle: `${doc.title} v${created.versionNumber}`,
+      details: `Uploaded version ${created.versionNumber} for document "${doc.title}"${input.changeNote ? `: ${input.changeNote}` : ""}`,
       workspaceId,
     });
 
@@ -211,53 +216,58 @@ export const documentVersionsRouter = router({
       throw new TRPCError({ code: "NOT_FOUND", message: "Version not found" });
     }
 
-    // Get next version number
-    const [maxResult] = await db
-      .select({ maxVersion: max(documentVersions.versionNumber) })
-      .from(documentVersions)
-      .where(eq(documentVersions.documentId, input.documentId));
-
-    const nextVersion = (maxResult?.maxVersion ?? 0) + 1;
-
-    // Unset previous current version
-    await db
-      .update(documentVersions)
-      .set({ isCurrentVersion: 0 })
-      .where(
-        and(
-          eq(documentVersions.documentId, input.documentId),
-          eq(documentVersions.isCurrentVersion, 1),
-        ),
-      );
-
-    // Create new version as a copy of the target
     const id = randomUUID();
     const now = new Date();
 
-    const [restored] = await db
-      .insert(documentVersions)
-      .values({
-        id,
-        documentId: input.documentId,
-        versionNumber: nextVersion,
-        revision: targetVersion.revision,
-        filePath: targetVersion.filePath,
-        fileSize: targetVersion.fileSize,
-        fileHash: targetVersion.fileHash,
-        mimeType: targetVersion.mimeType,
-        originalFilename: targetVersion.originalFilename,
-        ocrStatus: targetVersion.ocrStatus,
-        ocrText: targetVersion.ocrText,
-        ocrConfidence: targetVersion.ocrConfidence,
-        thumbnailPath: targetVersion.thumbnailPath,
-        pageCount: targetVersion.pageCount,
-        changeNote: `Restored from version ${input.versionNumber}`,
-        uploadedBy: userId,
-        uploadedAt: now,
-        isCurrentVersion: 1,
-        workspaceId,
-      })
-      .returning();
+    // Use transaction to prevent race conditions with concurrent restores
+    const restored = await db.transaction(async (tx) => {
+      // Get next version number
+      const [maxResult] = await tx
+        .select({ maxVersion: max(documentVersions.versionNumber) })
+        .from(documentVersions)
+        .where(eq(documentVersions.documentId, input.documentId));
+
+      const nextVersion = (maxResult?.maxVersion ?? 0) + 1;
+
+      // Unset previous current version
+      await tx
+        .update(documentVersions)
+        .set({ isCurrentVersion: 0 })
+        .where(
+          and(
+            eq(documentVersions.documentId, input.documentId),
+            eq(documentVersions.isCurrentVersion, 1),
+          ),
+        );
+
+      // Create new version as a copy of the target
+      const [created] = await tx
+        .insert(documentVersions)
+        .values({
+          id,
+          documentId: input.documentId,
+          versionNumber: nextVersion,
+          revision: targetVersion.revision,
+          filePath: targetVersion.filePath,
+          fileSize: targetVersion.fileSize,
+          fileHash: targetVersion.fileHash,
+          mimeType: targetVersion.mimeType,
+          originalFilename: targetVersion.originalFilename,
+          ocrStatus: targetVersion.ocrStatus,
+          ocrText: targetVersion.ocrText,
+          ocrConfidence: targetVersion.ocrConfidence,
+          thumbnailPath: targetVersion.thumbnailPath,
+          pageCount: targetVersion.pageCount,
+          changeNote: `Restored from version ${input.versionNumber}`,
+          uploadedBy: userId,
+          uploadedAt: now,
+          isCurrentVersion: 1,
+          workspaceId,
+        })
+        .returning();
+
+      return created;
+    });
 
     await createAuditEntry(db, {
       userId,
@@ -265,8 +275,8 @@ export const documentVersionsRouter = router({
       action: "document_version.restore",
       resourceType: "document_version",
       resourceId: id,
-      resourceTitle: `${doc.title} v${nextVersion}`,
-      details: `Restored version ${input.versionNumber} as new version ${nextVersion} for document "${doc.title}"`,
+      resourceTitle: `${doc.title} v${restored.versionNumber}`,
+      details: `Restored version ${input.versionNumber} as new version ${restored.versionNumber} for document "${doc.title}"`,
       workspaceId,
     });
 

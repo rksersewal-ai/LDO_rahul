@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
-import { documentCabinets, documents, documentTags } from "@/lib/db/schema";
+import { documentCabinets, documentCategoryEnum, documents, documentTags } from "@/lib/db/schema";
 import {
   approveDocumentSchema,
   bulkActionSchema,
@@ -288,6 +288,15 @@ export const documentsRouter = router({
           for (const id of processableIds) {
             failed.push(id);
             errors.push({ id, reason: "Category (value) is required for classify action" });
+          }
+          break;
+        }
+        // Validate category against allowed enum values
+        const validCategories = documentCategoryEnum.enumValues;
+        if (!validCategories.includes(input.value as typeof validCategories[number])) {
+          for (const id of processableIds) {
+            failed.push(id);
+            errors.push({ id, reason: `Invalid category "${input.value}". Must be one of: ${validCategories.join(", ")}` });
           }
           break;
         }

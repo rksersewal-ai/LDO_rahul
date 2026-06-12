@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
@@ -206,11 +206,22 @@ export const documentShareLinksRouter = router({
         }
       }
 
-      // Increment view count
-      await db
+      // Atomically increment view count, respecting max_views constraint
+      const [updated] = await db
         .update(documentShareLinks)
-        .set({ viewCount: link.viewCount + 1 })
-        .where(eq(documentShareLinks.id, link.id));
+        .set({ viewCount: sql`${documentShareLinks.viewCount} + 1` })
+        .where(
+          and(
+            eq(documentShareLinks.id, link.id),
+            sql`(${documentShareLinks.maxViews} IS NULL OR ${documentShareLinks.viewCount} < ${documentShareLinks.maxViews})`,
+          ),
+        )
+        .returning({ viewCount: documentShareLinks.viewCount });
+
+      // If no rows updated, the link has been exhausted by a concurrent request
+      if (!updated) {
+        return { status: "expired" as const, document: null };
+      }
 
       // Fetch document info
       const [doc] = await db
