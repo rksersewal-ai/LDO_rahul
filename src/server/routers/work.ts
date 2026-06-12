@@ -139,7 +139,7 @@ export const workRouter = router({
     return pending;
   }),
 
-  getUserProductivity: protectedProcedure
+  getUserProductivity: supervisorProcedure
     .input(
       z
         .object({

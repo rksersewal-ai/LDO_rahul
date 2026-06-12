@@ -172,6 +172,7 @@ export const adminRouter = router({
     .mutation(({ input }) => {
       const idx = users.findIndex((u) => u.id === input.userId);
       if (idx === -1) return null;
+      // NOTE: Mock-only -- in production, hash with bcrypt/argon2 before storing
       users[idx].password = input.newPassword;
       users[idx].passwordChangedAt = new Date().toISOString();
       users[idx].forcePasswordChange = true;
@@ -194,11 +195,11 @@ export const adminRouter = router({
         reason: z.string().min(1),
       }),
     )
-    .mutation(({ input }) => {
+    .mutation(({ input, ctx }) => {
       const idx = users.findIndex((u) => u.id === input.userId);
       if (idx === -1) return null;
       users[idx].lockedAt = new Date().toISOString();
-      users[idx].lockedBy = "u-001-admin";
+      users[idx].lockedBy = ctx.session.user?.id || "unknown";
       users[idx].lockReason = input.reason;
       return { success: true, userId: input.userId };
     }),
@@ -673,8 +674,48 @@ export const adminRouter = router({
         const parsed = JSON.parse(input.data);
         const changes: string[] = [];
 
+        // Validate imported structure with zod before applying
+        const featureToggleSchema = z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            enabled: z.boolean(),
+          })
+          .passthrough();
+        const securityPoliciesSchema = z
+          .object({
+            password: z.object({}).passthrough().optional(),
+            login: z.object({}).passthrough().optional(),
+            session: z.object({}).passthrough().optional(),
+            ipRestrictions: z.object({}).passthrough().optional(),
+          })
+          .passthrough();
+        const complianceSettingsSchema = z
+          .object({
+            auditRetention: z.object({}).passthrough().optional(),
+            approvalWorkflow: z.object({}).passthrough().optional(),
+            versionControl: z.object({}).passthrough().optional(),
+          })
+          .passthrough();
+        const systemConfigSchema = z
+          .object({
+            upload: z.object({}).passthrough().optional(),
+            ocr: z.object({}).passthrough().optional(),
+            notifications: z.object({}).passthrough().optional(),
+            storage: z.object({}).passthrough().optional(),
+          })
+          .passthrough();
+
         if (parsed.featureToggles) {
-          for (const ft of parsed.featureToggles) {
+          const validated = z.array(featureToggleSchema).safeParse(parsed.featureToggles);
+          if (!validated.success) {
+            return {
+              success: false,
+              changes: ["Invalid featureToggles format"],
+              importedAt: new Date().toISOString(),
+            };
+          }
+          for (const ft of validated.data) {
             const idx = featureToggles.findIndex((f) => f.id === ft.id);
             if (idx !== -1) {
               featureToggles[idx] = { ...featureToggles[idx], ...ft };
@@ -683,15 +724,48 @@ export const adminRouter = router({
           }
         }
         if (parsed.securityPolicies) {
-          securityPolicies = { ...securityPolicies, ...parsed.securityPolicies };
+          const validated = securityPoliciesSchema.safeParse(parsed.securityPolicies);
+          if (!validated.success) {
+            return {
+              success: false,
+              changes: ["Invalid securityPolicies format"],
+              importedAt: new Date().toISOString(),
+            };
+          }
+          securityPolicies = {
+            ...securityPolicies,
+            ...parsed.securityPolicies,
+          } as SecurityPolicies;
           changes.push("Updated security policies");
         }
         if (parsed.complianceSettings) {
-          complianceSettings = { ...complianceSettings, ...parsed.complianceSettings };
+          const validated = complianceSettingsSchema.safeParse(parsed.complianceSettings);
+          if (!validated.success) {
+            return {
+              success: false,
+              changes: ["Invalid complianceSettings format"],
+              importedAt: new Date().toISOString(),
+            };
+          }
+          complianceSettings = {
+            ...complianceSettings,
+            ...parsed.complianceSettings,
+          } as ComplianceSettings;
           changes.push("Updated compliance settings");
         }
         if (parsed.systemConfiguration) {
-          systemConfiguration = { ...systemConfiguration, ...parsed.systemConfiguration };
+          const validated = systemConfigSchema.safeParse(parsed.systemConfiguration);
+          if (!validated.success) {
+            return {
+              success: false,
+              changes: ["Invalid systemConfiguration format"],
+              importedAt: new Date().toISOString(),
+            };
+          }
+          systemConfiguration = {
+            ...systemConfiguration,
+            ...parsed.systemConfiguration,
+          } as SystemConfiguration;
           changes.push("Updated system configuration");
         }
 

@@ -113,6 +113,7 @@ export default function SettingsPage() {
               security={security}
               compliance={compliance}
               sysConfig={sysConfig}
+              rolePerms={rolePerms}
             />
           )}
           {activeTab === "features" && (
@@ -155,12 +156,14 @@ function OverviewTab({
   security,
   compliance,
   sysConfig,
+  rolePerms,
 }: {
   features: FeatureToggle[];
   setFeatures: (f: FeatureToggle[]) => void;
   security: SecurityPolicies;
   compliance: ComplianceSettings;
   sysConfig: SystemConfiguration;
+  rolePerms: RolePermissionMatrix;
 }) {
   const enabledCount = features.filter((f) => f.enabled).length;
 
@@ -328,7 +331,7 @@ function OverviewTab({
             <div key={role} className="flex items-center justify-between">
               <span className="text-[11px] capitalize">{role}</span>
               <Badge variant="outline" className="text-[10px] h-4">
-                13/13 perms
+                {rolePerms[role].length}/{ALL_PERMISSIONS.length} perms
               </Badge>
             </div>
           ))}

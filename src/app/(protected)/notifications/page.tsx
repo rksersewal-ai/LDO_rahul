@@ -11,6 +11,7 @@ import {
   Shield,
 } from "lucide-react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Button } from "@/components/ui/button";
@@ -25,8 +26,6 @@ import {
 import { MOCK_WORK_RECORDS } from "@/lib/mock-data/work-records";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/stores/notification-store";
-
-const CURRENT_USER_ID = "user-001";
 
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   approval: Shield,
@@ -82,6 +81,8 @@ function getDaysColor(daysTaken: number, targetDays: number): string {
 }
 
 export default function NotificationsPage() {
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id || "user-001";
   const { items, markRead, markAllRead, dismiss } = useNotificationStore();
   const [filter, setFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"notifications" | "pending">("notifications");
@@ -113,7 +114,7 @@ export default function NotificationsPage() {
 
   const pendingWorks = useMemo(() => {
     const pending = MOCK_WORK_RECORDS.filter(
-      (r) => r.userId === CURRENT_USER_ID && (r.status === "OPEN" || r.status === "SUBMITTED"),
+      (r) => r.userId === currentUserId && (r.status === "OPEN" || r.status === "SUBMITTED"),
     );
     const priorityOrder: Record<string, number> = {
       CRITICAL: 0,
@@ -128,7 +129,7 @@ export default function NotificationsPage() {
       return b.daysTaken - a.daysTaken;
     });
     return pending;
-  }, []);
+  }, [currentUserId]);
 
   return (
     <PageFrame size="lg">

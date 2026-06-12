@@ -143,64 +143,61 @@ export default function UserManagementPage() {
   };
 
   const handleLockAccount = (userId: string, reason: string) => {
-    setUsers(
-      users.map((u) =>
+    setUsers((prev) =>
+      prev.map((u) =>
         u.id === userId
           ? {
               ...u,
               lockedAt: new Date().toISOString(),
-              lockedBy: "u-001-admin",
+              lockedBy: "current-admin",
               lockReason: reason,
             }
           : u,
       ),
     );
-    // Refresh security dialog user
-    const updated = users.find((u) => u.id === userId);
-    if (updated) {
-      setSecurityUser({
-        ...updated,
-        lockedAt: new Date().toISOString(),
-        lockedBy: "u-001-admin",
-        lockReason: reason,
-      });
-    }
+    setSecurityUser((prev) =>
+      prev && prev.id === userId
+        ? {
+            ...prev,
+            lockedAt: new Date().toISOString(),
+            lockedBy: "current-admin",
+            lockReason: reason,
+          }
+        : prev,
+    );
   };
 
   const handleUnlockAccount = (userId: string) => {
-    setUsers(
-      users.map((u) =>
+    setUsers((prev) =>
+      prev.map((u) =>
         u.id === userId
           ? { ...u, lockedAt: null, lockedBy: null, lockReason: null, failedLoginAttempts: 0 }
           : u,
       ),
     );
-    const updated = users.find((u) => u.id === userId);
-    if (updated) {
-      setSecurityUser({
-        ...updated,
-        lockedAt: null,
-        lockedBy: null,
-        lockReason: null,
-        failedLoginAttempts: 0,
-      });
-    }
+    setSecurityUser((prev) =>
+      prev && prev.id === userId
+        ? { ...prev, lockedAt: null, lockedBy: null, lockReason: null, failedLoginAttempts: 0 }
+        : prev,
+    );
   };
 
   const handleForcePasswordChange = (userId: string) => {
-    setUsers(users.map((u) => (u.id === userId ? { ...u, forcePasswordChange: true } : u)));
-    const updated = users.find((u) => u.id === userId);
-    if (updated) {
-      setSecurityUser({ ...updated, forcePasswordChange: true });
-    }
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, forcePasswordChange: true } : u)),
+    );
+    setSecurityUser((prev) =>
+      prev && prev.id === userId ? { ...prev, forcePasswordChange: true } : prev,
+    );
   };
 
   const handleClearFailedAttempts = (userId: string) => {
-    setUsers(users.map((u) => (u.id === userId ? { ...u, failedLoginAttempts: 0 } : u)));
-    const updated = users.find((u) => u.id === userId);
-    if (updated) {
-      setSecurityUser({ ...updated, failedLoginAttempts: 0 });
-    }
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, failedLoginAttempts: 0 } : u)),
+    );
+    setSecurityUser((prev) =>
+      prev && prev.id === userId ? { ...prev, failedLoginAttempts: 0 } : prev,
+    );
   };
 
   return (
