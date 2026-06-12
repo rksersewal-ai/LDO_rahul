@@ -1,4 +1,13 @@
-import { boolean, index, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 export const plCategoryEnum = pgEnum("pl_category", ["CAT-A", "CAT-B", "CAT-C", "CAT-D"]);
 
@@ -7,6 +16,31 @@ export const plStatusEnum = pgEnum("pl_status", [
   "inactive",
   "deprecated",
   "under_review",
+  "obsolete",
+]);
+
+export const plLifecycleStageEnum = pgEnum("pl_lifecycle_stage", [
+  "draft",
+  "active",
+  "restricted",
+  "obsolete",
+  "deprecated",
+]);
+
+export const plAliasTypeEnum = pgEnum("pl_alias_type", [
+  "legacy",
+  "vendor",
+  "drawing",
+  "local_name",
+]);
+
+export const plRelationTypeEnum = pgEnum("pl_relation_type", [
+  "equivalent_to",
+  "substitute_for",
+  "supersedes",
+  "child_of",
+  "accessory_of",
+  "related_to",
 ]);
 
 export const plNumbers = pgTable(
@@ -24,6 +58,12 @@ export const plNumbers = pgTable(
     unit: varchar("unit", { length: 32 }),
     workshop: varchar("workshop", { length: 128 }),
     searchVector: text("search_vector"),
+    manufacturer: varchar("manufacturer", { length: 255 }),
+    vendorCode: varchar("vendor_code", { length: 128 }),
+    partFamily: varchar("part_family", { length: 128 }),
+    lifecycleStage: plLifecycleStageEnum("lifecycle_stage").default("active"),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    metadataJson: text("metadata_json"),
     createdBy: text("created_by"),
     updatedBy: text("updated_by"),
     workspaceId: text("workspace_id"),
@@ -35,5 +75,51 @@ export const plNumbers = pgTable(
     index("idx_pl_numbers_category").on(table.category),
     index("idx_pl_numbers_status").on(table.status),
     index("idx_pl_numbers_safety_critical").on(table.safetyCritical),
+  ],
+);
+
+export const plAliases = pgTable(
+  "pl_aliases",
+  {
+    id: text("id").primaryKey(),
+    plId: text("pl_id")
+      .notNull()
+      .references(() => plNumbers.id),
+    workspaceId: text("workspace_id"),
+    alias: varchar("alias", { length: 128 }).notNull(),
+    aliasType: plAliasTypeEnum("alias_type").notNull(),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("uq_pl_aliases_workspace_alias").on(table.workspaceId, table.alias),
+    index("idx_pl_aliases_pl_id").on(table.plId),
+  ],
+);
+
+export const plRelationships = pgTable(
+  "pl_relationships",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id"),
+    sourcePlId: text("source_pl_id")
+      .notNull()
+      .references(() => plNumbers.id),
+    targetPlId: text("target_pl_id")
+      .notNull()
+      .references(() => plNumbers.id),
+    relationType: plRelationTypeEnum("relation_type").notNull(),
+    notes: text("notes"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("uq_pl_relationships_source_target_type").on(
+      table.sourcePlId,
+      table.targetPlId,
+      table.relationType,
+    ),
+    index("idx_pl_relationships_source").on(table.sourcePlId),
+    index("idx_pl_relationships_target").on(table.targetPlId),
   ],
 );

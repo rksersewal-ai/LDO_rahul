@@ -6,6 +6,7 @@ export * from "./document-pl-links";
 export * from "./documents";
 export * from "./notifications";
 export * from "./ocr-jobs";
+export * from "./ocr-pl-candidates";
 export * from "./organizations";
 export * from "./pl-numbers";
 export * from "./settings";
