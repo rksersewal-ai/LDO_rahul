@@ -5,6 +5,7 @@ import { authRouter } from "./auth";
 import { bomRouter } from "./bom";
 import { cabinetsRouter } from "./cabinets";
 import { casesRouter } from "./cases";
+import { dedupRouter } from "./dedup";
 import { documentCommentsRouter } from "./document-comments";
 import { documentShareLinksRouter } from "./document-share-links";
 import { documentVersionsRouter } from "./document-versions";
@@ -24,6 +25,7 @@ export const appRouter = router({
   bom: bomRouter,
   cabinets: cabinetsRouter,
   cases: casesRouter,
+  dedup: dedupRouter,
   documentComments: documentCommentsRouter,
   documentShareLinks: documentShareLinksRouter,
   documentVersions: documentVersionsRouter,

@@ -7,6 +7,7 @@ import type { Permission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import {
   auditLog,
+  duplicateDetections,
   ocrJobs,
   organizations,
   settings as settingsTable,
@@ -17,7 +18,6 @@ import {
 import {
   type Banner,
   MOCK_BANNERS,
-  MOCK_DUPLICATE_GROUPS,
   MOCK_STORAGE_STATS,
   MOCK_SYSTEM_HEALTH,
   MOCK_SYSTEM_METRICS,
@@ -515,9 +515,50 @@ export const adminRouter = router({
     };
   }),
 
-  // --- Deduplication (still mock) ---
-  getDuplicateGroups: adminProcedure.query(() => {
-    return MOCK_DUPLICATE_GROUPS;
+  // --- Deduplication (real DB) ---
+  getDuplicateGroups: adminProcedure.query(async () => {
+    const detections = await db
+      .select({
+        id: duplicateDetections.id,
+        workspaceId: duplicateDetections.workspaceId,
+        documentAId: duplicateDetections.documentAId,
+        documentBId: duplicateDetections.documentBId,
+        score: duplicateDetections.score,
+        hashMatch: duplicateDetections.hashMatch,
+        docNumberMatch: duplicateDetections.docNumberMatch,
+        titleSimilarity: duplicateDetections.titleSimilarity,
+        ocrTextSimilarity: duplicateDetections.ocrTextSimilarity,
+        plOverlap: duplicateDetections.plOverlap,
+        metaMatch: duplicateDetections.metaMatch,
+        status: duplicateDetections.status,
+        detectedAt: duplicateDetections.detectedAt,
+        // Doc A fields
+        docANumber: sql<string>`da."document_number"`.as("doc_a_number"),
+        docATitle: sql<string>`da."title"`.as("doc_a_title"),
+        docAFileHash: sql<string | null>`da."file_hash"`.as("doc_a_file_hash"),
+        docACategory: sql<string>`da."category"`.as("doc_a_category"),
+        // Doc B fields
+        docBNumber: sql<string>`db."document_number"`.as("doc_b_number"),
+        docBTitle: sql<string>`db."title"`.as("doc_b_title"),
+        docBFileHash: sql<string | null>`db."file_hash"`.as("doc_b_file_hash"),
+        docBCategory: sql<string>`db."category"`.as("doc_b_category"),
+      })
+      .from(duplicateDetections)
+      .innerJoin(
+        sql`"documents" as "da"`,
+        sql`"da"."id" = ${duplicateDetections.documentAId}`,
+      )
+      .innerJoin(
+        sql`"documents" as "db"`,
+        sql`"db"."id" = ${duplicateDetections.documentBId}`,
+      )
+      .where(
+        sql`${duplicateDetections.status} IN ('pending', 'merged')`,
+      )
+      .orderBy(desc(duplicateDetections.score))
+      .limit(100);
+
+    return detections;
   }),
 
   mergeDuplicates: adminProcedure
