@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T19:00:00.000Z",
-    "currentTask": "FEAT-031",
+    "lastUpdated": "2026-06-12T21:00:00.000Z",
+    "currentTask": "FEAT-034",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -33,11 +33,32 @@
       "FEAT-028",
       "FEAT-029",
       "FEAT-030",
-      "FEAT-031"
+      "FEAT-031",
+      "FEAT-032",
+      "FEAT-033",
+      "FEAT-034"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-034",
+      "description": "Final verification, unit tests for audit helper and auth logic, graphify.json update, commit and push",
+      "status": "completed",
+      "dependsOn": ["FEAT-032", "FEAT-033"]
+    },
+    {
+      "id": "FEAT-033",
+      "description": "Workspaces tRPC router, admin DB-backed CRUD, organization and workspace admin pages",
+      "status": "completed",
+      "dependsOn": ["FEAT-032"]
+    },
+    {
+      "id": "FEAT-032",
+      "description": "Wire auth to real DB with bcrypt, add audit helper with SHA-256 hash chain, organizations and workspaces schemas",
+      "status": "completed",
+      "dependsOn": ["FEAT-031"]
+    },
     {
       "id": "FEAT-031",
       "description": "Feature flags system - FeatureFlagService singleton, useFeatureFlag hook, LARGE_DRAWING_VIEWER and AI_SUGGESTIONS flags, gate search analytics and bulk upload behind flags",
