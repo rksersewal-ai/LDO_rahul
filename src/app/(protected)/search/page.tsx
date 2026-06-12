@@ -25,6 +25,7 @@ import { SearchFiltersPanel } from "@/components/search/search-filters-panel";
 import { SearchMetricCard } from "@/components/search/search-metric-card";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { Badge } from "@/components/ui/badge";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { useSearch } from "@/hooks/use-search";
 import { useSearchHistory } from "@/hooks/use-search-history";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,8 @@ function SearchPageContent() {
   } = useSearchStore();
 
   const { addEntry: addHistoryEntry } = useSearchHistory();
+
+  const searchAnalyticsEnabled = useFeatureFlag("search_analytics");
 
   const activeEntityType = SCOPE_OPTIONS.find((s) => s.scope === scope)?.entityType ?? "all";
 
@@ -251,25 +254,33 @@ function SearchPageContent() {
         <h1 className="text-lg font-bold">Search Explorer</h1>
       </div>
 
-      {/* Bento Metrics Strip */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <SearchMetricCard label="Indexed domains" value="4" hint="Documents, PL, work, cases" />
-        <SearchMetricCard
-          label="Saved playbooks"
-          value={String(savedSearches.length)}
-          hint="Reusable operator queries"
-        />
-        <SearchMetricCard
-          label="Recent queries"
-          value={String(recentSearches.length)}
-          hint="Session query recall"
-        />
-        <SearchMetricCard
-          label="Search focus"
-          value={totalResults > 0 ? String(totalResults) : "Ready"}
-          hint={totalResults > 0 ? "Results in current view" : "Waiting for query"}
-        />
-      </div>
+      {/* Bento Metrics Strip - gated behind search_analytics feature flag */}
+      {searchAnalyticsEnabled ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SearchMetricCard label="Indexed domains" value="4" hint="Documents, PL, work, cases" />
+          <SearchMetricCard
+            label="Saved playbooks"
+            value={String(savedSearches.length)}
+            hint="Reusable operator queries"
+          />
+          <SearchMetricCard
+            label="Recent queries"
+            value={String(recentSearches.length)}
+            hint="Session query recall"
+          />
+          <SearchMetricCard
+            label="Search focus"
+            value={totalResults > 0 ? String(totalResults) : "Ready"}
+            hint={totalResults > 0 ? "Results in current view" : "Waiting for query"}
+          />
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-border/60 bg-muted/30 p-4 text-center">
+          <p className="text-xs text-muted-foreground">
+            Search Analytics coming soon. This feature is currently disabled.
+          </p>
+        </div>
+      )}
 
       {/* Search Input with Cmd+K hint and bookmark action */}
       <div className="flex flex-col gap-3">

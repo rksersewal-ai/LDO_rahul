@@ -12,6 +12,7 @@ import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { useSavedFilters } from "@/hooks/use-saved-filters";
 import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
 
@@ -26,6 +27,7 @@ function getInitialViewMode(): ViewMode {
 
 export default function DocumentHubPage() {
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
+  const bulkUploadEnabled = useFeatureFlag("bulk_upload");
   const [filters, setFilters] = useState<DocumentFilterState>({
     search: "",
     category: "",
@@ -128,6 +130,16 @@ export default function DocumentHubPage() {
                 rows={exportRows}
                 filenamePrefix="documents"
               />
+              {bulkUploadEnabled && (
+                <Button
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  render={<Link href="/documents/upload" />}
+                >
+                  <Plus className="h-3 w-3" />
+                  Bulk Upload
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="h-7 text-xs gap-1"
