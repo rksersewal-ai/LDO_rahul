@@ -1,8 +1,8 @@
 "use client";
 
 import { Box, Cpu, FolderTree, Layers } from "lucide-react";
+import { GlassCard } from "@/components/ui/glass-card";
 import type { BomEntry, BomProduct } from "@/lib/mock-data/bom";
-import { cn } from "@/lib/utils";
 
 interface BomStatsStripProps {
   products: BomProduct[];
@@ -17,19 +17,13 @@ interface StatBlockProps {
 
 function StatBlock({ icon, label, value }: StatBlockProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center gap-1 rounded-lg border bg-card p-3",
-        "transition-all duration-200 ease-out",
-        "hover:-translate-y-[1px] hover:border-primary/30 hover:shadow-[var(--shadow-card)]",
-      )}
-    >
+    <GlassCard interactive className="flex flex-col items-center gap-1 p-3">
       <div className="flex items-center gap-1.5 text-muted-foreground">
         {icon}
         <span className="text-[var(--text-xs)] font-medium">{label}</span>
       </div>
       <span className="text-xl font-bold tracking-tight text-foreground">{value}</span>
-    </div>
+    </GlassCard>
   );
 }
 

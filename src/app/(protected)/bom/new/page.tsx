@@ -12,12 +12,28 @@ import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Textarea } from "@/components/ui/textarea";
 import { MOCK_BOM_PRODUCTS } from "@/lib/mock-data/bom";
+import type { BomProductCategory, BomProductLifecycle } from "@/lib/mock-data/bom";
+
+const CATEGORY_OPTIONS: { value: BomProductCategory; label: string }[] = [
+  { value: "locomotive", label: "Locomotive" },
+  { value: "coach", label: "Coach" },
+  { value: "wagon", label: "Wagon" },
+];
+
+const LIFECYCLE_OPTIONS: { value: BomProductLifecycle; label: string }[] = [
+  { value: "development", label: "Development" },
+  { value: "production", label: "Production" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "retired", label: "Retired" },
+];
 
 export default function NewProductPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<BomProductCategory>("locomotive");
+  const [lifecycle, setLifecycle] = useState<BomProductLifecycle>("development");
   const [error, setError] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -47,8 +63,8 @@ export default function NewProductPage() {
       description: description.trim(),
       version: "1.0",
       status: "draft",
-      category: "locomotive",
-      lifecycle: "development",
+      category,
+      lifecycle,
       createdBy: "u-001-admin",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -127,6 +143,44 @@ export default function NewProductPage() {
                 className="min-h-[80px] text-sm resize-none"
                 required
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="product-category" className="text-xs font-medium">
+                  Category
+                </Label>
+                <select
+                  id="product-category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as BomProductCategory)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="product-lifecycle" className="text-xs font-medium">
+                  Lifecycle Stage
+                </Label>
+                <select
+                  id="product-lifecycle"
+                  value={lifecycle}
+                  onChange={(e) => setLifecycle(e.target.value as BomProductLifecycle)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  {LIFECYCLE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 pt-2">

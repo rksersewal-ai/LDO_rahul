@@ -74,6 +74,12 @@ function SearchPageContent() {
 
   const { addEntry: addHistoryEntry } = useSearchHistory();
 
+  // Track the last submitted query so we can record history after results arrive
+  const [pendingHistoryQuery, setPendingHistoryQuery] = useState<{
+    query: string;
+    scope: SearchScope;
+  } | null>(null);
+
   const searchAnalyticsEnabled = useFeatureFlag("search_analytics");
 
   const activeEntityType = SCOPE_OPTIONS.find((s) => s.scope === scope)?.entityType ?? "all";
@@ -98,6 +104,19 @@ function SearchPageContent() {
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Record search history after results arrive
+  useEffect(() => {
+    if (pendingHistoryQuery && !isLoading && results) {
+      addHistoryEntry({
+        query: pendingHistoryQuery.query,
+        scope: pendingHistoryQuery.scope,
+        resultCount: results.total ?? 0,
+        timestamp: new Date().toISOString(),
+      });
+      setPendingHistoryQuery(null);
+    }
+  }, [pendingHistoryQuery, isLoading, results, addHistoryEntry]);
 
   // Initialize from URL param
   useEffect(() => {
@@ -297,11 +316,9 @@ function SearchPageContent() {
               if (e.key === "Enter" && query.length >= 2) {
                 search(query);
                 addRecentSearch(query);
-                addHistoryEntry({
+                setPendingHistoryQuery({
                   query: query.trim(),
                   scope,
-                  resultCount: results?.total ?? 0,
-                  timestamp: new Date().toISOString(),
                 });
               }
             }}

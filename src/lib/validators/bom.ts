@@ -2,11 +2,15 @@ import { z } from "zod";
 
 export const bomEntryTypeEnum = z.enum(["assembly", "sub_assembly", "component"]);
 export const bomProductStatusEnum = z.enum(["draft", "active", "deprecated"]);
+export const bomProductCategoryEnum = z.enum(["locomotive", "coach", "wagon"]);
+export const bomProductLifecycleEnum = z.enum(["development", "production", "maintenance", "retired"]);
 
 export const createProductSchema = z.object({
   name: z.string().min(1, "Product name is required").max(200),
   code: z.string().min(1, "Product code is required").max(50),
   description: z.string().min(1, "Description is required"),
+  category: bomProductCategoryEnum.optional().default("locomotive"),
+  lifecycle: bomProductLifecycleEnum.optional().default("development"),
 });
 
 export const addEntrySchema = z.object({

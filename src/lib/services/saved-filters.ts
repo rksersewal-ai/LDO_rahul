@@ -5,6 +5,7 @@
  */
 
 const STORAGE_KEY = "saved-filters";
+const MAX_FILTERS = 50;
 
 export interface SavedFilter {
   id: string;
@@ -66,6 +67,10 @@ export class SavedFiltersService {
       createdAt: new Date().toISOString(),
     };
     all.push(entry);
+    // Enforce maximum cap - evict oldest entries when over limit
+    while (all.length > MAX_FILTERS) {
+      all.shift();
+    }
     this.saveAll(all);
     return entry;
   }
