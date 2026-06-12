@@ -18,6 +18,7 @@ export * from "./ocr-jobs";
 export * from "./ocr-pl-candidates";
 export * from "./organizations";
 export * from "./pl-numbers";
+export * from "./record-declarations";
 export * from "./settings";
 export * from "./tags";
 export * from "./user-workspaces";

@@ -10,6 +10,7 @@ import {
   documentLegalHolds,
   documents,
   legalHolds,
+  recordDeclarations,
 } from "@/lib/db/schema";
 import type { UserRole } from "@/lib/types/auth";
 import { protectedProcedure, router } from "@/server/trpc";
@@ -228,5 +229,164 @@ export const governanceRouter = router({
       });
 
       return { success: true };
+    }),
+
+  /**
+   * Declare a document as a formal record with a retention period.
+   * Requires supervisor or admin role.
+   */
+  declareRecord: protectedProcedure
+    .input(
+      z.object({
+        documentId: z.string(),
+        retentionPeriodYears: z.number().int().min(1),
+        recordSeriesId: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
+      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
+      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
+
+      if (!isRoleAtLeast(userRole, "supervisor")) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Requires supervisor role or higher to declare records",
+        });
+      }
+
+      // Verify the document exists and belongs to the user's workspace
+      const [doc] = await db
+        .select({ id: documents.id })
+        .from(documents)
+        .where(and(eq(documents.id, input.documentId), eq(documents.workspaceId, workspaceId)));
+
+      if (!doc) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found in workspace",
+        });
+      }
+
+      // Compute retention_expires_at
+      const now = new Date();
+      const retentionExpiresAt = new Date(now);
+      retentionExpiresAt.setFullYear(retentionExpiresAt.getFullYear() + input.retentionPeriodYears);
+
+      const id = randomUUID();
+
+      await db.insert(recordDeclarations).values({
+        id,
+        documentId: input.documentId,
+        workspaceId,
+        recordSeriesId: input.recordSeriesId ?? null,
+        retentionPeriodYears: input.retentionPeriodYears,
+        retentionExpiresAt,
+        declaredBy: userId,
+        notes: input.notes ?? null,
+      });
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "RECORD_DECLARED",
+        resourceType: "record_declaration",
+        resourceId: id,
+        resourceTitle: `Record declaration for document ${input.documentId}`,
+        workspaceId,
+        details: `Declared document ${input.documentId} as record with ${input.retentionPeriodYears} year retention`,
+      });
+
+      return {
+        id,
+        documentId: input.documentId,
+        workspaceId,
+        recordSeriesId: input.recordSeriesId ?? null,
+        retentionPeriodYears: input.retentionPeriodYears,
+        retentionExpiresAt,
+        declaredBy: userId,
+        declaredAt: now,
+        notes: input.notes ?? null,
+      };
+    }),
+
+  /**
+   * Approve destruction of a declared record after retention period has passed.
+   * Requires supervisor or admin role.
+   */
+  approveDestruction: protectedProcedure
+    .input(
+      z.object({
+        recordDeclarationId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
+      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
+      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
+
+      if (!isRoleAtLeast(userRole, "supervisor")) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Requires supervisor role or higher to approve record destruction",
+        });
+      }
+
+      const [declaration] = await db
+        .select()
+        .from(recordDeclarations)
+        .where(eq(recordDeclarations.id, input.recordDeclarationId));
+
+      if (!declaration) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Record declaration not found",
+        });
+      }
+
+      // Verify retention period has passed
+      if (new Date() <= declaration.retentionExpiresAt) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Retention period has not yet expired. Cannot approve destruction.",
+        });
+      }
+
+      await db
+        .update(recordDeclarations)
+        .set({
+          destroyApprovedBy: userId,
+          destroyApprovedAt: new Date(),
+        })
+        .where(eq(recordDeclarations.id, input.recordDeclarationId));
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "RECORD_DESTRUCTION_APPROVED",
+        resourceType: "record_declaration",
+        resourceId: input.recordDeclarationId,
+        workspaceId,
+        details: `Approved destruction of record declaration ${input.recordDeclarationId}`,
+      });
+
+      return { success: true };
+    }),
+
+  /**
+   * Get all record declarations for a workspace.
+   */
+  getRecordDeclarations: protectedProcedure
+    .input(z.object({ workspaceId: z.string() }))
+    .query(async ({ input }) => {
+      const rows = await db
+        .select()
+        .from(recordDeclarations)
+        .where(eq(recordDeclarations.workspaceId, input.workspaceId));
+
+      return rows;
     }),
 });
