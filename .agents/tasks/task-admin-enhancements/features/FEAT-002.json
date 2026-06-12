@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Admin-Controlled Security and Password Management - Add password reset, force change on next login, account lock/unlock capabilities to the user management page. The admin has full control over user security - no self-service password reset exists. All password recovery is admin-controlled.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Extend the MockUser interface in src/lib/mock-data/users.ts to add fields: passwordChangedAt (string|null), forcePasswordChange (boolean), failedLoginAttempts (number), lockedAt (string|null), lockedBy (string|null), lockReason (string|null), securityQuestions (array of {question: string, answer: string} | null). Update MOCK_USERS and MOCK_ADMIN_USERS to include these new fields with sensible defaults.",
     "2. Add new admin router endpoints in src/server/routers/admin.ts: resetPassword (takes userId and newPassword, sets passwordChangedAt to now, sets forcePasswordChange to true), forcePasswordChange (takes userId, sets flag), lockAccount (takes userId and reason), unlockAccount (takes userId, clears lockedAt/lockedBy/lockReason/failedLoginAttempts), getSecurityInfo (returns security-related user fields for a specific user), updateSecurityQuestions (admin sets questions for a user).",
@@ -25,5 +25,5 @@
     "Verify the build output includes /admin/users route without errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Build passes successfully. All security fields added to MockUser interface and all mock data arrays. Admin router has resetPassword, forcePasswordChange, lockAccount, unlockAccount, getSecurityInfo endpoints. Users table shows Security column with Locked/Force Change/Normal badges. Password reset dialog and account security dialog created. Lint passes clean after biome auto-fix."
 }
