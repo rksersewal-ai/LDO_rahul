@@ -1,6 +1,7 @@
 export * from "./approvals";
 export * from "./audit-log";
 export * from "./bom";
+export * from "./cabinets";
 export * from "./cases";
 export * from "./document-pl-links";
 export * from "./documents";
@@ -10,6 +11,7 @@ export * from "./ocr-pl-candidates";
 export * from "./organizations";
 export * from "./pl-numbers";
 export * from "./settings";
+export * from "./tags";
 export * from "./user-workspaces";
 export * from "./users";
 export * from "./work-records";

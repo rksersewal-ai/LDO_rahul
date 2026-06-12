@@ -3,12 +3,14 @@ import { adminRouter } from "./admin";
 import { approvalsRouter } from "./approvals";
 import { authRouter } from "./auth";
 import { bomRouter } from "./bom";
+import { cabinetsRouter } from "./cabinets";
 import { casesRouter } from "./cases";
 import { documentsRouter } from "./documents";
 import { notificationsRouter } from "./notifications";
 import { ocrRouter } from "./ocr";
 import { plRouter } from "./pl";
 import { searchRouter } from "./search";
+import { tagsRouter } from "./tags";
 import { workRouter } from "./work";
 import { workspacesRouter } from "./workspaces";
 
@@ -17,12 +19,14 @@ export const appRouter = router({
   approvals: approvalsRouter,
   auth: authRouter,
   bom: bomRouter,
+  cabinets: cabinetsRouter,
   cases: casesRouter,
   documents: documentsRouter,
   notifications: notificationsRouter,
   ocr: ocrRouter,
   pl: plRouter,
   search: searchRouter,
+  tags: tagsRouter,
   work: workRouter,
   workspaces: workspacesRouter,
 });

@@ -1,7 +1,7 @@
 {
   "metadata": {
     "lastUpdated": "2026-06-13T12:00:00.000Z",
-    "currentTask": "FEAT-038",
+    "currentTask": "FEAT-039",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -40,11 +40,18 @@
       "FEAT-035",
       "FEAT-036",
       "FEAT-037",
-      "FEAT-038"
+      "FEAT-038",
+      "FEAT-039"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-039",
+      "description": "Cabinets + Tags - schema, validators, routers, and UI pages for document cabinet organization and tagging system",
+      "status": "completed",
+      "dependsOn": ["FEAT-038"]
+    },
     {
       "id": "FEAT-038",
       "description": "PL Tests + graphify.json update: unit tests for PL validation utilities and alias normalization collision, graphify.json tracking update",
