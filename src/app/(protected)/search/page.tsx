@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  ArrowDown,
   ArrowDownAZ,
   ArrowRight,
+  ArrowUp,
   ArrowUpDown,
   Bookmark,
   BookmarkCheck,
@@ -10,20 +12,22 @@ import {
   Clock,
   Command,
   FileText,
+  Filter,
   Search,
   Sparkles,
   Trash2,
+  Type,
   X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef } from "react";
-import { SearchFacetsSidebar } from "@/components/search/search-facets";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { SearchFiltersPanel } from "@/components/search/search-filters-panel";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { Badge } from "@/components/ui/badge";
 import { useSearch } from "@/hooks/use-search";
 import { cn } from "@/lib/utils";
 import type { EntityType } from "@/lib/validators/search";
-import { type SearchScope, useSearchStore } from "@/stores/search-store";
+import { type SearchScope, type SortField, useSearchStore } from "@/stores/search-store";
 
 const SCOPE_OPTIONS: Array<{ label: string; scope: SearchScope; entityType: EntityType }> = [
   { label: "All", scope: "ALL", entityType: "all" },
@@ -57,6 +61,12 @@ function SearchPageContent() {
     addRecentSearch,
     removeRecentSearch,
     clearRecentSearches,
+    showFilters,
+    setShowFilters,
+    sortField,
+    setSortField,
+    sortDirection,
+    setSortDirection,
   } = useSearchStore();
 
   const activeEntityType = SCOPE_OPTIONS.find((s) => s.scope === scope)?.entityType ?? "all";
@@ -187,6 +197,22 @@ function SearchPageContent() {
     setInputFocused(false);
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+    // Also sync with the useSearch hook
+    if (field === "relevance" || field === "date") {
+      setSortBy(field);
+    } else if (field === "title") {
+      setSortBy("name");
+    }
+    setSortOrder(sortDirection === "asc" ? "desc" : "asc");
+  };
+
   const totalResults = results?.total || 0;
   const pageSize = 20;
   const currentPage = Math.floor(offset / pageSize) + 1;
@@ -201,18 +227,67 @@ function SearchPageContent() {
     CASES: facets?.entityTypes.find((e) => e.value === "case")?.count,
   };
 
+  // Placeholder status counts from facets
+  const [statusCounts] = useState<Record<string, number>>({
+    Approved: 12,
+    "In Progress": 8,
+    Draft: 5,
+    Verified: 3,
+    Closed: 7,
+    Obsolete: 2,
+  });
+
   return (
     <div className="flex flex-col gap-4 p-4">
       {/* Header */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-md bg-accent border border-border">
-            <Sparkles className="size-4 text-primary" />
-          </div>
-          <h1 className="text-lg font-bold">Search Explorer</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex size-8 items-center justify-center rounded-md bg-accent border border-border">
+          <Sparkles className="size-4 text-primary" />
         </div>
+        <h1 className="text-lg font-bold">Search Explorer</h1>
+      </div>
 
-        {/* Search Input with Cmd+K hint and bookmark action */}
+      {/* Bento Metrics Strip */}
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            label: "Indexed domains",
+            value: "4",
+            hint: "Documents, PL, work, cases",
+          },
+          {
+            label: "Saved playbooks",
+            value: String(savedSearches.length),
+            hint: "Reusable operator queries",
+          },
+          {
+            label: "Recent queries",
+            value: String(recentSearches.length),
+            hint: "Session query recall",
+          },
+          {
+            label: "Search focus",
+            value: totalResults > 0 ? String(totalResults) : "Ready",
+            hint: totalResults > 0 ? "Results in current view" : "Waiting for query",
+          },
+        ].map((metric) => (
+          <div
+            key={metric.label}
+            className="rounded-xl border border-border/50 bg-card/40 backdrop-blur-md p-3 text-left"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              {metric.label}
+            </p>
+            <p className="mt-1.5 font-mono text-2xl font-semibold text-foreground">
+              {metric.value}
+            </p>
+            <p className="mt-1 text-[10px] text-muted-foreground">{metric.hint}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Search Input with Cmd+K hint and bookmark action */}
+      <div className="flex flex-col gap-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none z-10" />
           <input
@@ -352,7 +427,7 @@ function SearchPageContent() {
         </div>
       </div>
 
-      {/* Example Queries Row (GlassCard) */}
+      {/* Example Queries / Quick Actions Row */}
       <div className="bg-card/40 backdrop-blur-md border border-border/50 rounded-xl p-3">
         <div className="flex flex-wrap gap-2">
           <button
@@ -386,6 +461,20 @@ function SearchPageContent() {
             <ArrowRight className="size-3.5" />
             Open Document Hub
           </button>
+          {/* Filter toggle button */}
+          <button
+            type="button"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors",
+              showFilters
+                ? "border-primary/30 bg-primary/10 text-primary"
+                : "border-border/50 bg-secondary/50 text-foreground hover:bg-secondary",
+            )}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="size-3.5" />
+            Filters
+          </button>
           {(query || scope !== "ALL") && (
             <button
               type="button"
@@ -406,95 +495,28 @@ function SearchPageContent() {
 
       {/* Content Area */}
       <div className="flex gap-4">
-        {/* Faceted Sidebar */}
-        <div className="w-48 shrink-0 hidden lg:block">
-          {query.length >= 2 ? (
-            <SearchFacetsSidebar
-              facets={facets}
-              activeCategory={filters.category}
-              activeStatus={filters.status}
-              onCategoryChange={(category) => setFilters((prev) => ({ ...prev, category }))}
-              onStatusChange={(status) => setFilters((prev) => ({ ...prev, status }))}
-            />
-          ) : (
-            <div className="space-y-4">
-              {/* Saved Searches in sidebar when no query */}
-              {savedSearches.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 px-1">
-                    Saved Searches
-                  </p>
-                  <div className="flex flex-col gap-0.5">
-                    {savedSearches.slice(0, 5).map((s, i) => (
-                      <div
-                        key={`sidebar-saved-${s.q}-${s.scope}`}
-                        className="flex items-center group"
-                      >
-                        <button
-                          type="button"
-                          className="flex-1 flex items-center gap-2 rounded-md px-2 py-1 text-xs text-foreground/80 hover:bg-muted transition-colors text-left"
-                          onClick={() => handleSelectSaved(s)}
-                        >
-                          <BookmarkCheck className="size-3 text-primary shrink-0" />
-                          <span className="truncate">{s.label}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="opacity-0 group-hover:opacity-100 flex items-center justify-center size-5 rounded hover:bg-muted transition-all"
-                          onClick={() => removeSavedSearch(i)}
-                        >
-                          <X className="size-3 text-muted-foreground" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {/* Recent Searches in sidebar */}
-              {recentSearches.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between px-1 mb-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Recent Searches
-                    </p>
-                    <button
-                      type="button"
-                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={clearRecentSearches}
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    {recentSearches.slice(0, 10).map((s) => (
-                      <div key={`sidebar-recent-${s}`} className="flex items-center group">
-                        <button
-                          type="button"
-                          className="flex-1 flex items-center gap-2 rounded-md px-2 py-1 text-xs text-foreground/80 hover:bg-muted transition-colors text-left"
-                          onClick={() => handleSelectRecent(s)}
-                        >
-                          <Clock className="size-3 text-muted-foreground shrink-0" />
-                          <span className="truncate">{s}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="opacity-0 group-hover:opacity-100 flex items-center justify-center size-5 rounded hover:bg-muted transition-all"
-                          onClick={() => removeRecentSearch(s)}
-                        >
-                          <X className="size-3 text-muted-foreground" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+        {/* Collapsible Filters Panel */}
+        {showFilters && (
+          <div className="w-52 shrink-0 hidden lg:block">
+            <div className="bg-card/40 backdrop-blur-md border border-border/50 rounded-xl p-3">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold">Filters</p>
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  className="size-5 flex items-center justify-center rounded hover:bg-muted"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+              <SearchFiltersPanel statusCounts={statusCounts} />
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Results Area */}
         <div className="flex-1 min-w-0">
-          {/* Sort & Meta */}
+          {/* Sort Controls Row */}
           {results && results.total > 0 && (
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-muted-foreground">
@@ -505,9 +527,9 @@ function SearchPageContent() {
                   type="button"
                   className={cn(
                     "flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors",
-                    sortBy === "relevance" ? "bg-muted font-medium" : "hover:bg-muted",
+                    sortField === "relevance" ? "bg-muted font-medium" : "hover:bg-muted",
                   )}
-                  onClick={() => setSortBy("relevance")}
+                  onClick={() => handleSort("relevance")}
                 >
                   <ArrowUpDown className="size-3" />
                   Relevance
@@ -516,9 +538,9 @@ function SearchPageContent() {
                   type="button"
                   className={cn(
                     "flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors",
-                    sortBy === "date" ? "bg-muted font-medium" : "hover:bg-muted",
+                    sortField === "date" ? "bg-muted font-medium" : "hover:bg-muted",
                   )}
-                  onClick={() => setSortBy("date")}
+                  onClick={() => handleSort("date")}
                 >
                   <Calendar className="size-3" />
                   Date
@@ -527,19 +549,40 @@ function SearchPageContent() {
                   type="button"
                   className={cn(
                     "flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors",
-                    sortBy === "name" ? "bg-muted font-medium" : "hover:bg-muted",
+                    sortField === "title" ? "bg-muted font-medium" : "hover:bg-muted",
                   )}
-                  onClick={() => setSortBy("name")}
+                  onClick={() => handleSort("title")}
                 >
                   <ArrowDownAZ className="size-3" />
-                  Name
+                  Title
                 </button>
                 <button
                   type="button"
-                  className="px-2 py-1 rounded text-xs hover:bg-muted transition-colors text-muted-foreground"
-                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors",
+                    sortField === "type" ? "bg-muted font-medium" : "hover:bg-muted",
+                  )}
+                  onClick={() => handleSort("type")}
                 >
-                  {sortOrder === "asc" ? "ASC" : "DESC"}
+                  <Type className="size-3" />
+                  Type
+                </button>
+                {/* Direction toggle */}
+                <button
+                  type="button"
+                  className="px-2 py-1 rounded text-xs hover:bg-muted transition-colors text-muted-foreground"
+                  onClick={() => {
+                    const next = sortDirection === "asc" ? "desc" : "asc";
+                    setSortDirection(next);
+                    setSortOrder(next);
+                  }}
+                  title={sortDirection === "asc" ? "Ascending" : "Descending"}
+                >
+                  {sortDirection === "asc" ? (
+                    <ArrowUp className="size-3.5" />
+                  ) : (
+                    <ArrowDown className="size-3.5" />
+                  )}
                 </button>
               </div>
             </div>

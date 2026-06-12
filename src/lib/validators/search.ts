@@ -54,6 +54,8 @@ export interface SearchResult {
   badges: string[];
   url: string;
   createdAt: string;
+  matchField?: string;
+  matchReasons?: string[];
 }
 
 export interface SearchFacets {

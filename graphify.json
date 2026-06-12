@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T14:00:00.000Z",
-    "currentTask": "FEAT-024",
+    "lastUpdated": "2026-06-12T15:00:00.000Z",
+    "currentTask": "FEAT-025",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -26,11 +26,18 @@
       "FEAT-021",
       "FEAT-022",
       "FEAT-023",
-      "FEAT-024"
+      "FEAT-024",
+      "FEAT-025"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-025",
+      "description": "Global Search overhaul Part 2 - Advanced filters panel (date range, status facets, entity pills, duplicate filter, source/category), sort controls with direction toggle, OCR match indicator, match reason badges, bento metrics strip",
+      "status": "completed",
+      "dependsOn": ["FEAT-024"]
+    },
     {
       "id": "FEAT-024",
       "description": "Global Search overhaul Part 1 - Scope tabs with result counts, saved searches (Zustand + localStorage), recent searches with recall, search query highlighting (teal mark), URL sync (?q= param), debounced input (300ms), abort controller on navigation",

@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList, Cpu, ExternalLink, Eye, FileText } from "lucide-react";
+import { ClipboardList, Cpu, ExternalLink, Eye, FileText, ScanText } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,13 @@ const typeLabels: Record<SearchResult["type"], string> = {
   work_record: "Work Record",
   case: "Case",
 };
+
+function humanizeReason(reason: string): string {
+  return reason
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 interface SearchResultCardProps {
   result: SearchResult;
@@ -59,10 +66,32 @@ export function SearchResultCard({ result, query, className }: SearchResultCardP
           </span>
         </div>
 
-        {/* Match highlight */}
-        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-          {highlightText(result.matchText, query)}
-        </p>
+        {/* Match highlight with OCR indicator */}
+        <div className="flex items-center gap-1.5 mt-1">
+          {result.matchField === "OCR Text" && (
+            <ScanText className="size-3 text-violet-400 shrink-0" />
+          )}
+          {result.matchField && (
+            <span className="text-[10px] text-muted-foreground shrink-0">{result.matchField}:</span>
+          )}
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            {highlightText(result.matchText, query)}
+          </p>
+        </div>
+
+        {/* Match reason badges */}
+        {result.matchReasons && result.matchReasons.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {result.matchReasons.map((reason) => (
+              <span
+                key={reason}
+                className="rounded-full border border-teal-500/20 bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-200"
+              >
+                {humanizeReason(reason)}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Badges */}
         <div className="flex items-center gap-1.5 mt-2 flex-wrap">

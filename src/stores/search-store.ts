@@ -4,6 +4,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type SearchScope = "ALL" | "DOCUMENTS" | "PL" | "WORK" | "CASES";
+export type SortField = "relevance" | "date" | "title" | "type";
+export type SortDirection = "asc" | "desc";
 
 export interface SavedSearch {
   q: string;
@@ -40,6 +42,22 @@ interface SearchState {
   setEntityFilters: (filters: Set<string>) => void;
   duplicateFilter: string;
   setDuplicateFilter: (filter: string) => void;
+
+  // Sort
+  sortField: SortField;
+  setSortField: (field: SortField) => void;
+  sortDirection: SortDirection;
+  setSortDirection: (dir: SortDirection) => void;
+
+  // Filters panel visibility
+  showFilters: boolean;
+  setShowFilters: (show: boolean) => void;
+
+  // Source / category filters
+  sourceFilter: string;
+  setSourceFilter: (source: string) => void;
+  categoryFilter: string;
+  setCategoryFilter: (category: string) => void;
 }
 
 export const useSearchStore = create<SearchState>()(
@@ -86,6 +104,22 @@ export const useSearchStore = create<SearchState>()(
       setEntityFilters: (filters: Set<string>) => set({ entityFilters: filters }),
       duplicateFilter: "include",
       setDuplicateFilter: (filter: string) => set({ duplicateFilter: filter }),
+
+      // Sort
+      sortField: "relevance",
+      setSortField: (field: SortField) => set({ sortField: field }),
+      sortDirection: "desc",
+      setSortDirection: (dir: SortDirection) => set({ sortDirection: dir }),
+
+      // Filters panel visibility
+      showFilters: false,
+      setShowFilters: (show: boolean) => set({ showFilters: show }),
+
+      // Source / category filters
+      sourceFilter: "",
+      setSourceFilter: (source: string) => set({ sourceFilter: source }),
+      categoryFilter: "",
+      setCategoryFilter: (category: string) => set({ categoryFilter: category }),
     }),
     {
       name: "search-history",
