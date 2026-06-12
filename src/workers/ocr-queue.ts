@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 
 export interface OcrJobPayload {
+  jobId: string;
   documentId: string;
   versionId: string;
   filePath: string;

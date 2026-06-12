@@ -62,86 +62,89 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
     // Step f: Extract PL candidates
     const plCandidates = extractPlCandidates(extractedText);
 
-    // Step g: Get workspace ID from document
-    const docRecord = await db
-      .select({ workspaceId: documents.workspaceId, createdBy: documents.createdBy })
-      .from(documents)
-      .where(eq(documents.id, documentId))
-      .limit(1);
+    // Step g-l: Wrap DB mutations in a transaction
+    await db.transaction(async (tx) => {
+      // Step g: Get workspace ID from document
+      const docRecord = await tx
+        .select({ workspaceId: documents.workspaceId, createdBy: documents.createdBy })
+        .from(documents)
+        .where(eq(documents.id, documentId))
+        .limit(1);
 
-    const workspaceId = docRecord[0]?.workspaceId ?? null;
-    const uploadedBy = docRecord[0]?.createdBy ?? null;
+      const workspaceId = docRecord[0]?.workspaceId ?? null;
+      const uploadedBy = docRecord[0]?.createdBy ?? null;
 
-    // Step h: Insert PL candidates
-    for (const pl of plCandidates) {
-      const candidateConfidence = isValidModulo11(pl) ? 0.9 : 0.6;
-      const idx = extractedText.indexOf(pl);
-      const contextStart = Math.max(0, idx - 15);
-      const contextEnd = Math.min(extractedText.length, idx + pl.length + 15);
-      const context = extractedText.slice(contextStart, contextEnd);
+      // Step h: Insert PL candidates
+      for (const pl of plCandidates) {
+        const candidateConfidence = isValidModulo11(pl) ? 0.9 : 0.6;
+        const idx = extractedText.indexOf(pl);
+        const contextStart = Math.max(0, idx - 15);
+        const contextEnd = Math.min(extractedText.length, idx + pl.length + 15);
+        const context = extractedText.slice(contextStart, contextEnd);
 
-      await db.insert(ocrPlCandidates).values({
-        id: nanoid(),
-        documentId,
-        versionId,
-        workspaceId,
-        plNumber: pl,
-        confidence: candidateConfidence,
-        context,
-        mod11Valid: isValidModulo11(pl),
-        status: "pending",
-        createdAt: new Date(),
-      });
-    }
+        await tx.insert(ocrPlCandidates).values({
+          id: nanoid(),
+          documentId,
+          versionId,
+          workspaceId,
+          plNumber: pl,
+          confidence: candidateConfidence,
+          context,
+          mod11Valid: isValidModulo11(pl),
+          status: "pending",
+          createdAt: new Date(),
+        });
+      }
 
-    // Step i: Generate thumbnail
-    try {
-      await sharp(fileBuffer)
-        .resize({ width: 400 })
-        .png()
-        .toFile(`storage/thumbnails/${documentId}.png`);
-    } catch {
-      // Skip thumbnail generation if it fails (e.g., for PDFs)
-    }
+      // Step i: Generate thumbnail
+      try {
+        await sharp(fileBuffer)
+          .resize({ width: 400 })
+          .png()
+          .toFile(`storage/thumbnails/${documentId}.png`);
+      } catch {
+        // Skip thumbnail generation if it fails (e.g., for PDFs)
+      }
 
-    // Step j: Update documents record
-    await db
-      .update(documents)
-      .set({
-        ocrStatus: "completed",
-        ocrText: extractedText.slice(0, 10000),
-        ocrConfidence: confidence,
-        pageCount,
-        thumbnailPath: `storage/thumbnails/${documentId}.png`,
-      })
-      .where(eq(documents.id, documentId));
+      // Step j: Update documents record
+      await tx
+        .update(documents)
+        .set({
+          ocrStatus: "completed",
+          ocrText: extractedText.slice(0, 10000),
+          ocrConfidence: confidence,
+          pageCount,
+          thumbnailPath: `storage/thumbnails/${documentId}.png`,
+        })
+        .where(eq(documents.id, documentId));
 
-    // Step k: Update ocrJobs
-    await db
-      .update(ocrJobs)
-      .set({
-        status: "completed",
-        confidence,
-        extractedText: extractedText.slice(0, 10000),
-        pageCount,
-        completedAt: new Date(),
-      })
-      .where(eq(ocrJobs.documentId, documentId));
+      // Step k: Update ocrJobs by job ID
+      await tx
+        .update(ocrJobs)
+        .set({
+          status: "completed",
+          confidence,
+          extractedText: extractedText.slice(0, 10000),
+          pageCount,
+          completedAt: new Date(),
+        })
+        .where(eq(ocrJobs.id, job.data.jobId));
 
-    // Step l: Insert notification for uploader
-    if (uploadedBy) {
-      await db.insert(notifications).values({
-        id: nanoid(),
-        userId: uploadedBy,
-        type: "document_upload",
-        title: "OCR Processing Complete",
-        message: `Document OCR completed with ${Math.round(confidence * 100)}% confidence`,
-        entityType: "document",
-        entityId: documentId,
-        isRead: false,
-        createdAt: new Date(),
-      });
-    }
+      // Step l: Insert notification for uploader
+      if (uploadedBy) {
+        await tx.insert(notifications).values({
+          id: nanoid(),
+          userId: uploadedBy,
+          type: "document_upload",
+          title: "OCR Processing Complete",
+          message: `Document OCR completed with ${Math.round(confidence * 100)}% confidence`,
+          entityType: "document",
+          entityId: documentId,
+          isRead: false,
+          createdAt: new Date(),
+        });
+      }
+    });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
@@ -151,14 +154,14 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
       .set({ ocrStatus: "failed" })
       .where(eq(documents.id, documentId));
 
-    // Update ocrJobs to failed
+    // Update ocrJobs to failed by job ID
     await db
       .update(ocrJobs)
       .set({
         status: "failed",
         errorMessage,
       })
-      .where(eq(ocrJobs.documentId, documentId));
+      .where(eq(ocrJobs.id, job.data.jobId));
   }
 }
 

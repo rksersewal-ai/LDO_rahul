@@ -29,6 +29,18 @@ function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | nu
   return wsId;
 }
 
+/**
+ * Escape a CSV field value to prevent injection and preserve structure.
+ * Wraps in double quotes if the value contains commas, quotes, newlines,
+ * or starts with characters that could trigger formula execution in spreadsheets.
+ */
+function escapeCsvField(value: string): string {
+  if (/[,"\n\r]/.test(value) || /^[=+\-@]/.test(value)) {
+    return '"' + value.replace(/"/g, '""') + '"';
+  }
+  return value;
+}
+
 export const bomRouter = router({
   /** List all BOM products with entry counts */
   products: protectedProcedure.query(async ({ ctx }) => {
@@ -304,47 +316,51 @@ export const bomRouter = router({
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "BOM_LOCKED" });
       }
 
-      // Recursively find all children
+      // Recursively find all children, delete, and reorder in a transaction
       const toRemove = new Set<string>();
-      const collectDescendants = async (parentId: string) => {
-        toRemove.add(parentId);
-        const children = await db
-          .select({ id: bomEntries.id })
-          .from(bomEntries)
-          .where(eq(bomEntries.parentId, parentId));
-        for (const child of children) {
-          await collectDescendants(child.id);
+      const result = await db.transaction(async (tx) => {
+        const collectDescendants = async (parentId: string) => {
+          toRemove.add(parentId);
+          const children = await tx
+            .select({ id: bomEntries.id })
+            .from(bomEntries)
+            .where(eq(bomEntries.parentId, parentId));
+          for (const child of children) {
+            await collectDescendants(child.id);
+          }
+        };
+        await collectDescendants(input.entryId);
+
+        // Delete all collected entries
+        for (const id of toRemove) {
+          await tx.delete(bomEntries).where(eq(bomEntries.id, id));
         }
-      };
-      await collectDescendants(input.entryId);
 
-      // Delete all collected entries
-      for (const id of toRemove) {
-        await db.delete(bomEntries).where(eq(bomEntries.id, id));
-      }
+        // Reorder remaining siblings
+        const parentCondition = entry.parentId
+          ? eq(bomEntries.parentId, entry.parentId)
+          : sql`${bomEntries.parentId} IS NULL`;
 
-      // Reorder remaining siblings
-      const parentCondition = entry.parentId
-        ? eq(bomEntries.parentId, entry.parentId)
-        : sql`${bomEntries.parentId} IS NULL`;
+        const remainingSiblings = await tx
+          .select()
+          .from(bomEntries)
+          .where(
+            and(
+              eq(bomEntries.bomProductId, entry.bomProductId),
+              parentCondition,
+            ),
+          )
+          .orderBy(asc(bomEntries.position));
 
-      const remainingSiblings = await db
-        .select()
-        .from(bomEntries)
-        .where(
-          and(
-            eq(bomEntries.bomProductId, entry.bomProductId),
-            parentCondition,
-          ),
-        )
-        .orderBy(asc(bomEntries.position));
+        for (let i = 0; i < remainingSiblings.length; i++) {
+          await tx
+            .update(bomEntries)
+            .set({ position: i })
+            .where(eq(bomEntries.id, remainingSiblings[i].id));
+        }
 
-      for (let i = 0; i < remainingSiblings.length; i++) {
-        await db
-          .update(bomEntries)
-          .set({ position: i })
-          .where(eq(bomEntries.id, remainingSiblings[i].id));
-      }
+        return { removed: toRemove.size };
+      });
 
       await createAuditEntry(db, {
         userId: ctx.session.user.id,
@@ -352,11 +368,11 @@ export const bomRouter = router({
         action: "bom.remove_entry",
         resourceType: "bom_entry",
         resourceId: input.entryId,
-        details: `Removed ${toRemove.size} entries (including children)`,
+        details: `Removed ${result.removed} entries (including children)`,
         workspaceId,
       });
 
-      return { removed: toRemove.size };
+      return result;
     }),
 
   /** Move/reorder entry (drag-and-drop) */
@@ -501,15 +517,15 @@ export const bomRouter = router({
         const headers = "Item Number,Part Name,Part Number,Quantity,Unit,Material,Specification,Drawing Ref,Remarks";
         const rows = entries.map((e) =>
           [
-            e.itemNumber,
-            e.partName,
-            e.partNumber ?? "",
-            e.quantity,
-            e.unit ?? "",
-            e.material ?? "",
-            e.specification ?? "",
-            e.drawingRef ?? "",
-            e.remarks ?? "",
+            escapeCsvField(String(e.itemNumber)),
+            escapeCsvField(e.partName),
+            escapeCsvField(e.partNumber ?? ""),
+            escapeCsvField(String(e.quantity)),
+            escapeCsvField(e.unit ?? ""),
+            escapeCsvField(e.material ?? ""),
+            escapeCsvField(e.specification ?? ""),
+            escapeCsvField(e.drawingRef ?? ""),
+            escapeCsvField(e.remarks ?? ""),
           ].join(","),
         );
         const csv = [headers, ...rows].join("\n");

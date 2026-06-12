@@ -338,6 +338,7 @@ export const ocrRouter = router({
 
       // Enqueue the OCR job
       await addOcrJob({
+        jobId,
         documentId: input.documentId,
         versionId: "",
         filePath: doc.filePath ?? "",
@@ -368,7 +369,7 @@ export const ocrRouter = router({
   getJobStatus: protectedProcedure
     .input(z.object({ documentId: z.string() }))
     .query(async ({ input, ctx }) => {
-      requireWorkspaceId(ctx);
+      const workspaceId = requireWorkspaceId(ctx);
 
       const [job] = await db
         .select({
@@ -378,7 +379,8 @@ export const ocrRouter = router({
           errorMessage: ocrJobs.errorMessage,
         })
         .from(ocrJobs)
-        .where(eq(ocrJobs.documentId, input.documentId))
+        .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
+        .where(and(eq(ocrJobs.documentId, input.documentId), eq(documents.workspaceId, workspaceId)))
         .orderBy(desc(ocrJobs.createdAt))
         .limit(1);
 
