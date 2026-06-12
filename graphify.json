@@ -1,7 +1,7 @@
 {
   "metadata": {
     "lastUpdated": "2026-06-12T10:00:00.000Z",
-    "currentTask": "FEAT-019",
+    "currentTask": "FEAT-020",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -21,11 +21,18 @@
       "FEAT-016",
       "FEAT-017",
       "FEAT-018",
-      "FEAT-019"
+      "FEAT-019",
+      "FEAT-020"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-020",
+      "description": "Multi-format Export Service (Excel/Word/PDF) with dropdown menus on all major tables - install xlsx, create ExportService utility, add ExportDropdown component, wire into DocumentHub, WorkLedger, BOM, PL pages",
+      "status": "completed",
+      "dependsOn": ["FEAT-008", "FEAT-006"]
+    },
     {
       "id": "FEAT-019",
       "description": "Hierarchical KPI Reports - Admin/Supervisor user-level filtering, individual performance dashboard, comparative team view with color-coded metrics, and CSV export capabilities on the reports page",

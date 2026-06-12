@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Download,
   FileText,
   Filter,
   Plus,
@@ -16,6 +15,7 @@ import { PageFrame } from "@/components/layout/page-frame";
 import { WorkKpiBadge } from "@/components/ledger/work-kpi-badge";
 import { WorkRecordDetail } from "@/components/ledger/work-record-detail";
 import { WorkRecordForm } from "@/components/ledger/work-record-form";
+import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -118,10 +118,30 @@ export default function WorkLedgerPage() {
                 <RefreshCw className="h-3 w-3" />
                 Refresh
               </Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                <Download className="h-3 w-3" />
-                Export
-              </Button>
+              <ExportDropdown
+                title="Work Ledger"
+                headers={[
+                  "Date",
+                  "Category",
+                  "Type",
+                  "Description",
+                  "PL Number",
+                  "Status",
+                  "Days/Target",
+                  "Priority",
+                ]}
+                rows={filteredRecords.map((r) => [
+                  r.date,
+                  r.workCategory,
+                  r.workTypeCode,
+                  r.description,
+                  r.plNumber || "-",
+                  r.status,
+                  `${r.daysTaken}/${r.targetDays}`,
+                  r.priority,
+                ])}
+                filenamePrefix="work-ledger"
+              />
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger render={<Button size="sm" className="h-7 text-xs gap-1" />}>
                   <Plus className="h-3 w-3" />

@@ -1,11 +1,12 @@
 "use client";
 
-import { Download, Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { type PlFilterState, PlFilters } from "@/components/pl/pl-filters";
 import { PlTable } from "@/components/pl/pl-table";
+import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
@@ -36,6 +37,19 @@ export default function PlHubPage() {
     return true;
   });
 
+  const exportRows = useMemo(
+    () =>
+      filteredData.map((pl) => [
+        pl.plNumber,
+        pl.name,
+        pl.category,
+        pl.status,
+        pl.workshop,
+        pl.safetyCritical ? "Yes" : "No",
+      ]),
+    [filteredData],
+  );
+
   return (
     <PageFrame size="xl">
       <div className="flex flex-col gap-4">
@@ -48,10 +62,12 @@ export default function PlHubPage() {
                 <RefreshCw className="h-3 w-3" />
                 Refresh
               </Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                <Download className="h-3 w-3" />
-                Export
-              </Button>
+              <ExportDropdown
+                title="PL Knowledge Hub"
+                headers={["PL Number", "Name", "Category", "Status", "Workshop", "Safety Critical"]}
+                rows={exportRows}
+                filenamePrefix="pl-numbers"
+              />
               <Button size="sm" className="h-7 text-xs gap-1" render={<Link href="/pl/new" />}>
                 <Plus className="h-3 w-3" />
                 Create PL

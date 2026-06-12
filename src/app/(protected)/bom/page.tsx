@@ -3,6 +3,7 @@
 import { FolderTree, Plus } from "lucide-react";
 import Link from "next/link";
 import { PageFrame } from "@/components/layout/page-frame";
+import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,10 +37,18 @@ export default function BomExplorerPage() {
           title="BOM Explorer"
           subtitle="Bill of Materials - Hierarchical product structure management"
           actions={
-            <Button size="sm" className="h-7 text-xs gap-1" render={<Link href="/bom/new" />}>
-              <Plus className="h-3 w-3" />
-              New Product
-            </Button>
+            <div className="flex items-center gap-2">
+              <ExportDropdown
+                title="BOM Explorer"
+                headers={["Name", "Code", "Version", "Status", "Entry Count"]}
+                rows={products.map((p) => [p.name, p.code, p.version, p.status, p.entryCount])}
+                filenamePrefix="bom-products"
+              />
+              <Button size="sm" className="h-7 text-xs gap-1" render={<Link href="/bom/new" />}>
+                <Plus className="h-3 w-3" />
+                New Product
+              </Button>
+            </div>
           }
         />
 
