@@ -256,6 +256,32 @@ export const plRouter = router({
       }
     }
 
+    // If status is being set to deprecated/obsolete, check for open work records (same guard as changeStatus)
+    if (
+      input.status !== undefined &&
+      (input.status === "deprecated" || input.status === "obsolete") &&
+      input.status !== oldPl.status
+    ) {
+      const openRecords = await db
+        .select({ id: workRecords.id })
+        .from(workRecords)
+        .where(
+          and(
+            eq(workRecords.plNumberId, input.id),
+            inArray(workRecords.status, ["open", "in_progress"]),
+          ),
+        )
+        .limit(1);
+
+      if (openRecords.length > 0 && userRole !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Cannot set status to deprecated/obsolete while open work records exist. Admin override required.",
+        });
+      }
+    }
+
     const { id, ...updates } = input;
     const setValues: Record<string, unknown> = { updatedAt: new Date(), updatedBy: userId };
 
@@ -905,7 +931,12 @@ export const plRouter = router({
         })
         .from(ocrPlCandidates)
         .innerJoin(documents, eq(ocrPlCandidates.documentId, documents.id))
-        .where(eq(ocrPlCandidates.plNumber, pl.plNumber));
+        .where(
+          and(
+            eq(ocrPlCandidates.plNumber, pl.plNumber),
+            eq(ocrPlCandidates.workspaceId, workspaceId),
+          ),
+        );
 
       return hits;
     }),
@@ -1107,7 +1138,7 @@ export const plRouter = router({
     const userName = ctx.session.user.name ?? "Unknown";
 
     const errors: Array<{ index: number; plNumber: string; error: string }> = [];
-    let importedCount = 0;
+    const validRows: Array<{ index: number; row: (typeof input.rows)[number] }> = [];
 
     // Get all existing PL numbers in workspace to check uniqueness
     const existingPls = await db
@@ -1118,6 +1149,7 @@ export const plRouter = router({
     const existingSet = new Set(existingPls.map((p) => p.plNumber));
     const newNumbersInBatch = new Set<string>();
 
+    // Validate all rows before inserting (fail-fast on format/uniqueness issues)
     for (let i = 0; i < input.rows.length; i++) {
       const row = input.rows[i];
 
@@ -1143,45 +1175,54 @@ export const plRouter = router({
         continue;
       }
 
-      // Insert
-      const id = randomUUID();
-      const now = new Date();
-
-      await db.insert(plNumbers).values({
-        id,
-        plNumber: row.plNumber,
-        name: row.name,
-        description: row.description,
-        category: row.category,
-        status: row.status,
-        safetyCritical: row.safetyCritical,
-        drawingRef: row.drawingRef ?? null,
-        specification: row.specification ?? null,
-        unit: row.unit,
-        workshop: row.workshop,
-        manufacturer: row.manufacturer ?? null,
-        vendorCode: row.vendorCode ?? null,
-        partFamily: row.partFamily ?? null,
-        lifecycleStage: row.lifecycleStage ?? "active",
-        workspaceId,
-        createdBy: userId,
-        updatedBy: userId,
-        createdAt: now,
-        updatedAt: now,
-      });
-
       newNumbersInBatch.add(row.plNumber);
-      importedCount++;
+      validRows.push({ index: i, row });
+    }
 
-      await createAuditEntry(db, {
-        userId,
-        userName,
-        action: "pl.bulkImport",
-        resourceType: "pl_number",
-        resourceId: id,
-        resourceTitle: `${row.plNumber} - ${row.name}`,
-        details: `Bulk imported PL number ${row.plNumber}`,
-        workspaceId,
+    // Insert all valid rows inside a transaction for atomicity
+    let importedCount = 0;
+    if (validRows.length > 0) {
+      await db.transaction(async (tx) => {
+        for (const { row } of validRows) {
+          const id = randomUUID();
+          const now = new Date();
+
+          await tx.insert(plNumbers).values({
+            id,
+            plNumber: row.plNumber,
+            name: row.name,
+            description: row.description,
+            category: row.category,
+            status: row.status,
+            safetyCritical: row.safetyCritical,
+            drawingRef: row.drawingRef ?? null,
+            specification: row.specification ?? null,
+            unit: row.unit,
+            workshop: row.workshop,
+            manufacturer: row.manufacturer ?? null,
+            vendorCode: row.vendorCode ?? null,
+            partFamily: row.partFamily ?? null,
+            lifecycleStage: row.lifecycleStage ?? "active",
+            workspaceId,
+            createdBy: userId,
+            updatedBy: userId,
+            createdAt: now,
+            updatedAt: now,
+          });
+
+          await createAuditEntry(tx, {
+            userId,
+            userName,
+            action: "pl.bulkImport",
+            resourceType: "pl_number",
+            resourceId: id,
+            resourceTitle: `${row.plNumber} - ${row.name}`,
+            details: `Bulk imported PL number ${row.plNumber}`,
+            workspaceId,
+          });
+
+          importedCount++;
+        }
       });
     }
 

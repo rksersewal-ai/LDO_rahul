@@ -164,11 +164,16 @@ export default function PlTraceabilityPage({ params }: { params: Promise<{ id: s
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
+                          {/* TODO: Wire to pl.acceptOcrCandidate / pl.rejectOcrCandidate mutations once implemented */}
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
                             title="Accept"
+                            onClick={() => {
+                              // TODO: Replace with tRPC mutation call when OCR accept endpoint is implemented
+                              console.log("Accept OCR candidate:", hit.id);
+                            }}
                           >
                             <Check className="h-3.5 w-3.5" />
                           </Button>
@@ -177,6 +182,10 @@ export default function PlTraceabilityPage({ params }: { params: Promise<{ id: s
                             size="sm"
                             className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                             title="Reject"
+                            onClick={() => {
+                              // TODO: Replace with tRPC mutation call when OCR reject endpoint is implemented
+                              console.log("Reject OCR candidate:", hit.id);
+                            }}
                           >
                             <X className="h-3.5 w-3.5" />
                           </Button>

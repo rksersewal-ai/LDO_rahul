@@ -50,6 +50,9 @@ CREATE INDEX IF NOT EXISTS "idx_pl_relationships_source" ON "pl_relationships" (
 CREATE INDEX IF NOT EXISTS "idx_pl_relationships_target" ON "pl_relationships" ("target_pl_id");
 
 -- Upgrade document_pl_links table
+-- NOTE: The DROP CONSTRAINT / ADD COLUMN / ADD CONSTRAINT sequence below is safe because
+-- Drizzle Kit's migration runner wraps each migration file in a transaction. If any step
+-- fails, the entire migration is rolled back and the table retains its original PK.
 ALTER TABLE "document_pl_links" DROP CONSTRAINT IF EXISTS "document_pl_links_pkey";
 ALTER TABLE "document_pl_links" ADD COLUMN "id" text;
 ALTER TABLE "document_pl_links" ADD COLUMN "link_type" "document_pl_link_type" NOT NULL DEFAULT 'manual';

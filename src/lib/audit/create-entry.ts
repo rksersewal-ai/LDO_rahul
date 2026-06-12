@@ -18,11 +18,15 @@ export interface AuditEntryInput {
   userAgent?: string;
 }
 
+/** A database-like object that supports select/insert (works with both db and tx). */
+type DbOrTransaction = Pick<Database, "select" | "insert">;
+
 /**
  * Creates an audit log entry with a SHA-256 hash chain for tamper detection.
  * Never throws - logs to console.error on failure.
+ * Accepts either the db instance or a transaction (tx) from db.transaction().
  */
-export async function createAuditEntry(db: Database, input: AuditEntryInput): Promise<void> {
+export async function createAuditEntry(db: DbOrTransaction, input: AuditEntryInput): Promise<void> {
   try {
     const id = randomUUID();
     const now = new Date();

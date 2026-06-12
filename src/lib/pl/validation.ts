@@ -38,6 +38,10 @@ export function isValidModulo11(input: string): boolean {
 /**
  * Assert that the input is a valid PL number format.
  * Throws a TRPCError with BAD_REQUEST code if invalid.
+ *
+ * NOTE: Modulo-11 checksum validation is intentionally NOT enforced here.
+ * Per the settings key `documents.pl.mod11Required`, Modulo-11 is advisory only
+ * and used for OCR confidence scoring. It is not enforced on the write path by default.
  */
 export function assertValidPl(input: string): void {
   if (!isValidPlFormat(input)) {
