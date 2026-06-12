@@ -2,6 +2,7 @@
 
 import { ChevronRight, TrendingDown, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
+import { GlassCard } from "@/components/ui/glass-card";
 import { cn } from "@/lib/utils";
 
 export interface MetricCardProps {
@@ -28,11 +29,10 @@ export function MetricCard({
   className,
 }: MetricCardProps) {
   return (
-    <div
+    <GlassCard
+      interactive
       className={cn(
-        "group relative flex flex-col justify-between rounded-lg border bg-card p-4",
-        "transition-all duration-200 ease-out",
-        "hover:-translate-y-[1px] hover:border-primary/30 hover:shadow-[var(--shadow-card)]",
+        "group relative flex flex-col justify-between p-4",
         drillAction && "cursor-pointer",
         className,
       )}
@@ -84,6 +84,6 @@ export function MetricCard({
           <ChevronRight className="ml-0.5 h-3 w-3" />
         </div>
       )}
-    </div>
+    </GlassCard>
   );
 }

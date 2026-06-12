@@ -22,6 +22,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { SearchFiltersPanel } from "@/components/search/search-filters-panel";
+import { SearchMetricCard } from "@/components/search/search-metric-card";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { Badge } from "@/components/ui/badge";
 import { useSearch } from "@/hooks/use-search";
@@ -249,41 +250,22 @@ function SearchPageContent() {
 
       {/* Bento Metrics Strip */}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            label: "Indexed domains",
-            value: "4",
-            hint: "Documents, PL, work, cases",
-          },
-          {
-            label: "Saved playbooks",
-            value: String(savedSearches.length),
-            hint: "Reusable operator queries",
-          },
-          {
-            label: "Recent queries",
-            value: String(recentSearches.length),
-            hint: "Session query recall",
-          },
-          {
-            label: "Search focus",
-            value: totalResults > 0 ? String(totalResults) : "Ready",
-            hint: totalResults > 0 ? "Results in current view" : "Waiting for query",
-          },
-        ].map((metric) => (
-          <div
-            key={metric.label}
-            className="rounded-xl border border-border/50 bg-card/40 backdrop-blur-md p-3 text-left"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              {metric.label}
-            </p>
-            <p className="mt-1.5 font-mono text-2xl font-semibold text-foreground">
-              {metric.value}
-            </p>
-            <p className="mt-1 text-[10px] text-muted-foreground">{metric.hint}</p>
-          </div>
-        ))}
+        <SearchMetricCard label="Indexed domains" value="4" hint="Documents, PL, work, cases" />
+        <SearchMetricCard
+          label="Saved playbooks"
+          value={String(savedSearches.length)}
+          hint="Reusable operator queries"
+        />
+        <SearchMetricCard
+          label="Recent queries"
+          value={String(recentSearches.length)}
+          hint="Session query recall"
+        />
+        <SearchMetricCard
+          label="Search focus"
+          value={totalResults > 0 ? String(totalResults) : "Ready"}
+          hint={totalResults > 0 ? "Results in current view" : "Waiting for query"}
+        />
       </div>
 
       {/* Search Input with Cmd+K hint and bookmark action */}

@@ -3,7 +3,7 @@
 import { FolderTree } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import type { BomProduct, BomProductLifecycle } from "@/lib/mock-data/bom";
 import { cn } from "@/lib/utils";
 
@@ -36,13 +36,7 @@ export function BomProductCard({ product, entryCount }: BomProductCardProps) {
 
   return (
     <Link href={`/bom/${product.id}`}>
-      <Card
-        className={cn(
-          "p-4 cursor-pointer",
-          "transition-all duration-200 ease-out",
-          "hover:-translate-y-[1px] hover:border-primary/30 hover:shadow-[var(--shadow-card)]",
-        )}
-      >
+      <GlassCard interactive className="p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <FolderTree className="size-4 text-primary shrink-0" />
@@ -76,7 +70,7 @@ export function BomProductCard({ product, entryCount }: BomProductCardProps) {
             {entryCount} entries
           </Badge>
         </div>
-      </Card>
+      </GlassCard>
     </Link>
   );
 }

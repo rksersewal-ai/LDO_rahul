@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T16:00:00.000Z",
-    "currentTask": "FEAT-027",
+    "lastUpdated": "2026-06-12T17:00:00.000Z",
+    "currentTask": "FEAT-028",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -29,11 +29,18 @@
       "FEAT-024",
       "FEAT-025",
       "FEAT-026",
-      "FEAT-027"
+      "FEAT-027",
+      "FEAT-028"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-028",
+      "description": "Enhanced card interactions and GlassCard pattern - Reusable GlassCard component using design tokens with hover translateY(-1px) + border-primary/30 transition. Applied to MetricCard, BomProductCard, and SearchMetricCard.",
+      "status": "completed",
+      "dependsOn": ["FEAT-027", "FEAT-006"]
+    },
     {
       "id": "FEAT-027",
       "description": "BOM Explorer redesign - product cards with CSS-only hover animations, lifecycle badges, category filter pills, summary stats strip, recently modified list, and export dropdown",
