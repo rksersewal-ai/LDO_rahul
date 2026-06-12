@@ -1,10 +1,11 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import * as XLSX from "xlsx";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
-import { bomEntries, bomProducts, plNumbers } from "@/lib/db/schema";
+import { auditLog, bomEntries, bomProducts, plNumbers } from "@/lib/db/schema";
 import {
   addEntrySchema,
   createProductSchema,
@@ -12,7 +13,13 @@ import {
   moveEntrySchema,
   updateEntrySchema,
 } from "@/lib/validators/bom";
-import { engineerProcedure, protectedProcedure, router } from "@/server/trpc";
+import {
+  adminProcedure,
+  engineerProcedure,
+  protectedProcedure,
+  router,
+  supervisorProcedure,
+} from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | null } } }): string {
   const wsId = ctx.session?.user?.workspaceId;
@@ -182,6 +189,21 @@ export const bomRouter = router({
     });
 
     const [newEntry] = await db.select().from(bomEntries).where(eq(bomEntries.id, id));
+
+    // Check PL deprecation/obsolete warning
+    if (input.plId) {
+      const [pl] = await db
+        .select()
+        .from(plNumbers)
+        .where(eq(plNumbers.id, input.plId));
+
+      if (pl && (pl.status === "deprecated" || pl.status === "obsolete")) {
+        return {
+          ...newEntry,
+          warning: `PL number ${pl.plNumber} has status ${pl.status} - consider using an active alternative`,
+        };
+      }
+    }
 
     return newEntry;
   }),
@@ -451,4 +473,310 @@ export const bomRouter = router({
 
     return updatedEntry;
   }),
+
+  /** Export BOM as CSV or XLSX */
+  exportBom: protectedProcedure
+    .input(z.object({ productId: z.string(), format: z.enum(["csv", "xlsx"]) }))
+    .mutation(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      const [product] = await db
+        .select()
+        .from(bomProducts)
+        .where(
+          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
+        );
+
+      if (!product) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+      }
+
+      const entries = await db
+        .select()
+        .from(bomEntries)
+        .where(eq(bomEntries.bomProductId, input.productId))
+        .orderBy(asc(bomEntries.position));
+
+      if (input.format === "csv") {
+        const headers = "Item Number,Part Name,Part Number,Quantity,Unit,Material,Specification,Drawing Ref,Remarks";
+        const rows = entries.map((e) =>
+          [
+            e.itemNumber,
+            e.partName,
+            e.partNumber ?? "",
+            e.quantity,
+            e.unit ?? "",
+            e.material ?? "",
+            e.specification ?? "",
+            e.drawingRef ?? "",
+            e.remarks ?? "",
+          ].join(","),
+        );
+        const csv = [headers, ...rows].join("\n");
+        const data = Buffer.from(csv, "utf-8").toString("base64");
+
+        return {
+          data,
+          filename: `${product.productCode}-bom.csv`,
+          mimeType: "text/csv" as const,
+        };
+      }
+
+      // XLSX format
+      const sheetData = entries.map((e) => ({
+        "Item Number": e.itemNumber,
+        "Part Name": e.partName,
+        "Part Number": e.partNumber ?? "",
+        Quantity: e.quantity,
+        Unit: e.unit ?? "",
+        Material: e.material ?? "",
+        Specification: e.specification ?? "",
+        "Drawing Ref": e.drawingRef ?? "",
+        Remarks: e.remarks ?? "",
+      }));
+
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(sheetData);
+      XLSX.utils.book_append_sheet(workbook, worksheet, "BOM");
+      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      const data = Buffer.from(buffer).toString("base64");
+
+      return {
+        data,
+        filename: `${product.productCode}-bom.xlsx`,
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" as const,
+      };
+    }),
+
+  /** Clone a BOM product with all entries */
+  cloneProduct: engineerProcedure
+    .input(z.object({ productId: z.string(), newName: z.string(), newCode: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      // Verify original product exists in workspace
+      const [original] = await db
+        .select()
+        .from(bomProducts)
+        .where(
+          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
+        );
+
+      if (!original) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+      }
+
+      // Check newCode uniqueness in workspace
+      const [existing] = await db
+        .select({ id: bomProducts.id })
+        .from(bomProducts)
+        .where(
+          and(eq(bomProducts.productCode, input.newCode), eq(bomProducts.workspaceId, workspaceId)),
+        );
+
+      if (existing) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Product code already exists" });
+      }
+
+      const newProductId = nanoid();
+      const now = new Date();
+
+      const result = await db.transaction(async (tx) => {
+        // Copy product
+        await tx.insert(bomProducts).values({
+          id: newProductId,
+          productCode: input.newCode,
+          name: input.newName,
+          description: original.description,
+          version: "1.0",
+          workspaceId,
+          createdBy: ctx.session.user.id,
+          approvalStatus: "draft",
+          cloneSourceId: input.productId,
+          lockedAt: null,
+          lockedBy: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // Get all entries from original product
+        const originalEntries = await tx
+          .select()
+          .from(bomEntries)
+          .where(eq(bomEntries.bomProductId, input.productId));
+
+        // Create ID mapping: old ID -> new nanoid
+        const idMap = new Map<string, string>();
+        for (const entry of originalEntries) {
+          idMap.set(entry.id, nanoid());
+        }
+
+        // Insert all entries with new IDs, mapping parentId through the ID map
+        for (const entry of originalEntries) {
+          const newId = idMap.get(entry.id)!;
+          const newParentId = entry.parentId ? (idMap.get(entry.parentId) ?? null) : null;
+
+          await tx.insert(bomEntries).values({
+            id: newId,
+            bomProductId: newProductId,
+            parentId: newParentId,
+            itemNumber: entry.itemNumber,
+            partName: entry.partName,
+            partNumber: entry.partNumber,
+            plNumberId: entry.plNumberId,
+            quantity: entry.quantity,
+            unit: entry.unit,
+            material: entry.material,
+            specification: entry.specification,
+            drawingRef: entry.drawingRef,
+            remarks: entry.remarks,
+            position: entry.position,
+            type: entry.type,
+            effectivityDate: entry.effectivityDate,
+            isActive: entry.isActive,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+
+        return { entriesCloned: originalEntries.length };
+      });
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user.id,
+        userName: ctx.session.user.name ?? "Unknown",
+        action: "bom.clone_product",
+        resourceType: "bom_product",
+        resourceId: newProductId,
+        resourceTitle: input.newName,
+        details: `Cloned from ${original.productCode} with ${result.entriesCloned} entries`,
+        workspaceId,
+      });
+
+      const [clonedProduct] = await db
+        .select()
+        .from(bomProducts)
+        .where(eq(bomProducts.id, newProductId));
+
+      return clonedProduct;
+    }),
+
+  /** Lock a BOM product (supervisor+) */
+  lockProduct: supervisorProcedure
+    .input(z.object({ productId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      const [product] = await db
+        .select()
+        .from(bomProducts)
+        .where(
+          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
+        );
+
+      if (!product) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+      }
+
+      await db
+        .update(bomProducts)
+        .set({
+          lockedAt: new Date(),
+          lockedBy: ctx.session.user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(bomProducts.id, input.productId));
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user.id,
+        userName: ctx.session.user.name ?? "Unknown",
+        action: "bom.lock_product",
+        resourceType: "bom_product",
+        resourceId: input.productId,
+        resourceTitle: product.name,
+        workspaceId,
+      });
+
+      const [updatedProduct] = await db
+        .select()
+        .from(bomProducts)
+        .where(eq(bomProducts.id, input.productId));
+
+      return updatedProduct;
+    }),
+
+  /** Unlock a BOM product (admin only) */
+  unlockProduct: adminProcedure
+    .input(z.object({ productId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      const [product] = await db
+        .select()
+        .from(bomProducts)
+        .where(
+          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
+        );
+
+      if (!product) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+      }
+
+      await db
+        .update(bomProducts)
+        .set({
+          lockedAt: null,
+          lockedBy: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(bomProducts.id, input.productId));
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user.id,
+        userName: ctx.session.user.name ?? "Unknown",
+        action: "bom.unlock_product",
+        resourceType: "bom_product",
+        resourceId: input.productId,
+        resourceTitle: product.name,
+        workspaceId,
+      });
+
+      const [updatedProduct] = await db
+        .select()
+        .from(bomProducts)
+        .where(eq(bomProducts.id, input.productId));
+
+      return updatedProduct;
+    }),
+
+  /** Get version history for a BOM product from audit log */
+  getVersionHistory: protectedProcedure
+    .input(z.object({ productId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      const [product] = await db
+        .select()
+        .from(bomProducts)
+        .where(
+          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
+        );
+
+      if (!product) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+      }
+
+      const history = await db
+        .select()
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.entityType, "bom_product"),
+            eq(auditLog.entityId, input.productId),
+          ),
+        )
+        .orderBy(desc(auditLog.createdAt));
+
+      return history;
+    }),
 });
