@@ -1,18 +1,26 @@
+import { randomUUID } from "node:crypto";
+import bcrypt from "bcryptjs";
+import { and, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { createAuditEntry } from "@/lib/audit/create-entry";
 import type { Permission } from "@/lib/auth/permissions";
+import { db } from "@/lib/db";
+import {
+  auditLog,
+  ocrJobs,
+  organizations,
+  settings as settingsTable,
+  users,
+  userWorkspaces,
+  workspaces,
+} from "@/lib/db/schema";
 import {
   type Banner,
-  MOCK_ADMIN_USERS,
-  MOCK_AUDIT_LOG,
   MOCK_BANNERS,
   MOCK_DUPLICATE_GROUPS,
-  MOCK_OCR_QUEUE,
-  MOCK_SETTINGS,
   MOCK_STORAGE_STATS,
   MOCK_SYSTEM_HEALTH,
   MOCK_SYSTEM_METRICS,
-  type OcrQueueJob,
-  type SystemSetting,
 } from "@/lib/mock-data/admin";
 import {
   type ComplianceSettings,
@@ -26,13 +34,10 @@ import {
   type SecurityPolicies,
   type SystemConfiguration,
 } from "@/lib/mock-data/admin-settings";
-import type { MockUser, UserRole } from "@/lib/mock-data/users";
+import type { UserRole } from "@/lib/types/auth";
 import { adminProcedure, router } from "@/server/trpc";
 
-// In-memory mutable stores
-const users: MockUser[] = [...MOCK_ADMIN_USERS];
-const ocrQueue: OcrQueueJob[] = [...MOCK_OCR_QUEUE];
-const settings: SystemSetting[] = [...MOCK_SETTINGS];
+// In-memory mutable stores (non-DB-backed features only)
 const banners: Banner[] = [...MOCK_BANNERS];
 const featureToggles: FeatureToggle[] = [...MOCK_FEATURE_TOGGLES];
 let securityPolicies: SecurityPolicies = { ...MOCK_SECURITY_POLICIES };
@@ -49,7 +54,7 @@ export const adminRouter = router({
     };
   }),
 
-  // --- User Management ---
+  // --- User Management (Real DB) ---
   getUsers: adminProcedure
     .input(
       z
@@ -61,27 +66,58 @@ export const adminRouter = router({
         })
         .optional(),
     )
-    .query(({ input }) => {
-      let filtered = [...users];
+    .query(async ({ input }) => {
+      const conditions = [];
+
       if (input?.role) {
-        filtered = filtered.filter((u) => u.role === input.role);
+        conditions.push(eq(users.role, input.role as UserRole));
       }
       if (input?.department) {
-        filtered = filtered.filter((u) => u.department === input.department);
+        conditions.push(eq(users.department, input.department));
       }
       if (input?.isActive !== undefined) {
-        filtered = filtered.filter((u) => u.isActive === input.isActive);
+        conditions.push(eq(users.isActive, input.isActive));
       }
       if (input?.search) {
-        const s = input.search.toLowerCase();
-        filtered = filtered.filter(
-          (u) =>
-            u.name.toLowerCase().includes(s) ||
-            u.username.toLowerCase().includes(s) ||
-            u.email.toLowerCase().includes(s),
+        const searchTerm = `%${input.search}%`;
+        conditions.push(
+          or(
+            ilike(users.name, searchTerm),
+            ilike(users.username, searchTerm),
+            ilike(users.email, searchTerm),
+          ),
         );
       }
-      return filtered;
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const rows = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          name: users.name,
+          designation: users.designation,
+          department: users.department,
+          section: users.section,
+          employeeId: users.employeeId,
+          phone: users.phone,
+          role: users.role,
+          isActive: users.isActive,
+          lastLogin: users.lastLogin,
+          passwordChangedAt: users.passwordChangedAt,
+          forcePasswordChange: users.forcePasswordChange,
+          failedLoginAttempts: users.failedLoginAttempts,
+          lockedAt: users.lockedAt,
+          lockedBy: users.lockedBy,
+          lockReason: users.lockReason,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .where(whereClause)
+        .orderBy(users.name);
+
+      return rows;
     }),
 
   createUser: adminProcedure
@@ -99,20 +135,41 @@ export const adminRouter = router({
         phone: z.string(),
       }),
     )
-    .mutation(({ input }) => {
-      const newUser: MockUser = {
-        id: `u-${Date.now()}`,
-        ...input,
-        isActive: true,
-        lastLogin: null,
-        passwordChangedAt: new Date().toISOString(),
-        forcePasswordChange: true,
-        failedLoginAttempts: 0,
-        lockedAt: null,
-        lockedBy: null,
-        lockReason: null,
-      };
-      users.push(newUser);
+    .mutation(async ({ input, ctx }) => {
+      const id = randomUUID();
+      const passwordHash = await bcrypt.hash(input.password, 12);
+
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          id,
+          username: input.username,
+          email: input.email,
+          name: input.name,
+          passwordHash,
+          designation: input.designation,
+          department: input.department,
+          section: input.section,
+          employeeId: input.employeeId,
+          phone: input.phone,
+          role: input.role,
+          isActive: true,
+          forcePasswordChange: true,
+          failedLoginAttempts: 0,
+          passwordChangedAt: new Date(),
+        })
+        .returning();
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "CREATE",
+        resourceType: "user",
+        resourceId: id,
+        resourceTitle: input.name,
+        details: `Created user ${input.username} with role ${input.role}`,
+      });
+
       return newUser;
     }),
 
@@ -130,37 +187,90 @@ export const adminRouter = router({
         isActive: z.boolean().optional(),
       }),
     )
-    .mutation(({ input }) => {
-      const idx = users.findIndex((u) => u.id === input.id);
-      if (idx === -1) return null;
-      const { id: _id, ...updates } = input;
-      Object.assign(users[idx], updates);
-      return users[idx];
+    .mutation(async ({ input, ctx }) => {
+      const { id, ...updates } = input;
+
+      // Get old values for audit
+      const [oldUser] = await db.select().from(users).where(eq(users.id, id));
+      if (!oldUser) return null;
+
+      const setValues: Record<string, unknown> = { updatedAt: new Date() };
+      if (updates.name !== undefined) setValues.name = updates.name;
+      if (updates.email !== undefined) setValues.email = updates.email;
+      if (updates.role !== undefined) setValues.role = updates.role;
+      if (updates.designation !== undefined) setValues.designation = updates.designation;
+      if (updates.department !== undefined) setValues.department = updates.department;
+      if (updates.section !== undefined) setValues.section = updates.section;
+      if (updates.phone !== undefined) setValues.phone = updates.phone;
+      if (updates.isActive !== undefined) setValues.isActive = updates.isActive;
+
+      const [updated] = await db.update(users).set(setValues).where(eq(users.id, id)).returning();
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "UPDATE",
+        resourceType: "user",
+        resourceId: id,
+        resourceTitle: oldUser.name,
+        details: `Updated user fields: ${Object.keys(updates).join(", ")}`,
+        oldValue: JSON.stringify(updates),
+        newValue: JSON.stringify(
+          Object.fromEntries(
+            Object.keys(updates).map((k) => [k, (updated as Record<string, unknown>)[k]]),
+          ),
+        ),
+      });
+
+      return updated;
     }),
 
-  deactivateUser: adminProcedure.input(z.object({ id: z.string() })).mutation(({ input }) => {
-    const idx = users.findIndex((u) => u.id === input.id);
-    if (idx === -1) return null;
-    users[idx].isActive = false;
-    return users[idx];
-  }),
+  deactivateUser: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const [oldUser] = await db.select().from(users).where(eq(users.id, input.id));
+      if (!oldUser) return null;
 
-  // --- User Security Management ---
-  getSecurityInfo: adminProcedure.input(z.object({ userId: z.string() })).query(({ input }) => {
-    const user = users.find((u) => u.id === input.userId);
-    if (!user) return null;
-    return {
-      userId: user.id,
-      username: user.username,
-      name: user.name,
-      passwordChangedAt: user.passwordChangedAt,
-      forcePasswordChange: user.forcePasswordChange,
-      failedLoginAttempts: user.failedLoginAttempts,
-      lockedAt: user.lockedAt,
-      lockedBy: user.lockedBy,
-      lockReason: user.lockReason,
-    };
-  }),
+      const [updated] = await db
+        .update(users)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(users.id, input.id))
+        .returning();
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "USER_DEACTIVATE",
+        resourceType: "user",
+        resourceId: input.id,
+        resourceTitle: oldUser.name,
+        details: `Deactivated user account: ${oldUser.username}`,
+      });
+
+      return updated;
+    }),
+
+  // --- User Security Management (Real DB) ---
+  getSecurityInfo: adminProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ input }) => {
+      const [user] = await db
+        .select({
+          userId: users.id,
+          username: users.username,
+          name: users.name,
+          passwordChangedAt: users.passwordChangedAt,
+          forcePasswordChange: users.forcePasswordChange,
+          failedLoginAttempts: users.failedLoginAttempts,
+          lockedAt: users.lockedAt,
+          lockedBy: users.lockedBy,
+          lockReason: users.lockReason,
+        })
+        .from(users)
+        .where(eq(users.id, input.userId));
+
+      return user ?? null;
+    }),
 
   resetPassword: adminProcedure
     .input(
@@ -169,22 +279,56 @@ export const adminRouter = router({
         newPassword: z.string().min(6),
       }),
     )
-    .mutation(({ input }) => {
-      const idx = users.findIndex((u) => u.id === input.userId);
-      if (idx === -1) return null;
-      // NOTE: Mock-only -- in production, hash with bcrypt/argon2 before storing
-      users[idx].password = input.newPassword;
-      users[idx].passwordChangedAt = new Date().toISOString();
-      users[idx].forcePasswordChange = true;
+    .mutation(async ({ input, ctx }) => {
+      const [user] = await db.select().from(users).where(eq(users.id, input.userId));
+      if (!user) return null;
+
+      const passwordHash = await bcrypt.hash(input.newPassword, 12);
+
+      await db
+        .update(users)
+        .set({
+          passwordHash,
+          passwordChangedAt: new Date(),
+          forcePasswordChange: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, input.userId));
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "PASSWORD_RESET",
+        resourceType: "user",
+        resourceId: input.userId,
+        resourceTitle: user.name,
+        details: `Password reset by admin for user: ${user.username}`,
+      });
+
       return { success: true, userId: input.userId };
     }),
 
   forcePasswordChange: adminProcedure
     .input(z.object({ userId: z.string() }))
-    .mutation(({ input }) => {
-      const idx = users.findIndex((u) => u.id === input.userId);
-      if (idx === -1) return null;
-      users[idx].forcePasswordChange = true;
+    .mutation(async ({ input, ctx }) => {
+      const [user] = await db.select().from(users).where(eq(users.id, input.userId));
+      if (!user) return null;
+
+      await db
+        .update(users)
+        .set({ forcePasswordChange: true, updatedAt: new Date() })
+        .where(eq(users.id, input.userId));
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "UPDATE",
+        resourceType: "user",
+        resourceId: input.userId,
+        resourceTitle: user.name,
+        details: `Force password change enabled for user: ${user.username}`,
+      });
+
       return { success: true, userId: input.userId };
     }),
 
@@ -195,26 +339,66 @@ export const adminRouter = router({
         reason: z.string().min(1),
       }),
     )
-    .mutation(({ input, ctx }) => {
-      const idx = users.findIndex((u) => u.id === input.userId);
-      if (idx === -1) return null;
-      users[idx].lockedAt = new Date().toISOString();
-      users[idx].lockedBy = ctx.session.user?.id || "unknown";
-      users[idx].lockReason = input.reason;
+    .mutation(async ({ input, ctx }) => {
+      const [user] = await db.select().from(users).where(eq(users.id, input.userId));
+      if (!user) return null;
+
+      const lockedBy = ctx.session.user?.id ?? "unknown";
+
+      await db
+        .update(users)
+        .set({
+          lockedAt: new Date(),
+          lockedBy,
+          lockReason: input.reason,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, input.userId));
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "UPDATE",
+        resourceType: "user",
+        resourceId: input.userId,
+        resourceTitle: user.name,
+        details: `Account locked. Reason: ${input.reason}`,
+      });
+
       return { success: true, userId: input.userId };
     }),
 
-  unlockAccount: adminProcedure.input(z.object({ userId: z.string() })).mutation(({ input }) => {
-    const idx = users.findIndex((u) => u.id === input.userId);
-    if (idx === -1) return null;
-    users[idx].lockedAt = null;
-    users[idx].lockedBy = null;
-    users[idx].lockReason = null;
-    users[idx].failedLoginAttempts = 0;
-    return { success: true, userId: input.userId };
-  }),
+  unlockAccount: adminProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const [user] = await db.select().from(users).where(eq(users.id, input.userId));
+      if (!user) return null;
 
-  // --- OCR Queue ---
+      await db
+        .update(users)
+        .set({
+          lockedAt: null,
+          lockedBy: null,
+          lockReason: null,
+          failedLoginAttempts: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, input.userId));
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "UPDATE",
+        resourceType: "user",
+        resourceId: input.userId,
+        resourceTitle: user.name,
+        details: `Account unlocked for user: ${user.username}`,
+      });
+
+      return { success: true, userId: input.userId };
+    }),
+
+  // --- OCR Queue (Real DB) ---
   getOcrQueue: adminProcedure
     .input(
       z
@@ -223,40 +407,106 @@ export const adminRouter = router({
         })
         .optional(),
     )
-    .query(({ input }) => {
-      let filtered = [...ocrQueue];
+    .query(async ({ input }) => {
+      const conditions = [];
       if (input?.status) {
-        filtered = filtered.filter((j) => j.status === input.status);
+        conditions.push(
+          eq(
+            ocrJobs.status,
+            input.status as "queued" | "processing" | "completed" | "failed" | "cancelled",
+          ),
+        );
       }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const jobs = await db
+        .select()
+        .from(ocrJobs)
+        .where(whereClause)
+        .orderBy(desc(ocrJobs.createdAt));
+
+      // Compute summary counts
+      const [summaryResult] = await db
+        .select({
+          queued: sql<number>`count(*) filter (where ${ocrJobs.status} = 'queued')`,
+          processing: sql<number>`count(*) filter (where ${ocrJobs.status} = 'processing')`,
+          completed: sql<number>`count(*) filter (where ${ocrJobs.status} = 'completed')`,
+          failed: sql<number>`count(*) filter (where ${ocrJobs.status} = 'failed')`,
+          cancelled: sql<number>`count(*) filter (where ${ocrJobs.status} = 'cancelled')`,
+        })
+        .from(ocrJobs);
+
       const summary = {
-        queued: ocrQueue.filter((j) => j.status === "queued").length,
-        processing: ocrQueue.filter((j) => j.status === "processing").length,
-        completed: ocrQueue.filter((j) => j.status === "completed").length,
-        failed: ocrQueue.filter((j) => j.status === "failed").length,
-        cancelled: ocrQueue.filter((j) => j.status === "cancelled").length,
+        queued: Number(summaryResult?.queued ?? 0),
+        processing: Number(summaryResult?.processing ?? 0),
+        completed: Number(summaryResult?.completed ?? 0),
+        failed: Number(summaryResult?.failed ?? 0),
+        cancelled: Number(summaryResult?.cancelled ?? 0),
       };
-      return { jobs: filtered, summary };
+
+      return { jobs, summary };
     }),
 
-  retryOcrJob: adminProcedure.input(z.object({ id: z.string() })).mutation(({ input }) => {
-    const idx = ocrQueue.findIndex((j) => j.id === input.id);
-    if (idx === -1) return null;
-    ocrQueue[idx].status = "queued";
-    ocrQueue[idx].error = null;
-    ocrQueue[idx].retryCount += 1;
-    ocrQueue[idx].pagesProcessed = 0;
-    return ocrQueue[idx];
-  }),
+  retryOcrJob: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const [job] = await db.select().from(ocrJobs).where(eq(ocrJobs.id, input.id));
+      if (!job) return null;
 
-  cancelOcrJob: adminProcedure.input(z.object({ id: z.string() })).mutation(({ input }) => {
-    const idx = ocrQueue.findIndex((j) => j.id === input.id);
-    if (idx === -1) return null;
-    ocrQueue[idx].status = "cancelled";
-    ocrQueue[idx].error = "Cancelled by admin";
-    return ocrQueue[idx];
-  }),
+      const [updated] = await db
+        .update(ocrJobs)
+        .set({
+          status: "queued",
+          errorMessage: null,
+          retryCount: (job.retryCount ?? 0) + 1,
+          processedPages: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(ocrJobs.id, input.id))
+        .returning();
 
-  // --- Storage ---
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "UPDATE",
+        resourceType: "ocr_job",
+        resourceId: input.id,
+        details: `Retried OCR job (attempt ${(job.retryCount ?? 0) + 1})`,
+      });
+
+      return updated;
+    }),
+
+  cancelOcrJob: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const [job] = await db.select().from(ocrJobs).where(eq(ocrJobs.id, input.id));
+      if (!job) return null;
+
+      const [updated] = await db
+        .update(ocrJobs)
+        .set({
+          status: "cancelled",
+          errorMessage: "Cancelled by admin",
+          updatedAt: new Date(),
+        })
+        .where(eq(ocrJobs.id, input.id))
+        .returning();
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "UPDATE",
+        resourceType: "ocr_job",
+        resourceId: input.id,
+        details: "OCR job cancelled by admin",
+      });
+
+      return updated;
+    }),
+
+  // --- Storage (still mock) ---
   getStorageStats: adminProcedure.query(() => {
     return {
       categories: MOCK_STORAGE_STATS,
@@ -265,7 +515,7 @@ export const adminRouter = router({
     };
   }),
 
-  // --- Deduplication ---
+  // --- Deduplication (still mock) ---
   getDuplicateGroups: adminProcedure.query(() => {
     return MOCK_DUPLICATE_GROUPS;
   }),
@@ -278,7 +528,6 @@ export const adminRouter = router({
       }),
     )
     .mutation(({ input }) => {
-      // Simulate merge by removing the group
       return {
         success: true,
         groupId: input.groupId,
@@ -287,7 +536,7 @@ export const adminRouter = router({
       };
     }),
 
-  // --- Audit Log ---
+  // --- Audit Log (Real DB) ---
   getAuditLog: adminProcedure
     .input(
       z
@@ -303,64 +552,329 @@ export const adminRouter = router({
         })
         .optional(),
     )
-    .query(({ input }) => {
-      let filtered = [...MOCK_AUDIT_LOG];
+    .query(async ({ input }) => {
+      const conditions = [];
+
       if (input?.search) {
-        const s = input.search.toLowerCase();
-        filtered = filtered.filter(
-          (e) =>
-            e.userName.toLowerCase().includes(s) ||
-            e.details.toLowerCase().includes(s) ||
-            e.resourceTitle.toLowerCase().includes(s),
+        const searchTerm = `%${input.search}%`;
+        conditions.push(
+          or(ilike(auditLog.userName, searchTerm), ilike(auditLog.details, searchTerm)),
         );
       }
       if (input?.action) {
-        filtered = filtered.filter((e) => e.action === input.action);
+        conditions.push(eq(auditLog.action, input.action));
       }
       if (input?.userId) {
-        filtered = filtered.filter((e) => e.userId === input.userId);
+        conditions.push(eq(auditLog.userId, input.userId));
       }
       if (input?.resourceType) {
-        filtered = filtered.filter((e) => e.resourceType === input.resourceType);
+        conditions.push(eq(auditLog.entityType, input.resourceType));
       }
       if (input?.dateFrom) {
-        const dateFrom = input.dateFrom;
-        filtered = filtered.filter((e) => e.timestamp >= dateFrom);
+        conditions.push(gte(auditLog.createdAt, new Date(input.dateFrom)));
       }
       if (input?.dateTo) {
-        const dateTo = input.dateTo;
-        filtered = filtered.filter((e) => e.timestamp <= dateTo);
+        conditions.push(lte(auditLog.createdAt, new Date(input.dateTo)));
       }
 
-      const total = filtered.length;
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
       const offset = input?.offset ?? 0;
       const limit = input?.limit ?? 20;
-      const items = filtered.slice(offset, offset + limit);
+
+      const [items, totalResult] = await Promise.all([
+        db
+          .select()
+          .from(auditLog)
+          .where(whereClause)
+          .orderBy(desc(auditLog.createdAt))
+          .offset(offset)
+          .limit(limit),
+        db.select({ total: count() }).from(auditLog).where(whereClause),
+      ]);
+
+      const total = totalResult[0]?.total ?? 0;
 
       return { items, total, offset, limit, hashChainValid: true };
     }),
 
-  // --- Settings ---
-  getSettings: adminProcedure.query(() => {
-    return settings;
+  // --- Settings (Real DB) ---
+  getSettings: adminProcedure.query(async () => {
+    const rows = await db
+      .select()
+      .from(settingsTable)
+      .orderBy(settingsTable.category, settingsTable.key);
+    return rows;
   }),
 
   updateSetting: adminProcedure
     .input(
       z.object({
-        id: z.string(),
+        key: z.string(),
         value: z.string(),
+        description: z.string().optional(),
+        category: z.string().optional(),
       }),
     )
-    .mutation(({ input }) => {
-      const idx = settings.findIndex((s) => s.id === input.id);
-      if (idx === -1) return null;
-      settings[idx].value = input.value;
-      settings[idx].updatedAt = new Date().toISOString();
-      return settings[idx];
+    .mutation(async ({ input, ctx }) => {
+      const [existing] = await db
+        .select()
+        .from(settingsTable)
+        .where(eq(settingsTable.key, input.key));
+
+      const setValues: Record<string, unknown> = {
+        value: input.value,
+        updatedAt: new Date(),
+        updatedBy: ctx.session.user?.id ?? "system",
+      };
+      if (input.description) setValues.description = input.description;
+      if (input.category) setValues.category = input.category;
+
+      let result: typeof existing | undefined;
+      if (existing) {
+        [result] = await db
+          .update(settingsTable)
+          .set(setValues)
+          .where(eq(settingsTable.key, input.key))
+          .returning();
+      } else {
+        [result] = await db
+          .insert(settingsTable)
+          .values({
+            key: input.key,
+            value: input.value,
+            description: input.description ?? null,
+            category: input.category ?? "general",
+            updatedBy: ctx.session.user?.id ?? "system",
+          })
+          .returning();
+      }
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "SETTINGS_CHANGE",
+        resourceType: "settings",
+        resourceId: input.key,
+        details: `Updated setting: ${input.key}`,
+        oldValue: existing?.value ?? null,
+        newValue: input.value,
+      });
+
+      return result;
     }),
 
-  // --- Banners ---
+  // --- Organizations (Real DB) ---
+  getOrganizations: adminProcedure.query(async () => {
+    const rows = await db.select().from(organizations).orderBy(organizations.name);
+    return rows;
+  }),
+
+  createOrganization: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(2),
+        code: z.string().min(2),
+        address: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const id = randomUUID();
+
+      const [org] = await db
+        .insert(organizations)
+        .values({
+          id,
+          name: input.name,
+          code: input.code,
+          address: input.address ?? null,
+          isActive: true,
+        })
+        .returning();
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "CREATE",
+        resourceType: "organization",
+        resourceId: id,
+        resourceTitle: input.name,
+        details: `Created organization: ${input.name} (${input.code})`,
+      });
+
+      return org;
+    }),
+
+  // --- Workspaces Admin (Real DB) ---
+  getWorkspaces: adminProcedure.query(async () => {
+    const rows = await db
+      .select({
+        id: workspaces.id,
+        name: workspaces.name,
+        code: workspaces.code,
+        description: workspaces.description,
+        orgId: workspaces.orgId,
+        orgName: organizations.name,
+        isActive: workspaces.isActive,
+        storageQuotaGb: workspaces.storageQuotaGb,
+        usedStorageBytes: workspaces.usedStorageBytes,
+        createdAt: workspaces.createdAt,
+        updatedAt: workspaces.updatedAt,
+      })
+      .from(workspaces)
+      .leftJoin(organizations, eq(workspaces.orgId, organizations.id))
+      .orderBy(workspaces.name);
+
+    return rows;
+  }),
+
+  createWorkspace: adminProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        name: z.string().min(2),
+        code: z.string().min(2),
+        description: z.string().optional(),
+        storageQuotaGb: z.number().default(100),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const id = randomUUID();
+
+      const [ws] = await db
+        .insert(workspaces)
+        .values({
+          id,
+          orgId: input.orgId,
+          name: input.name,
+          code: input.code,
+          description: input.description ?? null,
+          isActive: true,
+          storageQuotaGb: input.storageQuotaGb,
+        })
+        .returning();
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "CREATE",
+        resourceType: "workspace",
+        resourceId: id,
+        resourceTitle: input.name,
+        details: `Created workspace: ${input.name} (${input.code})`,
+      });
+
+      return ws;
+    }),
+
+  updateWorkspace: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        isActive: z.boolean().optional(),
+        storageQuotaGb: z.number().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { id, ...updates } = input;
+      const [old] = await db.select().from(workspaces).where(eq(workspaces.id, id));
+      if (!old) return null;
+
+      const setValues: Record<string, unknown> = { updatedAt: new Date() };
+      if (updates.name !== undefined) setValues.name = updates.name;
+      if (updates.description !== undefined) setValues.description = updates.description;
+      if (updates.isActive !== undefined) setValues.isActive = updates.isActive;
+      if (updates.storageQuotaGb !== undefined) setValues.storageQuotaGb = updates.storageQuotaGb;
+
+      const [updated] = await db
+        .update(workspaces)
+        .set(setValues)
+        .where(eq(workspaces.id, id))
+        .returning();
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "UPDATE",
+        resourceType: "workspace",
+        resourceId: id,
+        resourceTitle: old.name,
+        details: `Updated workspace: ${old.name}`,
+        oldValue: JSON.stringify(updates),
+        newValue: JSON.stringify(
+          Object.fromEntries(
+            Object.keys(updates).map((k) => [k, (updated as Record<string, unknown>)[k]]),
+          ),
+        ),
+      });
+
+      return updated;
+    }),
+
+  assignUserToWorkspace: adminProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        workspaceId: z.string(),
+        role: z.enum(["admin", "supervisor", "reviewer", "engineer", "viewer"]),
+        isPrimary: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const [assignment] = await db
+        .insert(userWorkspaces)
+        .values({
+          userId: input.userId,
+          workspaceId: input.workspaceId,
+          role: input.role,
+          isPrimary: input.isPrimary,
+          assignedBy: ctx.session.user?.id ?? "system",
+        })
+        .returning();
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "CREATE",
+        resourceType: "user_workspace",
+        resourceId: `${input.userId}:${input.workspaceId}`,
+        details: `Assigned user ${input.userId} to workspace ${input.workspaceId} with role ${input.role}`,
+      });
+
+      return assignment;
+    }),
+
+  removeUserFromWorkspace: adminProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        workspaceId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      await db
+        .delete(userWorkspaces)
+        .where(
+          and(
+            eq(userWorkspaces.userId, input.userId),
+            eq(userWorkspaces.workspaceId, input.workspaceId),
+          ),
+        );
+
+      await createAuditEntry(db, {
+        userId: ctx.session.user?.id ?? "system",
+        userName: ctx.session.user?.name ?? "System",
+        action: "DELETE",
+        resourceType: "user_workspace",
+        resourceId: `${input.userId}:${input.workspaceId}`,
+        details: `Removed user ${input.userId} from workspace ${input.workspaceId}`,
+      });
+
+      return { success: true };
+    }),
+
+  // --- Banners (in-memory) ---
   getBanners: adminProcedure.query(() => {
     return banners;
   }),
@@ -393,7 +907,7 @@ export const adminRouter = router({
     return removed[0];
   }),
 
-  // --- Feature Toggles ---
+  // --- Feature Toggles (in-memory) ---
   getFeatureToggles: adminProcedure.query(() => {
     return featureToggles;
   }),
@@ -414,7 +928,7 @@ export const adminRouter = router({
       return featureToggles[idx];
     }),
 
-  // --- Security Policies ---
+  // --- Security Policies (in-memory) ---
   getSecurityPolicies: adminProcedure.query(() => {
     return securityPolicies;
   }),
@@ -482,7 +996,7 @@ export const adminRouter = router({
       return securityPolicies;
     }),
 
-  // --- Role Permissions ---
+  // --- Role Permissions (in-memory) ---
   getRolePermissions: adminProcedure.query(() => {
     return rolePermissions;
   }),
@@ -498,7 +1012,7 @@ export const adminRouter = router({
     .mutation(({ input }) => {
       const role = input.role as UserRole;
       const permission = input.permission as Permission;
-      if (role === "admin") return rolePermissions; // admin always has all
+      if (role === "admin") return rolePermissions;
       if (input.granted) {
         if (!rolePermissions[role].includes(permission)) {
           rolePermissions[role].push(permission);
@@ -509,7 +1023,7 @@ export const adminRouter = router({
       return rolePermissions;
     }),
 
-  // --- System Configuration ---
+  // --- System Configuration (in-memory) ---
   getSystemConfiguration: adminProcedure.query(() => {
     return systemConfiguration;
   }),
@@ -592,7 +1106,7 @@ export const adminRouter = router({
       return systemConfiguration;
     }),
 
-  // --- Compliance Settings ---
+  // --- Compliance Settings (in-memory) ---
   getComplianceSettings: adminProcedure.query(() => {
     return complianceSettings;
   }),
@@ -650,14 +1164,15 @@ export const adminRouter = router({
     }),
 
   // --- Export/Import ---
-  exportSettings: adminProcedure.query(() => {
+  exportSettings: adminProcedure.query(async () => {
+    const legacySettings = await db.select().from(settingsTable);
     return {
       featureToggles,
       securityPolicies,
       rolePermissions,
       systemConfiguration,
       complianceSettings,
-      legacySettings: settings,
+      legacySettings,
       exportedAt: new Date().toISOString(),
       version: "1.0",
     };
@@ -674,7 +1189,6 @@ export const adminRouter = router({
         const parsed = JSON.parse(input.data);
         const changes: string[] = [];
 
-        // Validate imported structure with zod before applying
         const featureToggleSchema = z
           .object({
             id: z.string(),

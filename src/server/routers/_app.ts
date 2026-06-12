@@ -10,6 +10,7 @@ import { ocrRouter } from "./ocr";
 import { plRouter } from "./pl";
 import { searchRouter } from "./search";
 import { workRouter } from "./work";
+import { workspacesRouter } from "./workspaces";
 
 export const appRouter = router({
   admin: adminRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   pl: plRouter,
   search: searchRouter,
   work: workRouter,
+  workspaces: workspacesRouter,
 });
 
 export type AppRouter = typeof appRouter;
