@@ -35,24 +35,42 @@ export const workRecordListSchema = z.object({
 
 export type WorkRecordListInput = z.infer<typeof workRecordListSchema>;
 
-export const createWorkRecordSchema = z.object({
-  date: z.string().min(1, "Date is required"),
-  workCategory: workCategoryEnum,
-  workTypeCode: z.string().min(1, "Work type is required"),
-  description: z.string().min(1, "Description is required").max(1000),
-  referenceNumber: z.string().min(1, "Reference number is required"),
-  plNumber: z
-    .string()
-    .regex(/^\d{8}$/, "PL number must be exactly 8 digits")
-    .nullable()
-    .optional(),
-  drawingNumber: z.string().nullable().optional(),
-  specificationNumber: z.string().nullable().optional(),
-  tenderNumber: z.string().nullable().optional(),
-  remarks: z.string().nullable().optional(),
-  priority: workPriorityEnum.default("MEDIUM"),
-  concernedOfficer: z.string().nullable().optional(),
-});
+export const createWorkRecordSchema = z
+  .object({
+    date: z.string().min(1, "Date is required"),
+    workCategory: workCategoryEnum,
+    workTypeCode: z.string().min(1, "Work type is required"),
+    description: z.string().min(1, "Description is required").max(1000),
+    referenceNumber: z.string().min(1, "Reference number is required"),
+    eOfficeCaseNumber: z.string().min(1, "e-Office case number is required"),
+    plNumber: z
+      .string()
+      .regex(/^\d{8}$/, "PL number must be exactly 8 digits")
+      .nullable()
+      .optional(),
+    drawingNumber: z.string().nullable().optional(),
+    specificationNumber: z.string().nullable().optional(),
+    tenderNumber: z.string().nullable().optional(),
+    remarks: z.string().nullable().optional(),
+    priority: workPriorityEnum.default("MEDIUM"),
+    concernedOfficer: z.string().nullable().optional(),
+    supervisorId: z.string().nullable().optional(),
+    startDate: z.string().min(1, "Start date is required"),
+    closingDate: z.string().nullable().optional(),
+    consent: z.enum(["Yes", "No", "N/A"]).nullable().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.closingDate && data.startDate) {
+        return data.closingDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: "Closing date must be on or after start date",
+      path: ["closingDate"],
+    },
+  );
 
 export type CreateWorkRecordInput = z.infer<typeof createWorkRecordSchema>;
 

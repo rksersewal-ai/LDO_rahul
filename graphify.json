@@ -1,7 +1,7 @@
 {
   "metadata": {
     "lastUpdated": "2026-06-12T15:00:00.000Z",
-    "currentTask": "FEAT-025",
+    "currentTask": "FEAT-026",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -27,11 +27,18 @@
       "FEAT-022",
       "FEAT-023",
       "FEAT-024",
-      "FEAT-025"
+      "FEAT-025",
+      "FEAT-026"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-026",
+      "description": "Work Ledger Create form enhancement - PL number lookup typeahead, supervisor assignment dropdown, DatePicker components, auto days-taken calculation, duplicate work detection, file attachment drag-and-drop, e-Office case number required field, target days auto-banner, consent field conditional on work type.",
+      "status": "completed",
+      "dependsOn": ["FEAT-025"]
+    },
     {
       "id": "FEAT-025",
       "description": "Global Search overhaul Part 2 - Advanced filters panel (date range, status facets, entity pills, duplicate filter, source/category), sort controls with direction toggle, OCR match indicator, match reason badges, bento metrics strip",
