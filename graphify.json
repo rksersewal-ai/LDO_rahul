@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T13:00:00.000Z",
-    "currentTask": "FEAT-023",
+    "lastUpdated": "2026-06-12T14:00:00.000Z",
+    "currentTask": "FEAT-024",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -25,11 +25,18 @@
       "FEAT-020",
       "FEAT-021",
       "FEAT-022",
-      "FEAT-023"
+      "FEAT-023",
+      "FEAT-024"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-024",
+      "description": "Global Search overhaul Part 1 - Scope tabs with result counts, saved searches (Zustand + localStorage), recent searches with recall, search query highlighting (teal mark), URL sync (?q= param), debounced input (300ms), abort controller on navigation",
+      "status": "completed",
+      "dependsOn": ["FEAT-011", "FEAT-023"]
+    },
     {
       "id": "FEAT-023",
       "description": "Document Preview Page Part 2 - Side panel with OCR intelligence, linked PL workspace navigation, search & dedup panel, document summary grid",
