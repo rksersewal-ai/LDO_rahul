@@ -11,9 +11,12 @@ export async function GET(_request: Request) {
 
   const encoder = new TextEncoder();
   let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  let thisController: ReadableStreamDefaultController | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
+      thisController = controller;
+
       // Register controller in the SSE registry
       if (!sseRegistry.has(userId)) {
         sseRegistry.set(userId, new Set());
@@ -41,13 +44,11 @@ export async function GET(_request: Request) {
       }, 30000);
     },
     cancel() {
-      // Clean up on client disconnect
+      // Clean up only this stream's controller on client disconnect
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       const controllers = sseRegistry.get(userId);
-      if (controllers) {
-        for (const controller of controllers) {
-          controllers.delete(controller);
-        }
+      if (controllers && thisController) {
+        controllers.delete(thisController);
         if (controllers.size === 0) {
           sseRegistry.delete(userId);
         }

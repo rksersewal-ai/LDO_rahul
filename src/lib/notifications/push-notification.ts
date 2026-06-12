@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { notifications } from "@/lib/db/schema";
+import { notifications, users } from "@/lib/db/schema";
 import { pushToUser } from "@/lib/notifications/sse-registry";
 import { getEffectiveSetting } from "@/lib/settings/get-effective-setting";
 
@@ -65,12 +66,21 @@ export async function createAndPushNotification(
       userId: params.userId,
     });
     if (emailEnabled === "true") {
-      const { sendEmail } = await import("@/lib/email/mailer");
-      await sendEmail({
-        to: params.userId, // In production, resolve userId to email address
-        subject: params.title,
-        html: `<p>${params.body}</p>`,
-      });
+      // Resolve userId to email address from the database
+      const [user] = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, params.userId))
+        .limit(1);
+
+      if (user?.email) {
+        const { sendEmail } = await import("@/lib/email/mailer");
+        await sendEmail({
+          to: user.email,
+          subject: params.title,
+          html: `<p>${params.body}</p>`,
+        });
+      }
     }
   } catch {
     // Silently ignore email failures - notification was still created

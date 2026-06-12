@@ -33,6 +33,7 @@ export const settingsRouter = router({
 
   /**
    * Get all settings for a given scope and optional scopeId.
+   * Auth rules: system/organization -> admin, workspace -> supervisor+, user -> own userId only.
    */
   getAll: protectedProcedure
     .input(
@@ -41,11 +42,42 @@ export const settingsRouter = router({
         scopeId: z.string().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id;
+      const userRole = (ctx.session.user as Record<string, unknown>)?.role as string | undefined;
+
+      // Enforce authorization based on scope
+      if (input.scope === "system" || input.scope === "organization") {
+        if (userRole !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only admins can view system or organization settings.",
+          });
+        }
+      } else if (input.scope === "workspace") {
+        if (userRole !== "admin" && userRole !== "supervisor") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only supervisors or admins can view workspace settings.",
+          });
+        }
+      } else if (input.scope === "user") {
+        // Users can only view their own settings
+        if (input.scopeId && input.scopeId !== userId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You can only view your own user settings.",
+          });
+        }
+      }
+
       const conditions = [eq(settings.scope, input.scope)];
 
       if (input.scopeId) {
         conditions.push(eq(settings.scopeId, input.scopeId));
+      } else if (input.scope === "user") {
+        // Default to own user ID for user scope
+        conditions.push(eq(settings.scopeId, userId ?? ""));
       } else {
         conditions.push(isNull(settings.scopeId));
       }

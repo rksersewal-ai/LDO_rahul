@@ -14,17 +14,29 @@ import {
 } from "@/lib/db/schema";
 import { protectedProcedure, router } from "@/server/trpc";
 
+function requireWorkspaceId(ctx: { session: { user: { workspaceId?: string | null } } }): string {
+  const wsId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string | undefined;
+  if (!wsId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No workspace assigned. Contact an administrator.",
+    });
+  }
+  return wsId;
+}
+
 export const governanceRouter = router({
   /**
-   * Get all legal holds for a workspace.
+   * Get all legal holds for the caller's workspace.
    */
   getLegalHolds: protectedProcedure
-    .input(z.object({ workspaceId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
       const rows = await db
         .select()
         .from(legalHolds)
-        .where(eq(legalHolds.workspaceId, input.workspaceId));
+        .where(eq(legalHolds.workspaceId, workspaceId));
 
       return rows;
     }),
@@ -44,7 +56,7 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
+      const workspaceId = requireWorkspaceId(ctx);
 
       requirePermission(ctx, "legal_hold.manage");
 
@@ -77,6 +89,7 @@ export const governanceRouter = router({
   /**
    * Apply a legal hold to one or more documents.
    * Requires supervisor or admin role.
+   * Verifies the hold belongs to the caller's workspace.
    */
   applyHoldToDocuments: protectedProcedure
     .input(
@@ -88,9 +101,23 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
+      const workspaceId = requireWorkspaceId(ctx);
 
       requirePermission(ctx, "legal_hold.manage");
+
+      // Verify the hold belongs to the caller's workspace
+      const [hold] = await db
+        .select({ id: legalHolds.id })
+        .from(legalHolds)
+        .where(and(eq(legalHolds.id, input.holdId), eq(legalHolds.workspaceId, workspaceId)))
+        .limit(1);
+
+      if (!hold) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Legal hold not found in workspace",
+        });
+      }
 
       const values = input.documentIds.map((documentId) => ({
         documentId,
@@ -111,15 +138,13 @@ export const governanceRouter = router({
         newValue: JSON.stringify(input.documentIds),
       });
 
-      // TODO: Notify document owners about the legal hold.
-      // Requires a join to resolve document owner user IDs from documentIds.
-
       return { success: true, appliedCount: input.documentIds.length };
     }),
 
   /**
    * Release a legal hold.
    * Requires supervisor or admin role.
+   * Verifies the hold belongs to the caller's workspace.
    */
   releaseHold: protectedProcedure
     .input(
@@ -131,9 +156,23 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
+      const workspaceId = requireWorkspaceId(ctx);
 
       requirePermission(ctx, "legal_hold.manage");
+
+      // Verify the hold belongs to the caller's workspace
+      const [hold] = await db
+        .select({ id: legalHolds.id })
+        .from(legalHolds)
+        .where(and(eq(legalHolds.id, input.holdId), eq(legalHolds.workspaceId, workspaceId)))
+        .limit(1);
+
+      if (!hold) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Legal hold not found in workspace",
+        });
+      }
 
       await db
         .update(legalHolds)
@@ -155,22 +194,20 @@ export const governanceRouter = router({
         details: `Released legal hold. Reason: ${input.releaseReason}`,
       });
 
-      // TODO: Notify document owners about the hold release.
-      // Requires a join to resolve affected document owner user IDs.
-
       return { success: true };
     }),
 
   /**
-   * Get classification labels for a workspace.
+   * Get classification labels for the caller's workspace.
    */
   getClassificationLabels: protectedProcedure
-    .input(z.object({ workspaceId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
       const rows = await db
         .select()
         .from(classificationLabels)
-        .where(eq(classificationLabels.workspaceId, input.workspaceId));
+        .where(eq(classificationLabels.workspaceId, workspaceId));
 
       return rows;
     }),
@@ -178,6 +215,7 @@ export const governanceRouter = router({
   /**
    * Set classification on a document.
    * Requires supervisor or admin role.
+   * Verifies the document belongs to the caller's workspace.
    */
   setDocumentClassification: protectedProcedure
     .input(
@@ -189,9 +227,23 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
+      const workspaceId = requireWorkspaceId(ctx);
 
       requirePermission(ctx, "documents.classify");
+
+      // Verify the document belongs to the caller's workspace
+      const [doc] = await db
+        .select({ id: documents.id })
+        .from(documents)
+        .where(and(eq(documents.id, input.documentId), eq(documents.workspaceId, workspaceId)))
+        .limit(1);
+
+      if (!doc) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found in workspace",
+        });
+      }
 
       await db
         .update(documents)
@@ -228,7 +280,7 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
+      const workspaceId = requireWorkspaceId(ctx);
 
       requirePermission(ctx, "records.manage");
 
@@ -290,6 +342,7 @@ export const governanceRouter = router({
   /**
    * Approve destruction of a declared record after retention period has passed.
    * Requires supervisor or admin role.
+   * Verifies the declaration belongs to the caller's workspace.
    */
   approveDestruction: protectedProcedure
     .input(
@@ -300,19 +353,24 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
+      const workspaceId = requireWorkspaceId(ctx);
 
       requirePermission(ctx, "records.manage");
 
       const [declaration] = await db
         .select()
         .from(recordDeclarations)
-        .where(eq(recordDeclarations.id, input.recordDeclarationId));
+        .where(
+          and(
+            eq(recordDeclarations.id, input.recordDeclarationId),
+            eq(recordDeclarations.workspaceId, workspaceId),
+          ),
+        );
 
       if (!declaration) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Record declaration not found",
+          message: "Record declaration not found in workspace",
         });
       }
 
@@ -346,15 +404,16 @@ export const governanceRouter = router({
     }),
 
   /**
-   * Get all record declarations for a workspace.
+   * Get all record declarations for the caller's workspace.
    */
   getRecordDeclarations: protectedProcedure
-    .input(z.object({ workspaceId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
       const rows = await db
         .select()
         .from(recordDeclarations)
-        .where(eq(recordDeclarations.workspaceId, input.workspaceId));
+        .where(eq(recordDeclarations.workspaceId, workspaceId));
 
       return rows;
     }),

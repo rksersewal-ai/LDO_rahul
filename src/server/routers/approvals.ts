@@ -544,6 +544,7 @@ export const approvalsRouter = router({
 
   /**
    * List approval requests with optional filtering.
+   * Scoped to the caller's workspace.
    */
   list: protectedProcedure
     .input(
@@ -553,8 +554,12 @@ export const approvalsRouter = router({
         offset: z.number().min(0).default(0),
       }),
     )
-    .query(async ({ input }) => {
-      const conditions = input.status ? eq(approvals.status, input.status) : undefined;
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx as { session: { user: { workspaceId: string | null } } });
+
+      const conditions = input.status
+        ? and(eq(approvals.workspaceId, workspaceId), eq(approvals.status, input.status))
+        : eq(approvals.workspaceId, workspaceId);
 
       const items = await db
         .select()
@@ -577,14 +582,17 @@ export const approvalsRouter = router({
 
   /**
    * Get a single approval request by ID with its steps.
+   * Verifies the request belongs to the caller's workspace.
    */
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx as { session: { user: { workspaceId: string | null } } });
+
       const [request] = await db
         .select()
         .from(approvals)
-        .where(eq(approvals.id, input.id))
+        .where(and(eq(approvals.id, input.id), eq(approvals.workspaceId, workspaceId)))
         .limit(1);
 
       if (!request) {
@@ -601,13 +609,15 @@ export const approvalsRouter = router({
     }),
 
   /**
-   * Get count of pending approval requests.
+   * Get count of pending approval requests for the caller's workspace.
    */
-  getPendingCount: protectedProcedure.query(async () => {
+  getPendingCount: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx as { session: { user: { workspaceId: string | null } } });
+
     const [result] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(approvals)
-      .where(eq(approvals.status, "pending"));
+      .where(and(eq(approvals.status, "pending"), eq(approvals.workspaceId, workspaceId)));
 
     return result?.count ?? 0;
   }),
