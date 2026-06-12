@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T17:00:00.000Z",
-    "currentTask": "FEAT-028",
+    "lastUpdated": "2026-06-12T18:00:00.000Z",
+    "currentTask": "FEAT-029",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -30,11 +30,18 @@
       "FEAT-025",
       "FEAT-026",
       "FEAT-027",
-      "FEAT-028"
+      "FEAT-028",
+      "FEAT-029"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-029",
+      "description": "Grid/List view toggle on Document Hub - Toggle between table and responsive grid card view with localStorage persistence",
+      "status": "completed",
+      "dependsOn": ["FEAT-008", "FEAT-028"]
+    },
     {
       "id": "FEAT-028",
       "description": "Enhanced card interactions and GlassCard pattern - Reusable GlassCard component using design tokens with hover translateY(-1px) + border-primary/30 transition. Applied to MetricCard, BomProductCard, and SearchMetricCard.",

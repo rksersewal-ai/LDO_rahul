@@ -2,16 +2,28 @@
 
 import { Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type DocumentFilterState, DocumentFilters } from "@/components/documents/document-filters";
+import { DocumentGrid } from "@/components/documents/document-grid";
 import { DocumentTable } from "@/components/documents/document-table";
+import { type ViewMode, ViewToggle } from "@/components/documents/view-toggle";
 import { PageFrame } from "@/components/layout/page-frame";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
 
+const VIEW_MODE_KEY = "doc-hub-view-mode";
+
+function getInitialViewMode(): ViewMode {
+  if (typeof window === "undefined") return "list";
+  const stored = localStorage.getItem(VIEW_MODE_KEY);
+  if (stored === "grid" || stored === "list") return stored;
+  return "list";
+}
+
 export default function DocumentHubPage() {
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
   const [filters, setFilters] = useState<DocumentFilterState>({
     search: "",
     category: "",
@@ -21,6 +33,10 @@ export default function DocumentHubPage() {
     dateFrom: "",
     dateTo: "",
   });
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
   // Apply filters to mock data client-side for now
   const filteredData = MOCK_DOCUMENTS.filter((doc) => {
@@ -102,15 +118,20 @@ export default function DocumentHubPage() {
         {/* Filters toolbar */}
         <DocumentFilters filters={filters} onFiltersChange={setFilters} />
 
-        {/* Results info */}
+        {/* Results info + View Toggle */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
             Showing {filteredData.length} of {MOCK_DOCUMENTS.length} documents
           </p>
+          <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </div>
 
-        {/* Data Table */}
-        <DocumentTable data={filteredData} />
+        {/* Data Table or Grid */}
+        {viewMode === "list" ? (
+          <DocumentTable data={filteredData} />
+        ) : (
+          <DocumentGrid data={filteredData} />
+        )}
       </div>
     </PageFrame>
   );
