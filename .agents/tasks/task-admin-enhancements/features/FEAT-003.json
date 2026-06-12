@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Work Assignment Notifications and My Pending Works - When work is assigned to a user, auto-generate a notification. Add a 'My Pending Works' tab in the notifications page showing all open/assigned work records for the current user. Supervisors/admins can assign work to specific users. Deadline reminders appear as notifications.",
+  "status": "pending",
+  "steps": [
+    "1. Add an 'assignWork' endpoint to src/server/routers/work.ts that accepts (workRecordId, assignToUserId, assignToUserName, assignedByUserId, assignedByUserName, deadline, remarks). It updates the work record's userId/userName and adds 'assignedAt', 'assignedBy', 'assignedByName' fields to the record. Uses supervisorProcedure.",
+    "2. Extend MockWorkRecord interface in src/lib/mock-data/work-records.ts with optional fields: assignedAt (string|null), assignedBy (string|null), assignedByName (string|null).",
+    "3. Update the notification store (src/stores/notification-store.ts) to add a new notification type 'work_assignment' to the group options and add work-related notifications in the mock data: work assigned notifications (linking to /ledger), deadline reminders for items due within 2 days, overdue work alerts.",
+    "4. Add a 'getMyPendingWorks' endpoint in src/server/routers/work.ts (protectedProcedure) that returns all work records with status OPEN or SUBMITTED for the current user (from ctx.session.user.id), sorted by priority then deadline proximity.",
+    "5. Update src/app/(protected)/notifications/page.tsx to add a tabbed interface at the top with two tabs: 'Notifications' (existing content) and 'My Pending Works' (new content). The My Pending Works tab shows a compact table/list of assigned work records with columns: date, category badge, description (truncated), priority badge, days remaining vs target, status, and a link to /ledger. Include a count badge on the tab showing number of pending items.",
+    "6. Add work assignment mock notifications to the notification store's initial data: 3-4 notifications like 'Work Assigned: Drawing Review CLW-TM-GA-001-R3' with actionHref pointing to /ledger, and 2 deadline reminders like 'Deadline approaching: Spec review due in 2 days'.",
+    "7. Update the sidebar (src/components/layout/sidebar.tsx) to show a badge count on 'Notifications' nav item showing pending works count (use a static number like 4 for mock).",
+    "8. Update graphify.json to add FEAT-018 entry for this feature."
+  ],
+  "acceptance_criteria": [
+    "npm run build passes without TypeScript errors",
+    "Notifications page has two tabs: Notifications and My Pending Works",
+    "My Pending Works tab shows a list/table of assigned work records",
+    "Work assignment notifications appear in the notifications list",
+    "Deadline reminder notifications appear for items approaching due date",
+    "assignWork endpoint exists in work router with supervisorProcedure",
+    "Sidebar notifications nav item shows a badge count"
+  ],
+  "verification": [
+    "Run: export PATH=\"/opt/toolchains/.nvm/versions/node/v22.22.3/bin:$PATH\" && cd /projects/sandbox/LDO_rahul && npm run build",
+    "Verify the build output includes /notifications route without errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

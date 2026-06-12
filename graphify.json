@@ -23,6 +23,15 @@
   },
   "tasks": [
     {
+      "id": "FEAT-016",
+      "description": "Sophisticated Admin Settings Page with tabbed navigation, feature toggles, security policies, role permission matrix, system configuration, compliance settings, and import/export",
+      "status": "completed",
+      "dependsOn": [
+        "FEAT-014",
+        "FEAT-013"
+      ]
+    },
+    {
       "id": "FEAT-001",
       "description": "Project scaffold with Next.js 15, Biome linting, graphify task tracker, and core dependencies",
       "status": "completed",

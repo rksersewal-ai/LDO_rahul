@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Admin-Controlled Security and Password Management - Add password reset, force change on next login, account lock/unlock capabilities to the user management page. The admin has full control over user security - no self-service password reset exists. All password recovery is admin-controlled.",
+  "status": "pending",
+  "steps": [
+    "1. Extend the MockUser interface in src/lib/mock-data/users.ts to add fields: passwordChangedAt (string|null), forcePasswordChange (boolean), failedLoginAttempts (number), lockedAt (string|null), lockedBy (string|null), lockReason (string|null), securityQuestions (array of {question: string, answer: string} | null). Update MOCK_USERS and MOCK_ADMIN_USERS to include these new fields with sensible defaults.",
+    "2. Add new admin router endpoints in src/server/routers/admin.ts: resetPassword (takes userId and newPassword, sets passwordChangedAt to now, sets forcePasswordChange to true), forcePasswordChange (takes userId, sets flag), lockAccount (takes userId and reason), unlockAccount (takes userId, clears lockedAt/lockedBy/lockReason/failedLoginAttempts), getSecurityInfo (returns security-related user fields for a specific user), updateSecurityQuestions (admin sets questions for a user).",
+    "3. Update src/app/(protected)/admin/users/page.tsx to add new action buttons in each user row: a key icon button for password reset (opens dialog), a lock/unlock icon button for account lock toggle. Add a security badge indicator showing if account is locked (red) or if force-change is pending (amber).",
+    "4. Create a PasswordResetDialog component at src/components/admin/password-reset-dialog.tsx - Dialog with user info display, new password field, auto-generate password button, checkbox for 'Force password change on next login' (default checked), and confirmation button. Shows success toast on reset.",
+    "5. Create an AccountSecurityDialog component at src/components/admin/account-security-dialog.tsx - Dialog showing user security status: last password change, failed login attempts count, lock status, force change status. Has actions: Lock Account (with reason input), Unlock Account, Force Password Change, Clear Failed Attempts. Also has a security questions section where admin can set/view questions.",
+    "6. Add a Security column to the users table between Status and Last Login showing security state badges (Locked, Force Change, Normal).",
+    "7. Update graphify.json to add FEAT-017 entry for this feature."
+  ],
+  "acceptance_criteria": [
+    "npm run build passes without TypeScript errors",
+    "User management table shows security status badges for each user",
+    "Password reset dialog renders with new password field and force-change checkbox",
+    "Account security dialog shows lock/unlock and force password change actions",
+    "Admin router has resetPassword, lockAccount, unlockAccount, forcePasswordChange endpoints",
+    "MockUser type includes passwordChangedAt, forcePasswordChange, failedLoginAttempts, lockedAt fields"
+  ],
+  "verification": [
+    "Run: export PATH=\"/opt/toolchains/.nvm/versions/node/v22.22.3/bin:$PATH\" && cd /projects/sandbox/LDO_rahul && npm run build",
+    "Verify the build output includes /admin/users route without errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

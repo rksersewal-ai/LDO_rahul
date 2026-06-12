@@ -1,0 +1,7 @@
+{
+  "task_id": "task-admin-enhancements",
+  "task_description": "Comprehensive admin control center enhancements: sophisticated settings page with feature toggles/security/permissions/compliance, admin-controlled password recovery and user security management, work assignment notifications with My Pending Works tab, and hierarchical KPI reports with user filtering and comparative views.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

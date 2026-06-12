@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Hierarchical KPI Reports - Admin/Supervisor can view individual user's work ledger and KPI. Add user dropdown filter on reports page, comparative team view (all members side by side), individual performance dashboard, and export capabilities for individual/team KPI reports.",
+  "status": "pending",
+  "steps": [
+    "1. Update the getKPIs endpoint in src/server/routers/work.ts to also accept an optional 'userIds' array parameter (in addition to the existing single userId). When userIds is provided, return KPI data for each user separately as an array of {userId, userName, ...kpiData}. This enables the comparative view. Use protectedProcedure but add a role check: if caller is not admin/supervisor, only allow querying own userId.",
+    "2. Add a new endpoint 'getUserProductivity' in src/server/routers/work.ts (supervisorProcedure) that takes optional filters (dateFrom, dateTo) and returns an array of user productivity objects: {userId, userName, role, department, totalRecords, completedRecords, onTimeRecords, overdueRecords, avgDaysTaken, onTimePercentage} for all users. This powers the comparative view.",
+    "3. Rewrite src/app/(protected)/ledger/reports/page.tsx to add a filter bar at the top with: user dropdown (Select component listing all mock users from MOCK_ADMIN_USERS, with 'All Users' as default), date range pickers (From/To inputs), and a 'View Mode' toggle between 'Overview' and 'Individual' and 'Comparative'.",
+    "4. Overview mode (default): Shows existing report content (category breakdown, disposal chart, overdue items, productivity bar chart, daily trend) but filtered by selected user if one is chosen.",
+    "5. Individual mode: When a specific user is selected, show a focused performance card for that user with: profile info (name, role, department), large KPI cards (total tasks, on-time %, overdue count, avg completion days), personal category breakdown chart, personal monthly trend line, and a table of their work records.",
+    "6. Comparative mode: Show a comparison table with all users as rows and columns for: Total Records, Completed, On-Time %, Overdue, Avg Days. Include a horizontal bar chart comparing on-time percentages across users. Color-code rows (green for >90% on-time, amber 70-90%, red <70%).",
+    "7. Add Export buttons that work per mode: Overview exports aggregate data, Individual exports selected user's data, Comparative exports the full comparison table. Use a simple CSV download utility (create src/lib/utils/export-csv.ts helper that converts array of objects to CSV and triggers browser download).",
+    "8. Ensure the user filter only shows for admin/supervisor roles. For engineer/reviewer/viewer, the page shows only their own data (pre-filtered) without the user dropdown. Use the useSession hook to check role.",
+    "9. Update graphify.json to add FEAT-019 entry for this feature."
+  ],
+  "acceptance_criteria": [
+    "npm run build passes without TypeScript errors",
+    "Reports page has a user dropdown filter (for admin/supervisor roles)",
+    "Three view modes: Overview, Individual, Comparative",
+    "Individual mode shows KPI cards, personal charts, and work records for selected user",
+    "Comparative mode shows side-by-side user comparison table with color coding",
+    "Export CSV buttons are functional (download triggers)",
+    "getUserProductivity endpoint returns per-user statistics",
+    "Non-admin/supervisor users see only their own data without filter controls"
+  ],
+  "verification": [
+    "Run: export PATH=\"/opt/toolchains/.nvm/versions/node/v22.22.3/bin:$PATH\" && cd /projects/sandbox/LDO_rahul && npm run build",
+    "Verify the build output includes /ledger/reports route without errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
