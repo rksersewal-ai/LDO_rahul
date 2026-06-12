@@ -1,4 +1,4 @@
-import type { UserRole } from "@/lib/mock-data/users";
+import type { UserRole } from "@/lib/types/auth";
 
 export type Permission =
   | "view_documents"

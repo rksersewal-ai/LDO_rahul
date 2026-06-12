@@ -1,12 +1,57 @@
 "use client";
 
 import { Shield } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import type { MockPlNumber } from "@/lib/mock-data/pl-numbers";
 import { cn } from "@/lib/utils";
 
+interface PlAlias {
+  id: string;
+  plId: string;
+  alias: string;
+  aliasType: "legacy" | "vendor" | "drawing" | "local_name";
+  createdAt: Date | string;
+  [key: string]: unknown;
+}
+
+interface PlRelationship {
+  id: string;
+  sourcePlId: string;
+  targetPlId: string;
+  relationType: "equivalent_to" | "substitute_for" | "supersedes" | "child_of" | "accessory_of" | "related_to";
+  notes: string | null;
+  createdAt: Date | string;
+  [key: string]: unknown;
+}
+
+export interface PlDetailData {
+  id: string;
+  plNumber: string;
+  name: string;
+  description: string | null;
+  category: "CAT-A" | "CAT-B" | "CAT-C" | "CAT-D";
+  status: "active" | "inactive" | "deprecated" | "under_review" | "obsolete";
+  safetyCritical: boolean;
+  drawingRef: string | null;
+  specification: string | null;
+  unit: string | null;
+  workshop: string | null;
+  manufacturer: string | null;
+  vendorCode: string | null;
+  partFamily: string | null;
+  lifecycleStage: "draft" | "active" | "restricted" | "obsolete" | "deprecated" | null;
+  lastUsedAt: Date | string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  aliases: PlAlias[];
+  relationships: PlRelationship[];
+  [key: string]: unknown;
+}
+
 interface PlOverviewTabProps {
-  pl: MockPlNumber;
+  pl: PlDetailData;
 }
 
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -30,6 +75,17 @@ function getCategoryBadgeClass(category: string): string {
       return "bg-success/10 text-success border-success/20";
     default:
       return "";
+  }
+}
+
+function getAliasTypeBadgeVariant(type: string): "default" | "secondary" | "outline" {
+  switch (type) {
+    case "legacy":
+      return "secondary";
+    case "vendor":
+      return "default";
+    default:
+      return "outline";
   }
 }
 
@@ -61,6 +117,10 @@ export function PlOverviewTab({ pl }: PlOverviewTabProps) {
           <InfoRow
             label="Status"
             value={pl.status.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+          />
+          <InfoRow
+            label="Lifecycle Stage"
+            value={pl.lifecycleStage ? pl.lifecycleStage.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null}
           />
         </dl>
       </section>
@@ -105,6 +165,9 @@ export function PlOverviewTab({ pl }: PlOverviewTabProps) {
           <InfoRow label="Drawing Ref" value={pl.drawingRef} />
           <InfoRow label="Specification" value={pl.specification} />
           <InfoRow label="Unit" value={pl.unit} />
+          <InfoRow label="Manufacturer" value={pl.manufacturer} />
+          <InfoRow label="Vendor Code" value={pl.vendorCode} />
+          <InfoRow label="Part Family" value={pl.partFamily} />
         </dl>
       </section>
 
@@ -120,6 +183,64 @@ export function PlOverviewTab({ pl }: PlOverviewTabProps) {
           <InfoRow label="Created At" value={new Date(pl.createdAt).toLocaleDateString()} />
           <InfoRow label="Updated At" value={new Date(pl.updatedAt).toLocaleDateString()} />
         </dl>
+      </section>
+
+      {/* Aliases */}
+      <section>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          Aliases
+        </h3>
+        <div className="rounded-md border p-3">
+          {pl.aliases.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No aliases defined</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {pl.aliases.map((alias) => (
+                <li key={alias.id} className="flex items-center gap-2">
+                  <Badge variant={getAliasTypeBadgeVariant(alias.aliasType)} className="text-[10px]">
+                    {alias.aliasType.replace("_", " ")}
+                  </Badge>
+                  <span className="text-xs font-mono">{alias.alias}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* Relationships */}
+      <section>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          Relationships
+        </h3>
+        <div className="rounded-md border p-3">
+          {pl.relationships.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No relationships defined</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {pl.relationships.map((rel) => {
+                const isSource = rel.sourcePlId === pl.id;
+                const relatedPlId = isSource ? rel.targetPlId : rel.sourcePlId;
+                return (
+                  <li key={rel.id} className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px]">
+                      {rel.relationType.replace(/_/g, " ")}
+                    </Badge>
+                    <Link
+                      href={`/pl/${relatedPlId}`}
+                      className="text-xs text-primary hover:underline font-mono"
+                    >
+                      {relatedPlId}
+                    </Link>
+                    {rel.notes && (
+                      <span className="text-xs text-muted-foreground">({rel.notes})</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </section>
     </div>
   );

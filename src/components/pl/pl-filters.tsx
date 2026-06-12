@@ -18,6 +18,7 @@ export interface PlFilterState {
   category: string;
   status: string;
   workshop: string;
+  lifecycleStage: string;
   safetyOnly: boolean;
 }
 
@@ -41,6 +42,7 @@ const statuses = [
   { value: "inactive", label: "Inactive" },
   { value: "deprecated", label: "Deprecated" },
   { value: "under_review", label: "Under Review" },
+  { value: "obsolete", label: "Obsolete" },
 ];
 
 const workshops = [
@@ -49,11 +51,21 @@ const workshops = [
   { value: "RWF Bangalore", label: "RWF Bangalore" },
 ];
 
+const lifecycleStages = [
+  { value: "", label: "All Stages" },
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "restricted", label: "Restricted" },
+  { value: "obsolete", label: "Obsolete" },
+  { value: "deprecated", label: "Deprecated" },
+];
+
 export function PlFilters({ filters, onFiltersChange, className }: PlFiltersProps) {
   const activeFilterCount = [
     filters.category,
     filters.status,
     filters.workshop,
+    filters.lifecycleStage,
     filters.safetyOnly ? "safety" : "",
   ].filter(Boolean).length;
 
@@ -67,6 +79,7 @@ export function PlFilters({ filters, onFiltersChange, className }: PlFiltersProp
       category: "",
       status: "",
       workshop: "",
+      lifecycleStage: "",
       safetyOnly: false,
     });
   }
@@ -114,6 +127,22 @@ export function PlFilters({ filters, onFiltersChange, className }: PlFiltersProp
           {workshops.map((w) => (
             <SelectItem key={w.value} value={w.value}>
               {w.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.lifecycleStage}
+        onValueChange={(val) => updateFilter("lifecycleStage", val)}
+      >
+        <SelectTrigger size="sm" className="w-[130px] text-xs">
+          <SelectValue placeholder="Lifecycle" />
+        </SelectTrigger>
+        <SelectContent>
+          {lifecycleStages.map((s) => (
+            <SelectItem key={s.value} value={s.value}>
+              {s.label}
             </SelectItem>
           ))}
         </SelectContent>

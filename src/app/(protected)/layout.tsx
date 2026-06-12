@@ -3,6 +3,7 @@
 import { AppHeader } from "@/components/layout/app-header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { SystemBanner } from "@/components/layout/system-banner";
+import { ErrorBoundary } from "@/components/shared/error-boundary";
 import { KeyboardShortcuts } from "@/components/shared/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores/sidebar-store";
@@ -23,7 +24,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
         {/* Sidebar with independent scroll */}
         <Sidebar />
         {/* Main content with independent scroll */}
-        <main className="overflow-y-auto">{children}</main>
+        <main className="overflow-y-auto">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
       <KeyboardShortcuts />
     </div>

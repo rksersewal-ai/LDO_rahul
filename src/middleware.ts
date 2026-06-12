@@ -9,6 +9,7 @@ export default auth((req) => {
   const isLoginPage = nextUrl.pathname === "/login";
   const isAuthApi = nextUrl.pathname.startsWith("/api/auth");
   const isTrpcApi = nextUrl.pathname.startsWith("/api/trpc");
+  const isChangePasswordPage = nextUrl.pathname === "/change-password";
 
   if (isLoginPage || isAuthApi) {
     // Redirect authenticated users away from login
@@ -28,6 +29,12 @@ export default auth((req) => {
     const loginUrl = new URL("/login", nextUrl);
     loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Force password change redirect
+  const forcePasswordChange = (req.auth?.user as Record<string, unknown>)?.forcePasswordChange;
+  if (forcePasswordChange && !isChangePasswordPage) {
+    return NextResponse.redirect(new URL("/change-password", nextUrl));
   }
 
   return NextResponse.next();

@@ -1,4 +1,4 @@
-import { boolean, index, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", [
   "admin",
@@ -23,6 +23,14 @@ export const users = pgTable(
     phone: varchar("phone", { length: 20 }),
     role: userRoleEnum("role").notNull().default("viewer"),
     isActive: boolean("is_active").notNull().default(true),
+    failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    lockReason: text("lock_reason"),
+    forcePasswordChange: boolean("force_password_change").notNull().default(true),
+    passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
+    clearanceLevel: varchar("clearance_level", { length: 16 }),
+    workspaceId: text("workspace_id"),
     lastLogin: timestamp("last_login", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T19:00:00.000Z",
-    "currentTask": "FEAT-031",
+    "lastUpdated": "2026-06-13T12:00:00.000Z",
+    "currentTask": "FEAT-041",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -33,11 +33,81 @@
       "FEAT-028",
       "FEAT-029",
       "FEAT-030",
-      "FEAT-031"
+      "FEAT-031",
+      "FEAT-032",
+      "FEAT-033",
+      "FEAT-034",
+      "FEAT-035",
+      "FEAT-036",
+      "FEAT-037",
+      "FEAT-038",
+      "FEAT-039",
+      "FEAT-040",
+      "FEAT-041"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-041",
+      "description": "Bulk Actions + Error Handling Foundation - real bulk action procedure, global error boundary, tRPC error formatter, graceful fallbacks",
+      "status": "completed",
+      "dependsOn": ["FEAT-040"]
+    },
+    {
+      "id": "FEAT-040",
+      "description": "Document Versioning + Comments + Share Links - schemas, routers, validators, migration, and public share page",
+      "status": "completed",
+      "dependsOn": ["FEAT-039"]
+    },
+    {
+      "id": "FEAT-039",
+      "description": "Cabinets + Tags - schema, validators, routers, and UI pages for document cabinet organization and tagging system",
+      "status": "completed",
+      "dependsOn": ["FEAT-038"]
+    },
+    {
+      "id": "FEAT-038",
+      "description": "PL Tests + graphify.json update: unit tests for PL validation utilities and alias normalization collision, graphify.json tracking update",
+      "status": "completed",
+      "dependsOn": ["FEAT-035", "FEAT-036", "FEAT-037"]
+    },
+    {
+      "id": "FEAT-037",
+      "description": "Wire PL pages and components to tRPC queries, add sub-pages for PL detail views",
+      "status": "completed",
+      "dependsOn": ["FEAT-036"]
+    },
+    {
+      "id": "FEAT-036",
+      "description": "Complete PL tRPC router with real Drizzle queries for CRUD operations, search, and status management",
+      "status": "completed",
+      "dependsOn": ["FEAT-035"]
+    },
+    {
+      "id": "FEAT-035",
+      "description": "PL schema upgrades, validation utilities (format, Modulo-11, normalization, candidate extraction), and migration",
+      "status": "completed",
+      "dependsOn": ["FEAT-034"]
+    },
+    {
+      "id": "FEAT-034",
+      "description": "Final verification, unit tests for audit helper and auth logic, graphify.json update, commit and push",
+      "status": "completed",
+      "dependsOn": ["FEAT-032", "FEAT-033"]
+    },
+    {
+      "id": "FEAT-033",
+      "description": "Workspaces tRPC router, admin DB-backed CRUD, organization and workspace admin pages",
+      "status": "completed",
+      "dependsOn": ["FEAT-032"]
+    },
+    {
+      "id": "FEAT-032",
+      "description": "Wire auth to real DB with bcrypt, add audit helper with SHA-256 hash chain, organizations and workspaces schemas",
+      "status": "completed",
+      "dependsOn": ["FEAT-031"]
+    },
     {
       "id": "FEAT-031",
       "description": "Feature flags system - FeatureFlagService singleton, useFeatureFlag hook, LARGE_DRAWING_VIEWER and AI_SUGGESTIONS flags, gate search analytics and bulk upload behind flags",

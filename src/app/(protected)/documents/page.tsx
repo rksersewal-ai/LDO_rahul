@@ -8,7 +8,9 @@ import { DocumentGrid } from "@/components/documents/document-grid";
 import { DocumentTable } from "@/components/documents/document-table";
 import { type ViewMode, ViewToggle } from "@/components/documents/view-toggle";
 import { PageFrame } from "@/components/layout/page-frame";
+import { EmptyStateFallback } from "@/components/shared/empty-state-fallback";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -28,6 +30,7 @@ function getInitialViewMode(): ViewMode {
 export default function DocumentHubPage() {
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
   const bulkUploadEnabled = useFeatureFlag("bulk_upload");
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const [filters, setFilters] = useState<DocumentFilterState>({
     search: "",
     category: "",
@@ -200,7 +203,33 @@ export default function DocumentHubPage() {
         </div>
 
         {/* Data Table or Grid */}
-        {viewMode === "list" ? (
+        {loadError ? (
+          <QueryErrorState error={loadError} retry={() => setLoadError(null)} />
+        ) : filteredData.length === 0 ? (
+          <EmptyStateFallback
+            title="No documents found"
+            description={
+              hasActiveFilters
+                ? "No documents match your current filters. Try adjusting your search criteria."
+                : "No documents have been uploaded yet. Upload your first document to get started."
+            }
+            actionLabel={hasActiveFilters ? "Clear Filters" : undefined}
+            onAction={
+              hasActiveFilters
+                ? () =>
+                    setFilters({
+                      search: "",
+                      category: "",
+                      status: "",
+                      ocrStatus: "",
+                      fileType: "",
+                      dateFrom: "",
+                      dateTo: "",
+                    })
+                : undefined
+            }
+          />
+        ) : viewMode === "list" ? (
           <DocumentTable data={filteredData} />
         ) : (
           <DocumentGrid data={filteredData} />
