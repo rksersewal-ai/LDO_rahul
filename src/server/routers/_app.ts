@@ -10,6 +10,7 @@ import { documentCommentsRouter } from "./document-comments";
 import { documentShareLinksRouter } from "./document-share-links";
 import { documentVersionsRouter } from "./document-versions";
 import { documentsRouter } from "./documents";
+import { governanceRouter } from "./governance";
 import { notificationsRouter } from "./notifications";
 import { ocrRouter } from "./ocr";
 import { plRouter } from "./pl";
@@ -31,6 +32,7 @@ export const appRouter = router({
   documentShareLinks: documentShareLinksRouter,
   documentVersions: documentVersionsRouter,
   documents: documentsRouter,
+  governance: governanceRouter,
   notifications: notificationsRouter,
   ocr: ocrRouter,
   pl: plRouter,

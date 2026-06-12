@@ -74,6 +74,8 @@ export const documents = pgTable(
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     workspaceId: text("workspace_id"),
+    classificationId: text("classification_id"),
+    clearanceRequired: integer("clearance_required").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
