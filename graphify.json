@@ -1,7 +1,7 @@
 {
   "metadata": {
     "lastUpdated": "2026-06-13T12:00:00.000Z",
-    "currentTask": "FEAT-039",
+    "currentTask": "FEAT-040",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -41,11 +41,18 @@
       "FEAT-036",
       "FEAT-037",
       "FEAT-038",
-      "FEAT-039"
+      "FEAT-039",
+      "FEAT-040"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-040",
+      "description": "Document Versioning + Comments + Share Links - schemas, routers, validators, migration, and public share page",
+      "status": "completed",
+      "dependsOn": ["FEAT-039"]
+    },
     {
       "id": "FEAT-039",
       "description": "Cabinets + Tags - schema, validators, routers, and UI pages for document cabinet organization and tagging system",

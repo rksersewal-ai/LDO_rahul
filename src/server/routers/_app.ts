@@ -5,6 +5,9 @@ import { authRouter } from "./auth";
 import { bomRouter } from "./bom";
 import { cabinetsRouter } from "./cabinets";
 import { casesRouter } from "./cases";
+import { documentCommentsRouter } from "./document-comments";
+import { documentShareLinksRouter } from "./document-share-links";
+import { documentVersionsRouter } from "./document-versions";
 import { documentsRouter } from "./documents";
 import { notificationsRouter } from "./notifications";
 import { ocrRouter } from "./ocr";
@@ -21,6 +24,9 @@ export const appRouter = router({
   bom: bomRouter,
   cabinets: cabinetsRouter,
   cases: casesRouter,
+  documentComments: documentCommentsRouter,
+  documentShareLinks: documentShareLinksRouter,
+  documentVersions: documentVersionsRouter,
   documents: documentsRouter,
   notifications: notificationsRouter,
   ocr: ocrRouter,
