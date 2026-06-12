@@ -741,22 +741,21 @@ function SecurityTab({
 
 // ============ Roles & Permissions Tab ============
 const ALL_PERMISSIONS: Permission[] = [
-  "view_documents",
-  "search",
-  "download",
-  "upload",
-  "create_work_records",
-  "create_pl",
-  "edit_bom",
-  "approve_documents",
-  "verify_work",
-  "manage_cases",
-  "manage_users",
-  "system_settings",
-  "view_audit",
+  "documents.view",
+  "documents.create",
+  "documents.classify",
+  "pl.create",
+  "pl.change_status",
+  "bom.edit",
+  "bom.lock",
+  "legal_hold.manage",
+  "records.manage",
+  "approvals.approve",
+  "admin.users",
+  "audit.view",
 ];
 
-const ALL_ROLES: UserRole[] = ["admin", "supervisor", "reviewer", "engineer", "viewer"];
+const ALL_ROLES: UserRole[] = ["admin", "supervisor", "reviewer", "engineer", "viewer", "classification_officer", "records_manager", "legal_hold_officer", "auditor"];
 
 function RolesTab({
   rolePerms,

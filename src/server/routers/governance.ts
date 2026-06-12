@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
-import { isRoleAtLeast } from "@/lib/auth/permissions";
+import { requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import {
   classificationLabels,
@@ -12,7 +12,6 @@ import {
   legalHolds,
   recordDeclarations,
 } from "@/lib/db/schema";
-import type { UserRole } from "@/lib/types/auth";
 import { protectedProcedure, router } from "@/server/trpc";
 
 export const governanceRouter = router({
@@ -45,15 +44,9 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
       const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
 
-      if (!isRoleAtLeast(userRole, "supervisor")) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Requires supervisor role or higher to create legal holds",
-        });
-      }
+      requirePermission(ctx, "legal_hold.manage");
 
       const id = randomUUID();
 
@@ -95,15 +88,9 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
       const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
 
-      if (!isRoleAtLeast(userRole, "supervisor")) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Requires supervisor role or higher to apply legal holds",
-        });
-      }
+      requirePermission(ctx, "legal_hold.manage");
 
       const values = input.documentIds.map((documentId) => ({
         documentId,
@@ -144,15 +131,9 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
       const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
 
-      if (!isRoleAtLeast(userRole, "supervisor")) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Requires supervisor role or higher to release legal holds",
-        });
-      }
+      requirePermission(ctx, "legal_hold.manage");
 
       await db
         .update(legalHolds)
@@ -208,15 +189,9 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
       const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
 
-      if (!isRoleAtLeast(userRole, "supervisor")) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Requires supervisor role or higher to set document classification",
-        });
-      }
+      requirePermission(ctx, "documents.classify");
 
       await db
         .update(documents)
@@ -253,15 +228,9 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
       const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
 
-      if (!isRoleAtLeast(userRole, "supervisor")) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Requires supervisor role or higher to declare records",
-        });
-      }
+      requirePermission(ctx, "records.manage");
 
       // Verify the document exists and belongs to the user's workspace
       const [doc] = await db
@@ -331,15 +300,9 @@ export const governanceRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const userRole = (ctx.session.user as Record<string, unknown>)?.role as UserRole;
       const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string;
 
-      if (!isRoleAtLeast(userRole, "supervisor")) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Requires supervisor role or higher to approve record destruction",
-        });
-      }
+      requirePermission(ctx, "records.manage");
 
       const [declaration] = await db
         .select()
