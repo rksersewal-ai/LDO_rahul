@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Sophisticated Admin Settings Page - Transform the basic settings page into a comprehensive admin control center with tabbed navigation covering: Feature Toggles (enable/disable app features), Security Policies (password rules, session management, IP restrictions), Role Permission Matrix (visual editor showing what each role can do), System Configuration (file limits, OCR config, notification rules), Compliance Settings (audit retention, document approval workflows), and Import/Export configuration capability.",
+  "status": "completed",
+  "steps": [
+    "1. Create a new comprehensive mock data file at src/lib/mock-data/admin-settings.ts with structured settings data: feature toggles (array of features with name, description, enabled flag), security policies (password min length, complexity requirements, expiry days, max login attempts, lockout duration, session timeout, IP whitelist), role permission matrix (mapping of each role to array of permissions using the Permission type from src/lib/auth/permissions.ts), system configuration (upload limits, OCR settings, notification preferences), compliance settings (audit retention period, approval workflow steps, document versioning rules)",
+    "2. Update src/server/routers/admin.ts to add new endpoints: getFeatureToggles, updateFeatureToggle, getSecurityPolicies, updateSecurityPolicies, getRolePermissions, updateRolePermission, getComplianceSettings, updateComplianceSettings, exportSettings (returns all settings as JSON), importSettings (accepts JSON and overwrites). All use adminProcedure.",
+    "3. Completely rewrite src/app/(protected)/admin/settings/page.tsx as a tabbed layout using the existing Tab/Tabs pattern or a simple state-based tab strip. Tabs: Overview, Feature Toggles, Security, Roles & Permissions, System, Compliance, Import/Export. The Overview tab shows a summary dashboard of all settings categories with quick-toggle capability.",
+    "4. Feature Toggles tab: A list of application features (OCR Processing, Email Notifications, Document Approval Workflow, Case Management, BOM Module, Transmittals, Deduplication Scanner, Bulk Upload, Search Analytics) each with a toggle switch, description, and last modified timestamp.",
+    "5. Security Policies tab: Form-based UI with sections for Password Policy (min length slider, complexity checkboxes for uppercase/lowercase/number/special, expiry days, password history count), Login Policy (max failed attempts, lockout duration, 2FA toggle), Session Management (timeout minutes, concurrent sessions limit), IP Restrictions (whitelist textarea with CIDR notation).",
+    "6. Roles & Permissions tab: A matrix table with roles as columns (admin, supervisor, reviewer, engineer, viewer) and permissions as rows (from Permission type). Each cell is a checkbox. Admin column is always all-checked and disabled. Include a visual indicator showing effective access.",
+    "7. System Configuration tab: Retains existing Upload and OCR settings groups but in a cleaner card-based layout. Adds Notification Configuration section (digest frequency, channels, quiet hours). Adds Storage Management section (auto-archive threshold, retention policy).",
+    "8. Compliance tab: Audit retention period selector, document approval workflow configuration (number of required approvers, auto-escalation days), version control policy (max revisions to keep, mandatory comments on revision).",
+    "9. Import/Export tab: Export All Settings button (downloads JSON), Import Settings (file upload with validation preview showing what will change before applying), Reset to Defaults button with confirmation dialog.",
+    "10. Update graphify.json to add FEAT-016 entry for this feature."
+  ],
+  "acceptance_criteria": [
+    "npm run build passes without TypeScript errors",
+    "Settings page renders with 7 distinct tabs",
+    "Feature Toggles tab shows at least 8 toggleable features",
+    "Security tab has password policy, login policy, session, and IP restriction sections",
+    "Role Permission matrix shows all 5 roles and all permissions from the Permission type",
+    "Import/Export tab has export JSON and import with preview functionality",
+    "All settings use mock data (no real DB calls required)"
+  ],
+  "verification": [
+    "Run: export PATH=\"/opt/toolchains/.nvm/versions/node/v22.22.3/bin:$PATH\" && cd /projects/sandbox/LDO_rahul && npm run build",
+    "Verify the build output includes the /admin/settings route without errors"
+  ],
+  "blocked_reason": null,
+  "findings": "Build passes successfully. Settings page renders at /admin/settings with all 7 tabs. All mock data is client-side state (no real DB). Used native HTML checkboxes in roles matrix and security form since shadcn/ui does not have a dedicated Checkbox component in this project. Import/Export uses Blob download and FileReader for upload."
+}

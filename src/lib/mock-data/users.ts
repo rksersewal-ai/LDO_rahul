@@ -14,6 +14,12 @@ export interface MockUser {
   role: UserRole;
   isActive: boolean;
   lastLogin: string | null;
+  passwordChangedAt: string | null;
+  forcePasswordChange: boolean;
+  failedLoginAttempts: number;
+  lockedAt: string | null;
+  lockedBy: string | null;
+  lockReason: string | null;
 }
 
 export const MOCK_USERS: MockUser[] = [
@@ -31,6 +37,12 @@ export const MOCK_USERS: MockUser[] = [
     role: "admin",
     isActive: true,
     lastLogin: "2024-12-20T10:30:00Z",
+    passwordChangedAt: "2024-11-15T09:00:00Z",
+    forcePasswordChange: false,
+    failedLoginAttempts: 0,
+    lockedAt: null,
+    lockedBy: null,
+    lockReason: null,
   },
   {
     id: "u-002-supervisor",
@@ -46,6 +58,12 @@ export const MOCK_USERS: MockUser[] = [
     role: "supervisor",
     isActive: true,
     lastLogin: "2024-12-19T15:45:00Z",
+    passwordChangedAt: "2024-10-20T14:00:00Z",
+    forcePasswordChange: false,
+    failedLoginAttempts: 1,
+    lockedAt: null,
+    lockedBy: null,
+    lockReason: null,
   },
   {
     id: "u-003-engineer",
@@ -61,6 +79,12 @@ export const MOCK_USERS: MockUser[] = [
     role: "engineer",
     isActive: true,
     lastLogin: "2024-12-20T09:15:00Z",
+    passwordChangedAt: "2024-12-01T10:00:00Z",
+    forcePasswordChange: true,
+    failedLoginAttempts: 0,
+    lockedAt: null,
+    lockedBy: null,
+    lockReason: null,
   },
   {
     id: "u-004-reviewer",
@@ -76,6 +100,12 @@ export const MOCK_USERS: MockUser[] = [
     role: "reviewer",
     isActive: true,
     lastLogin: "2024-12-18T11:00:00Z",
+    passwordChangedAt: "2024-09-10T08:30:00Z",
+    forcePasswordChange: false,
+    failedLoginAttempts: 3,
+    lockedAt: "2024-12-19T14:00:00Z",
+    lockedBy: "u-001-admin",
+    lockReason: "Multiple failed login attempts detected",
   },
   {
     id: "u-005-viewer",
@@ -91,6 +121,12 @@ export const MOCK_USERS: MockUser[] = [
     role: "viewer",
     isActive: true,
     lastLogin: "2024-12-17T14:30:00Z",
+    passwordChangedAt: "2024-08-05T11:00:00Z",
+    forcePasswordChange: false,
+    failedLoginAttempts: 0,
+    lockedAt: null,
+    lockedBy: null,
+    lockReason: null,
   },
   {
     id: "u-006-engineer2",
@@ -106,5 +142,11 @@ export const MOCK_USERS: MockUser[] = [
     role: "engineer",
     isActive: true,
     lastLogin: "2024-12-20T08:00:00Z",
+    passwordChangedAt: "2024-11-28T16:00:00Z",
+    forcePasswordChange: false,
+    failedLoginAttempts: 0,
+    lockedAt: null,
+    lockedBy: null,
+    lockReason: null,
   },
 ];

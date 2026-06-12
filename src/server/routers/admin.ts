@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Permission } from "@/lib/auth/permissions";
 import {
   type Banner,
   MOCK_ADMIN_USERS,
@@ -13,7 +14,19 @@ import {
   type OcrQueueJob,
   type SystemSetting,
 } from "@/lib/mock-data/admin";
-import type { MockUser } from "@/lib/mock-data/users";
+import {
+  type ComplianceSettings,
+  type FeatureToggle,
+  MOCK_COMPLIANCE_SETTINGS,
+  MOCK_FEATURE_TOGGLES,
+  MOCK_ROLE_PERMISSIONS,
+  MOCK_SECURITY_POLICIES,
+  MOCK_SYSTEM_CONFIGURATION,
+  type RolePermissionMatrix,
+  type SecurityPolicies,
+  type SystemConfiguration,
+} from "@/lib/mock-data/admin-settings";
+import type { MockUser, UserRole } from "@/lib/mock-data/users";
 import { adminProcedure, router } from "@/server/trpc";
 
 // In-memory mutable stores
@@ -21,6 +34,11 @@ const users: MockUser[] = [...MOCK_ADMIN_USERS];
 const ocrQueue: OcrQueueJob[] = [...MOCK_OCR_QUEUE];
 const settings: SystemSetting[] = [...MOCK_SETTINGS];
 const banners: Banner[] = [...MOCK_BANNERS];
+const featureToggles: FeatureToggle[] = [...MOCK_FEATURE_TOGGLES];
+let securityPolicies: SecurityPolicies = { ...MOCK_SECURITY_POLICIES };
+const rolePermissions: RolePermissionMatrix = { ...MOCK_ROLE_PERMISSIONS };
+let systemConfiguration: SystemConfiguration = { ...MOCK_SYSTEM_CONFIGURATION };
+let complianceSettings: ComplianceSettings = { ...MOCK_COMPLIANCE_SETTINGS };
 
 export const adminRouter = router({
   // --- System Health ---
@@ -87,6 +105,12 @@ export const adminRouter = router({
         ...input,
         isActive: true,
         lastLogin: null,
+        passwordChangedAt: new Date().toISOString(),
+        forcePasswordChange: true,
+        failedLoginAttempts: 0,
+        lockedAt: null,
+        lockedBy: null,
+        lockReason: null,
       };
       users.push(newUser);
       return newUser;
@@ -119,6 +143,75 @@ export const adminRouter = router({
     if (idx === -1) return null;
     users[idx].isActive = false;
     return users[idx];
+  }),
+
+  // --- User Security Management ---
+  getSecurityInfo: adminProcedure.input(z.object({ userId: z.string() })).query(({ input }) => {
+    const user = users.find((u) => u.id === input.userId);
+    if (!user) return null;
+    return {
+      userId: user.id,
+      username: user.username,
+      name: user.name,
+      passwordChangedAt: user.passwordChangedAt,
+      forcePasswordChange: user.forcePasswordChange,
+      failedLoginAttempts: user.failedLoginAttempts,
+      lockedAt: user.lockedAt,
+      lockedBy: user.lockedBy,
+      lockReason: user.lockReason,
+    };
+  }),
+
+  resetPassword: adminProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        newPassword: z.string().min(6),
+      }),
+    )
+    .mutation(({ input }) => {
+      const idx = users.findIndex((u) => u.id === input.userId);
+      if (idx === -1) return null;
+      // NOTE: Mock-only -- in production, hash with bcrypt/argon2 before storing
+      users[idx].password = input.newPassword;
+      users[idx].passwordChangedAt = new Date().toISOString();
+      users[idx].forcePasswordChange = true;
+      return { success: true, userId: input.userId };
+    }),
+
+  forcePasswordChange: adminProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(({ input }) => {
+      const idx = users.findIndex((u) => u.id === input.userId);
+      if (idx === -1) return null;
+      users[idx].forcePasswordChange = true;
+      return { success: true, userId: input.userId };
+    }),
+
+  lockAccount: adminProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        reason: z.string().min(1),
+      }),
+    )
+    .mutation(({ input, ctx }) => {
+      const idx = users.findIndex((u) => u.id === input.userId);
+      if (idx === -1) return null;
+      users[idx].lockedAt = new Date().toISOString();
+      users[idx].lockedBy = ctx.session.user?.id || "unknown";
+      users[idx].lockReason = input.reason;
+      return { success: true, userId: input.userId };
+    }),
+
+  unlockAccount: adminProcedure.input(z.object({ userId: z.string() })).mutation(({ input }) => {
+    const idx = users.findIndex((u) => u.id === input.userId);
+    if (idx === -1) return null;
+    users[idx].lockedAt = null;
+    users[idx].lockedBy = null;
+    users[idx].lockReason = null;
+    users[idx].failedLoginAttempts = 0;
+    return { success: true, userId: input.userId };
   }),
 
   // --- OCR Queue ---
@@ -299,4 +392,386 @@ export const adminRouter = router({
     const removed = banners.splice(idx, 1);
     return removed[0];
   }),
+
+  // --- Feature Toggles ---
+  getFeatureToggles: adminProcedure.query(() => {
+    return featureToggles;
+  }),
+
+  updateFeatureToggle: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(({ input }) => {
+      const idx = featureToggles.findIndex((f) => f.id === input.id);
+      if (idx === -1) return null;
+      featureToggles[idx].enabled = input.enabled;
+      featureToggles[idx].lastModified = new Date().toISOString();
+      featureToggles[idx].modifiedBy = "Admin";
+      return featureToggles[idx];
+    }),
+
+  // --- Security Policies ---
+  getSecurityPolicies: adminProcedure.query(() => {
+    return securityPolicies;
+  }),
+
+  updateSecurityPolicies: adminProcedure
+    .input(
+      z.object({
+        password: z
+          .object({
+            minLength: z.number().min(6).max(32).optional(),
+            requireUppercase: z.boolean().optional(),
+            requireLowercase: z.boolean().optional(),
+            requireNumbers: z.boolean().optional(),
+            requireSpecialChars: z.boolean().optional(),
+            expiryDays: z.number().min(0).max(365).optional(),
+            historyCount: z.number().min(0).max(24).optional(),
+          })
+          .optional(),
+        login: z
+          .object({
+            maxFailedAttempts: z.number().min(1).max(20).optional(),
+            lockoutDurationMinutes: z.number().min(1).max(1440).optional(),
+            twoFactorEnabled: z.boolean().optional(),
+          })
+          .optional(),
+        session: z
+          .object({
+            timeoutMinutes: z.number().min(5).max(480).optional(),
+            maxConcurrentSessions: z.number().min(1).max(10).optional(),
+          })
+          .optional(),
+        ipRestrictions: z
+          .object({
+            enabled: z.boolean().optional(),
+            whitelist: z.array(z.string()).optional(),
+          })
+          .optional(),
+      }),
+    )
+    .mutation(({ input }) => {
+      if (input.password) {
+        securityPolicies = {
+          ...securityPolicies,
+          password: { ...securityPolicies.password, ...input.password },
+        };
+      }
+      if (input.login) {
+        securityPolicies = {
+          ...securityPolicies,
+          login: { ...securityPolicies.login, ...input.login },
+        };
+      }
+      if (input.session) {
+        securityPolicies = {
+          ...securityPolicies,
+          session: { ...securityPolicies.session, ...input.session },
+        };
+      }
+      if (input.ipRestrictions) {
+        securityPolicies = {
+          ...securityPolicies,
+          ipRestrictions: { ...securityPolicies.ipRestrictions, ...input.ipRestrictions },
+        };
+      }
+      return securityPolicies;
+    }),
+
+  // --- Role Permissions ---
+  getRolePermissions: adminProcedure.query(() => {
+    return rolePermissions;
+  }),
+
+  updateRolePermission: adminProcedure
+    .input(
+      z.object({
+        role: z.enum(["admin", "supervisor", "reviewer", "engineer", "viewer"]),
+        permission: z.string(),
+        granted: z.boolean(),
+      }),
+    )
+    .mutation(({ input }) => {
+      const role = input.role as UserRole;
+      const permission = input.permission as Permission;
+      if (role === "admin") return rolePermissions; // admin always has all
+      if (input.granted) {
+        if (!rolePermissions[role].includes(permission)) {
+          rolePermissions[role].push(permission);
+        }
+      } else {
+        rolePermissions[role] = rolePermissions[role].filter((p) => p !== permission);
+      }
+      return rolePermissions;
+    }),
+
+  // --- System Configuration ---
+  getSystemConfiguration: adminProcedure.query(() => {
+    return systemConfiguration;
+  }),
+
+  updateSystemConfiguration: adminProcedure
+    .input(
+      z.object({
+        upload: z
+          .object({
+            maxFileSizeMB: z.number().optional(),
+            allowedExtensions: z.array(z.string()).optional(),
+            maxConcurrentUploads: z.number().optional(),
+          })
+          .optional(),
+        ocr: z
+          .object({
+            enabled: z.boolean().optional(),
+            confidenceThreshold: z.number().optional(),
+            maxWorkers: z.number().optional(),
+            autoRetryOnFailure: z.boolean().optional(),
+            maxRetries: z.number().optional(),
+          })
+          .optional(),
+        notifications: z
+          .object({
+            digestFrequency: z.enum(["realtime", "hourly", "daily", "weekly"]).optional(),
+            channels: z
+              .object({
+                email: z.boolean().optional(),
+                inApp: z.boolean().optional(),
+                sms: z.boolean().optional(),
+              })
+              .optional(),
+            quietHoursStart: z.string().optional(),
+            quietHoursEnd: z.string().optional(),
+          })
+          .optional(),
+        storage: z
+          .object({
+            autoArchiveAfterDays: z.number().optional(),
+            retentionPolicy: z.enum(["indefinite", "5_years", "10_years", "20_years"]).optional(),
+            compressionEnabled: z.boolean().optional(),
+          })
+          .optional(),
+      }),
+    )
+    .mutation(({ input }) => {
+      if (input.upload) {
+        systemConfiguration = {
+          ...systemConfiguration,
+          upload: { ...systemConfiguration.upload, ...input.upload },
+        };
+      }
+      if (input.ocr) {
+        systemConfiguration = {
+          ...systemConfiguration,
+          ocr: { ...systemConfiguration.ocr, ...input.ocr },
+        };
+      }
+      if (input.notifications) {
+        const notifUpdate = { ...input.notifications };
+        const channels = notifUpdate.channels
+          ? { ...systemConfiguration.notifications.channels, ...notifUpdate.channels }
+          : systemConfiguration.notifications.channels;
+        systemConfiguration = {
+          ...systemConfiguration,
+          notifications: {
+            ...systemConfiguration.notifications,
+            ...notifUpdate,
+            channels,
+          },
+        };
+      }
+      if (input.storage) {
+        systemConfiguration = {
+          ...systemConfiguration,
+          storage: { ...systemConfiguration.storage, ...input.storage },
+        };
+      }
+      return systemConfiguration;
+    }),
+
+  // --- Compliance Settings ---
+  getComplianceSettings: adminProcedure.query(() => {
+    return complianceSettings;
+  }),
+
+  updateComplianceSettings: adminProcedure
+    .input(
+      z.object({
+        auditRetention: z
+          .object({
+            retentionPeriod: z
+              .enum(["1_year", "3_years", "5_years", "10_years", "indefinite"])
+              .optional(),
+            autoExportEnabled: z.boolean().optional(),
+            exportFormat: z.enum(["json", "csv"]).optional(),
+          })
+          .optional(),
+        approvalWorkflow: z
+          .object({
+            requiredApprovers: z.number().min(1).max(10).optional(),
+            autoEscalationDays: z.number().min(1).max(30).optional(),
+            allowSelfApproval: z.boolean().optional(),
+            requireComments: z.boolean().optional(),
+          })
+          .optional(),
+        versionControl: z
+          .object({
+            maxRevisionsToKeep: z.number().min(5).max(100).optional(),
+            mandatoryCommentsOnRevision: z.boolean().optional(),
+            autoVersionIncrement: z.boolean().optional(),
+            lockOnCheckout: z.boolean().optional(),
+          })
+          .optional(),
+      }),
+    )
+    .mutation(({ input }) => {
+      if (input.auditRetention) {
+        complianceSettings = {
+          ...complianceSettings,
+          auditRetention: { ...complianceSettings.auditRetention, ...input.auditRetention },
+        };
+      }
+      if (input.approvalWorkflow) {
+        complianceSettings = {
+          ...complianceSettings,
+          approvalWorkflow: { ...complianceSettings.approvalWorkflow, ...input.approvalWorkflow },
+        };
+      }
+      if (input.versionControl) {
+        complianceSettings = {
+          ...complianceSettings,
+          versionControl: { ...complianceSettings.versionControl, ...input.versionControl },
+        };
+      }
+      return complianceSettings;
+    }),
+
+  // --- Export/Import ---
+  exportSettings: adminProcedure.query(() => {
+    return {
+      featureToggles,
+      securityPolicies,
+      rolePermissions,
+      systemConfiguration,
+      complianceSettings,
+      legacySettings: settings,
+      exportedAt: new Date().toISOString(),
+      version: "1.0",
+    };
+  }),
+
+  importSettings: adminProcedure
+    .input(
+      z.object({
+        data: z.string(),
+      }),
+    )
+    .mutation(({ input }) => {
+      try {
+        const parsed = JSON.parse(input.data);
+        const changes: string[] = [];
+
+        // Validate imported structure with zod before applying
+        const featureToggleSchema = z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            enabled: z.boolean(),
+          })
+          .passthrough();
+        const securityPoliciesSchema = z
+          .object({
+            password: z.object({}).passthrough().optional(),
+            login: z.object({}).passthrough().optional(),
+            session: z.object({}).passthrough().optional(),
+            ipRestrictions: z.object({}).passthrough().optional(),
+          })
+          .passthrough();
+        const complianceSettingsSchema = z
+          .object({
+            auditRetention: z.object({}).passthrough().optional(),
+            approvalWorkflow: z.object({}).passthrough().optional(),
+            versionControl: z.object({}).passthrough().optional(),
+          })
+          .passthrough();
+        const systemConfigSchema = z
+          .object({
+            upload: z.object({}).passthrough().optional(),
+            ocr: z.object({}).passthrough().optional(),
+            notifications: z.object({}).passthrough().optional(),
+            storage: z.object({}).passthrough().optional(),
+          })
+          .passthrough();
+
+        if (parsed.featureToggles) {
+          const validated = z.array(featureToggleSchema).safeParse(parsed.featureToggles);
+          if (!validated.success) {
+            return {
+              success: false,
+              changes: ["Invalid featureToggles format"],
+              importedAt: new Date().toISOString(),
+            };
+          }
+          for (const ft of validated.data) {
+            const idx = featureToggles.findIndex((f) => f.id === ft.id);
+            if (idx !== -1) {
+              featureToggles[idx] = { ...featureToggles[idx], ...ft };
+              changes.push(`Updated feature toggle: ${ft.name}`);
+            }
+          }
+        }
+        if (parsed.securityPolicies) {
+          const validated = securityPoliciesSchema.safeParse(parsed.securityPolicies);
+          if (!validated.success) {
+            return {
+              success: false,
+              changes: ["Invalid securityPolicies format"],
+              importedAt: new Date().toISOString(),
+            };
+          }
+          securityPolicies = {
+            ...securityPolicies,
+            ...parsed.securityPolicies,
+          } as SecurityPolicies;
+          changes.push("Updated security policies");
+        }
+        if (parsed.complianceSettings) {
+          const validated = complianceSettingsSchema.safeParse(parsed.complianceSettings);
+          if (!validated.success) {
+            return {
+              success: false,
+              changes: ["Invalid complianceSettings format"],
+              importedAt: new Date().toISOString(),
+            };
+          }
+          complianceSettings = {
+            ...complianceSettings,
+            ...parsed.complianceSettings,
+          } as ComplianceSettings;
+          changes.push("Updated compliance settings");
+        }
+        if (parsed.systemConfiguration) {
+          const validated = systemConfigSchema.safeParse(parsed.systemConfiguration);
+          if (!validated.success) {
+            return {
+              success: false,
+              changes: ["Invalid systemConfiguration format"],
+              importedAt: new Date().toISOString(),
+            };
+          }
+          systemConfiguration = {
+            ...systemConfiguration,
+            ...parsed.systemConfiguration,
+          } as SystemConfiguration;
+          changes.push("Updated system configuration");
+        }
+
+        return { success: true, changes, importedAt: new Date().toISOString() };
+      } catch {
+        return { success: false, changes: [], importedAt: new Date().toISOString() };
+      }
+    }),
 });

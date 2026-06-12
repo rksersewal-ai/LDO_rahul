@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download, Eye, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Download, Eye, FileSearch, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -165,6 +165,22 @@ const columns: ColumnDef<MockDocument, unknown>[] = [
     size: 70,
   },
   {
+    id: "preview",
+    header: "",
+    cell: ({ row }) => (
+      <Link
+        href={`/documents/${row.original.id}/preview`}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        title="Preview document"
+      >
+        <FileSearch className="h-3.5 w-3.5" />
+      </Link>
+    ),
+    size: 36,
+    enableSorting: false,
+  },
+  {
     id: "actions",
     header: "",
     cell: ({ row }) => (
@@ -185,6 +201,10 @@ const columns: ColumnDef<MockDocument, unknown>[] = [
           <DropdownMenuItem render={<Link href={`/documents/${row.original.id}`} />}>
             <Eye className="h-3 w-3" />
             <span className="text-xs">View</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href={`/documents/${row.original.id}/preview`} />}>
+            <FileSearch className="h-3 w-3" />
+            <span className="text-xs">Preview</span>
           </DropdownMenuItem>
           <DropdownMenuItem className="flex items-center gap-2">
             <Download className="h-3 w-3" />

@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   BarChart3,
+  Bell,
   CheckSquare,
   ClipboardList,
   Cpu,
@@ -52,6 +53,7 @@ const navSections: NavSection[] = [
       { label: "Ledger Reports", href: "/ledger/reports", icon: BarChart3 },
       { label: "BOM Explorer", href: "/bom", icon: FolderTree },
       { label: "Approvals", href: "/approvals", icon: CheckSquare, badge: 11 },
+      { label: "Notifications", href: "/notifications", icon: Bell, badge: 6 },
       { label: "Cases", href: "/cases", icon: AlertTriangle },
       { label: "Folders", href: "/folders", icon: FolderOpen },
       { label: "Transmittals", href: "/transmittals", icon: Send },

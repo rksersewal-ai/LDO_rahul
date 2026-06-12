@@ -1,11 +1,12 @@
 "use client";
 
-import { Download, Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type DocumentFilterState, DocumentFilters } from "@/components/documents/document-filters";
 import { DocumentTable } from "@/components/documents/document-table";
 import { PageFrame } from "@/components/layout/page-frame";
+import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
@@ -40,6 +41,34 @@ export default function DocumentHubPage() {
     return true;
   });
 
+  const exportHeaders = [
+    "Document Number",
+    "Title",
+    "Category",
+    "Status",
+    "Revision",
+    "File Type",
+    "OCR Status",
+    "OCR Confidence",
+    "Updated",
+  ];
+
+  const exportRows = useMemo(
+    () =>
+      filteredData.map((doc) => [
+        doc.documentNumber,
+        doc.title,
+        doc.category,
+        doc.status,
+        doc.revision,
+        doc.fileType,
+        doc.ocrStatus,
+        doc.ocrConfidence ? `${doc.ocrConfidence}%` : "",
+        doc.updatedAt,
+      ]),
+    [filteredData],
+  );
+
   return (
     <PageFrame size="xl">
       <div className="flex flex-col gap-4">
@@ -52,10 +81,12 @@ export default function DocumentHubPage() {
                 <RefreshCw className="h-3 w-3" />
                 Refresh
               </Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                <Download className="h-3 w-3" />
-                Export
-              </Button>
+              <ExportDropdown
+                title="Document Hub"
+                headers={exportHeaders}
+                rows={exportRows}
+                filenamePrefix="documents"
+              />
               <Button
                 size="sm"
                 className="h-7 text-xs gap-1"

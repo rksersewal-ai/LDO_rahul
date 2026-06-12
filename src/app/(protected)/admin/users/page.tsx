@@ -1,7 +1,9 @@
 "use client";
 
-import { Edit, Plus, UserX } from "lucide-react";
+import { Edit, KeyRound, Lock, Plus, Shield, UserX } from "lucide-react";
 import { useState } from "react";
+import { AccountSecurityDialog } from "@/components/admin/account-security-dialog";
+import { PasswordResetDialog } from "@/components/admin/password-reset-dialog";
 import { UserForm, type UserFormValues } from "@/components/admin/user-form";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,14 @@ export default function UserManagementPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<MockUser | null>(null);
+  const [passwordResetOpen, setPasswordResetOpen] = useState(false);
+  const [passwordResetUser, setPasswordResetUser] = useState<{
+    id: string;
+    name: string;
+    username: string;
+  } | null>(null);
+  const [securityDialogOpen, setSecurityDialogOpen] = useState(false);
+  const [securityUser, setSecurityUser] = useState<MockUser | null>(null);
 
   const filtered = users.filter((u) => {
     if (
@@ -73,6 +83,12 @@ export default function UserManagementPage() {
       phone: values.phone,
       isActive: true,
       lastLogin: null,
+      passwordChangedAt: new Date().toISOString(),
+      forcePasswordChange: true,
+      failedLoginAttempts: 0,
+      lockedAt: null,
+      lockedBy: null,
+      lockReason: null,
     };
     setUsers([...users, newUser]);
     setDialogOpen(false);
@@ -97,6 +113,89 @@ export default function UserManagementPage() {
   const openCreateDialog = () => {
     setEditingUser(null);
     setDialogOpen(true);
+  };
+
+  // Password reset handlers
+  const openPasswordReset = (user: MockUser) => {
+    setPasswordResetUser({ id: user.id, name: user.name, username: user.username });
+    setPasswordResetOpen(true);
+  };
+
+  const handlePasswordReset = (userId: string, newPassword: string, forceChange: boolean) => {
+    setUsers(
+      users.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              password: newPassword,
+              passwordChangedAt: new Date().toISOString(),
+              forcePasswordChange: forceChange,
+            }
+          : u,
+      ),
+    );
+  };
+
+  // Security dialog handlers
+  const openSecurityDialog = (user: MockUser) => {
+    setSecurityUser(user);
+    setSecurityDialogOpen(true);
+  };
+
+  const handleLockAccount = (userId: string, reason: string) => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              lockedAt: new Date().toISOString(),
+              lockedBy: "current-admin",
+              lockReason: reason,
+            }
+          : u,
+      ),
+    );
+    setSecurityUser((prev) =>
+      prev && prev.id === userId
+        ? {
+            ...prev,
+            lockedAt: new Date().toISOString(),
+            lockedBy: "current-admin",
+            lockReason: reason,
+          }
+        : prev,
+    );
+  };
+
+  const handleUnlockAccount = (userId: string) => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? { ...u, lockedAt: null, lockedBy: null, lockReason: null, failedLoginAttempts: 0 }
+          : u,
+      ),
+    );
+    setSecurityUser((prev) =>
+      prev && prev.id === userId
+        ? { ...prev, lockedAt: null, lockedBy: null, lockReason: null, failedLoginAttempts: 0 }
+        : prev,
+    );
+  };
+
+  const handleForcePasswordChange = (userId: string) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, forcePasswordChange: true } : u)),
+    );
+    setSecurityUser((prev) =>
+      prev && prev.id === userId ? { ...prev, forcePasswordChange: true } : prev,
+    );
+  };
+
+  const handleClearFailedAttempts = (userId: string) => {
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, failedLoginAttempts: 0 } : u)));
+    setSecurityUser((prev) =>
+      prev && prev.id === userId ? { ...prev, failedLoginAttempts: 0 } : prev,
+    );
   };
 
   return (
@@ -160,6 +259,7 @@ export default function UserManagementPage() {
                 <TableHead className="text-[11px]">Role</TableHead>
                 <TableHead className="text-[11px]">Department</TableHead>
                 <TableHead className="text-[11px]">Status</TableHead>
+                <TableHead className="text-[11px]">Security</TableHead>
                 <TableHead className="text-[11px]">Last Login</TableHead>
                 <TableHead className="text-[11px] text-right">Actions</TableHead>
               </TableRow>
@@ -187,6 +287,21 @@ export default function UserManagementPage() {
                       {user.isActive ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    {user.lockedAt ? (
+                      <Badge variant="destructive" className="text-[10px] h-4">
+                        Locked
+                      </Badge>
+                    ) : user.forcePasswordChange ? (
+                      <Badge className="text-[10px] h-4 bg-amber-500/10 text-amber-600 border-amber-200">
+                        Force Change
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px] h-4 text-green-700">
+                        Normal
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {user.lastLogin
                       ? new Date(user.lastLogin).toLocaleDateString("en-IN", {
@@ -198,6 +313,28 @@ export default function UserManagementPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => openPasswordReset(user)}
+                        title="Reset Password"
+                      >
+                        <KeyRound className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => openSecurityDialog(user)}
+                        title={user.lockedAt ? "Unlock Account" : "Account Security"}
+                      >
+                        {user.lockedAt ? (
+                          <Lock className="h-3 w-3 text-destructive" />
+                        ) : (
+                          <Shield className="h-3 w-3" />
+                        )}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -258,6 +395,25 @@ export default function UserManagementPage() {
             />
           </DialogContent>
         </Dialog>
+
+        {/* Password Reset Dialog */}
+        <PasswordResetDialog
+          open={passwordResetOpen}
+          onOpenChange={setPasswordResetOpen}
+          user={passwordResetUser}
+          onReset={handlePasswordReset}
+        />
+
+        {/* Account Security Dialog */}
+        <AccountSecurityDialog
+          open={securityDialogOpen}
+          onOpenChange={setSecurityDialogOpen}
+          user={securityUser}
+          onLockAccount={handleLockAccount}
+          onUnlockAccount={handleUnlockAccount}
+          onForcePasswordChange={handleForcePasswordChange}
+          onClearFailedAttempts={handleClearFailedAttempts}
+        />
       </div>
     </PageFrame>
   );

@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-11T18:00:00.000Z",
-    "currentTask": "FEAT-015",
+    "lastUpdated": "2026-06-12T15:00:00.000Z",
+    "currentTask": "FEAT-026",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -17,11 +17,88 @@
       "FEAT-012",
       "FEAT-013",
       "FEAT-014",
-      "FEAT-015"
+      "FEAT-015",
+      "FEAT-016",
+      "FEAT-017",
+      "FEAT-018",
+      "FEAT-019",
+      "FEAT-020",
+      "FEAT-021",
+      "FEAT-022",
+      "FEAT-023",
+      "FEAT-024",
+      "FEAT-025",
+      "FEAT-026"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-026",
+      "description": "Work Ledger Create form enhancement - PL number lookup typeahead, supervisor assignment dropdown, DatePicker components, auto days-taken calculation, duplicate work detection, file attachment drag-and-drop, e-Office case number required field, target days auto-banner, consent field conditional on work type.",
+      "status": "completed",
+      "dependsOn": ["FEAT-025"]
+    },
+    {
+      "id": "FEAT-025",
+      "description": "Global Search overhaul Part 2 - Advanced filters panel (date range, status facets, entity pills, duplicate filter, source/category), sort controls with direction toggle, OCR match indicator, match reason badges, bento metrics strip",
+      "status": "completed",
+      "dependsOn": ["FEAT-024"]
+    },
+    {
+      "id": "FEAT-024",
+      "description": "Global Search overhaul Part 1 - Scope tabs with result counts, saved searches (Zustand + localStorage), recent searches with recall, search query highlighting (teal mark), URL sync (?q= param), debounced input (300ms), abort controller on navigation",
+      "status": "completed",
+      "dependsOn": ["FEAT-011", "FEAT-023"]
+    },
+    {
+      "id": "FEAT-023",
+      "description": "Document Preview Page Part 2 - Side panel with OCR intelligence, linked PL workspace navigation, search & dedup panel, document summary grid",
+      "status": "completed",
+      "dependsOn": ["FEAT-022"]
+    },
+    {
+      "id": "FEAT-022",
+      "description": "Document Preview Page rewrite Part 1 - Full floating overlay with PDF/image viewer, keyboard shortcuts, minimize/restore, back navigation, status/dedup badges",
+      "status": "completed",
+      "dependsOn": ["FEAT-008", "FEAT-009"]
+    },
+    {
+      "id": "FEAT-021",
+      "description": "Enhanced DataTable component with density toggle (dense 34px / normal 38px), pagination with page info, column visibility toggle dropdown, and bulk action toolbar when rows selected",
+      "status": "completed",
+      "dependsOn": ["FEAT-006", "FEAT-020"]
+    },
+    {
+      "id": "FEAT-020",
+      "description": "Multi-format Export Service (Excel/Word/PDF) with dropdown menus on all major tables - install xlsx, create ExportService utility, add ExportDropdown component, wire into DocumentHub, WorkLedger, BOM, PL pages",
+      "status": "completed",
+      "dependsOn": ["FEAT-008", "FEAT-006"]
+    },
+    {
+      "id": "FEAT-019",
+      "description": "Hierarchical KPI Reports - Admin/Supervisor user-level filtering, individual performance dashboard, comparative team view with color-coded metrics, and CSV export capabilities on the reports page",
+      "status": "completed",
+      "dependsOn": ["FEAT-018", "FEAT-015"]
+    },
+    {
+      "id": "FEAT-018",
+      "description": "Work Assignment Notifications and My Pending Works - auto-generate notifications on work assignment, My Pending Works tab in notifications page, supervisor work assignment endpoint",
+      "status": "completed",
+      "dependsOn": ["FEAT-012", "FEAT-017"]
+    },
+    {
+      "id": "FEAT-017",
+      "description": "Admin-Controlled Security and Password Management - password reset, force change on next login, account lock/unlock in user management",
+      "status": "completed",
+      "dependsOn": ["FEAT-016", "FEAT-013"]
+    },
+    {
+      "id": "FEAT-016",
+      "description": "Sophisticated Admin Settings Page with tabbed navigation, feature toggles, security policies, role permission matrix, system configuration, compliance settings, and import/export",
+      "status": "completed",
+      "dependsOn": ["FEAT-014", "FEAT-013"]
+    },
     {
       "id": "FEAT-001",
       "description": "Project scaffold with Next.js 15, Biome linting, graphify task tracker, and core dependencies",
@@ -32,113 +109,79 @@
       "id": "FEAT-002",
       "description": "Database schema design with Drizzle ORM",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-001"
-      ]
+      "dependsOn": ["FEAT-001"]
     },
     {
       "id": "FEAT-003",
       "description": "tRPC API layer and server routers",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-002"
-      ]
+      "dependsOn": ["FEAT-002"]
     },
     {
       "id": "FEAT-004",
       "description": "Authentication system with NextAuth",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-001"
-      ]
+      "dependsOn": ["FEAT-001"]
     },
     {
       "id": "FEAT-005",
       "description": "File upload and content-addressed storage",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-003",
-        "FEAT-004"
-      ]
+      "dependsOn": ["FEAT-003", "FEAT-004"]
     },
     {
       "id": "FEAT-006",
       "description": "UI component library and design system",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-001"
-      ]
+      "dependsOn": ["FEAT-001"]
     },
     {
       "id": "FEAT-007",
       "description": "Dashboard layout and KPI cards",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-006",
-        "FEAT-003"
-      ]
+      "dependsOn": ["FEAT-006", "FEAT-003"]
     },
     {
       "id": "FEAT-008",
       "description": "Document list view with filtering and sorting",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-006",
-        "FEAT-003"
-      ]
+      "dependsOn": ["FEAT-006", "FEAT-003"]
     },
     {
       "id": "FEAT-009",
       "description": "Document detail and metadata editing",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-006",
-        "FEAT-003"
-      ]
+      "dependsOn": ["FEAT-006", "FEAT-003"]
     },
     {
       "id": "FEAT-010",
       "description": "Document workflow and status management",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-006",
-        "FEAT-003"
-      ]
+      "dependsOn": ["FEAT-006", "FEAT-003"]
     },
     {
       "id": "FEAT-011",
       "description": "Search and advanced filtering",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-006"
-      ]
+      "dependsOn": ["FEAT-006"]
     },
     {
       "id": "FEAT-012",
       "description": "Notifications and activity feed",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-006",
-        "FEAT-003"
-      ]
+      "dependsOn": ["FEAT-006", "FEAT-003"]
     },
     {
       "id": "FEAT-013",
       "description": "User management and role-based access",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-006",
-        "FEAT-003",
-        "FEAT-004"
-      ]
+      "dependsOn": ["FEAT-006", "FEAT-003", "FEAT-004"]
     },
     {
       "id": "FEAT-014",
       "description": "Settings and configuration pages",
       "status": "completed",
-      "dependsOn": [
-        "FEAT-006"
-      ]
+      "dependsOn": ["FEAT-006"]
     },
     {
       "id": "FEAT-015",

@@ -1,9 +1,10 @@
 "use client";
 
-import { ClipboardList, Cpu, ExternalLink, Eye, FileText } from "lucide-react";
+import { ClipboardList, Cpu, ExternalLink, Eye, FileText, ScanText } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { highlightText } from "@/lib/utils/highlight-text";
 import type { SearchResult } from "@/lib/validators/search";
 
 const typeIcons: Record<SearchResult["type"], React.ComponentType<{ className?: string }>> = {
@@ -20,35 +21,11 @@ const typeLabels: Record<SearchResult["type"], string> = {
   case: "Case",
 };
 
-function HighlightedText({ text, query }: { text: string; query: string }) {
-  if (!query || query.length < 2) {
-    return <span>{text}</span>;
-  }
-
-  const parts: React.ReactNode[] = [];
-  const lower = text.toLowerCase();
-  const queryLower = query.toLowerCase();
-  let lastIndex = 0;
-  let idx = lower.indexOf(queryLower);
-
-  while (idx !== -1) {
-    if (idx > lastIndex) {
-      parts.push(text.slice(lastIndex, idx));
-    }
-    parts.push(
-      <mark key={idx} className="bg-primary/20 text-foreground rounded-sm px-0.5">
-        {text.slice(idx, idx + query.length)}
-      </mark>,
-    );
-    lastIndex = idx + query.length;
-    idx = lower.indexOf(queryLower, lastIndex);
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return <span>{parts}</span>;
+function humanizeReason(reason: string): string {
+  return reason
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 interface SearchResultCardProps {
@@ -80,7 +57,7 @@ export function SearchResultCard({ result, query, className }: SearchResultCardP
               href={result.url}
               className="text-sm font-medium hover:underline underline-offset-2 line-clamp-1"
             >
-              <HighlightedText text={result.title} query={query} />
+              {highlightText(result.title, query)}
             </Link>
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{result.subtitle}</p>
           </div>
@@ -89,10 +66,32 @@ export function SearchResultCard({ result, query, className }: SearchResultCardP
           </span>
         </div>
 
-        {/* Match highlight */}
-        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-          <HighlightedText text={result.matchText} query={query} />
-        </p>
+        {/* Match highlight with OCR indicator */}
+        <div className="flex items-center gap-1.5 mt-1">
+          {result.matchField === "OCR Text" && (
+            <ScanText className="size-3 text-violet-400 shrink-0" />
+          )}
+          {result.matchField && (
+            <span className="text-[10px] text-muted-foreground shrink-0">{result.matchField}:</span>
+          )}
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            {highlightText(result.matchText, query)}
+          </p>
+        </div>
+
+        {/* Match reason badges */}
+        {result.matchReasons && result.matchReasons.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {result.matchReasons.map((reason) => (
+              <span
+                key={reason}
+                className="rounded-full border border-teal-500/20 bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-200"
+              >
+                {humanizeReason(reason)}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Badges */}
         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
