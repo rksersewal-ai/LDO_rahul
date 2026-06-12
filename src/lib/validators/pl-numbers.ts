@@ -1,20 +1,44 @@
 import { z } from "zod";
 
 export const plCategoryEnum = z.enum(["CAT-A", "CAT-B", "CAT-C", "CAT-D"]);
-export const plStatusEnum = z.enum(["active", "inactive", "deprecated", "under_review"]);
+export const plStatusEnum = z.enum(["active", "inactive", "deprecated", "under_review", "obsolete"]);
+export const lifecycleStageEnum = z.enum(["draft", "active", "restricted", "obsolete", "deprecated"]);
+
+export const plAliasTypeEnum = z.enum(["legacy", "vendor", "drawing", "local_name"]);
+export const plRelationTypeEnum = z.enum([
+  "equivalent_to",
+  "substitute_for",
+  "supersedes",
+  "child_of",
+  "accessory_of",
+  "related_to",
+]);
+export const plDocumentLinkTypeEnum = z.enum([
+  "manual",
+  "ocr_candidate",
+  "ocr_accepted",
+  "bom_inferred",
+  "work_record_inferred",
+]);
+
+export const paginationSchema = z.object({
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(25),
+});
 
 export const plListSchema = z.object({
-  limit: z.number().min(1).max(100).default(25),
-  offset: z.number().min(0).default(0),
-  sortBy: z
-    .enum(["plNumber", "name", "category", "status", "createdAt", "updatedAt"])
-    .default("plNumber"),
-  sortOrder: z.enum(["asc", "desc"]).default("asc"),
   search: z.string().optional(),
   category: plCategoryEnum.optional(),
   status: plStatusEnum.optional(),
+  lifecycleStage: lifecycleStageEnum.optional(),
   safetyCritical: z.boolean().optional(),
   workshop: z.string().optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(25),
+  sortBy: z
+    .enum(["plNumber", "name", "category", "status", "createdAt", "updatedAt"])
+    .default("plNumber"),
+  sortDir: z.enum(["asc", "desc"]).default("asc"),
 });
 
 export const createPlSchema = z.object({
@@ -31,6 +55,10 @@ export const createPlSchema = z.object({
   specification: z.string().nullable().optional(),
   unit: z.string().default("nos"),
   workshop: z.string().min(1, "Workshop is required"),
+  manufacturer: z.string().nullable().optional(),
+  vendorCode: z.string().nullable().optional(),
+  partFamily: z.string().nullable().optional(),
+  lifecycleStage: lifecycleStageEnum.optional(),
 });
 
 export const updatePlSchema = z.object({
@@ -44,6 +72,10 @@ export const updatePlSchema = z.object({
   specification: z.string().nullable().optional(),
   unit: z.string().optional(),
   workshop: z.string().optional(),
+  manufacturer: z.string().nullable().optional(),
+  vendorCode: z.string().nullable().optional(),
+  partFamily: z.string().nullable().optional(),
+  lifecycleStage: lifecycleStageEnum.optional(),
 });
 
 export const plSearchSchema = z.object({
@@ -51,6 +83,62 @@ export const plSearchSchema = z.object({
   limit: z.number().min(1).max(50).default(10),
 });
 
+export const plAliasSchema = z.object({
+  plId: z.string().min(1),
+  alias: z.string().min(1).max(128),
+  aliasType: plAliasTypeEnum,
+});
+
+export const plRelationshipSchema = z.object({
+  sourcePlId: z.string().min(1),
+  targetPlId: z.string().min(1),
+  relationType: plRelationTypeEnum,
+  notes: z.string().optional(),
+});
+
+export const plLinkDocumentSchema = z.object({
+  plId: z.string().min(1),
+  documentId: z.string().min(1),
+  linkType: plDocumentLinkTypeEnum.default("manual"),
+  confidence: z.number().min(0).max(1).optional(),
+  notes: z.string().optional(),
+});
+
+export const plBulkImportSchema = z.object({
+  rows: z.array(
+    z.object({
+      plNumber: z
+        .string()
+        .length(8)
+        .regex(/^\d{8}$/),
+      name: z.string().min(1).max(500),
+      description: z.string().min(1),
+      category: plCategoryEnum,
+      status: plStatusEnum.default("active"),
+      safetyCritical: z.boolean().default(false),
+      drawingRef: z.string().nullable().optional(),
+      specification: z.string().nullable().optional(),
+      unit: z.string().default("nos"),
+      workshop: z.string().min(1),
+      manufacturer: z.string().nullable().optional(),
+      vendorCode: z.string().nullable().optional(),
+      partFamily: z.string().nullable().optional(),
+      lifecycleStage: lifecycleStageEnum.optional(),
+    }),
+  ),
+});
+
+export const plChangeStatusSchema = z.object({
+  id: z.string().min(1),
+  status: plStatusEnum,
+  reason: z.string().min(1, "Reason is required for status changes"),
+});
+
 export type PlListInput = z.infer<typeof plListSchema>;
 export type CreatePlInput = z.infer<typeof createPlSchema>;
 export type UpdatePlInput = z.infer<typeof updatePlSchema>;
+export type PlAliasInput = z.infer<typeof plAliasSchema>;
+export type PlRelationshipInput = z.infer<typeof plRelationshipSchema>;
+export type PlLinkDocumentInput = z.infer<typeof plLinkDocumentSchema>;
+export type PlBulkImportInput = z.infer<typeof plBulkImportSchema>;
+export type PlChangeStatusInput = z.infer<typeof plChangeStatusSchema>;
