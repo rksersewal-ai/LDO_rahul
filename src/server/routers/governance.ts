@@ -124,6 +124,9 @@ export const governanceRouter = router({
         newValue: JSON.stringify(input.documentIds),
       });
 
+      // TODO: Notify document owners about the legal hold.
+      // Requires a join to resolve document owner user IDs from documentIds.
+
       return { success: true, appliedCount: input.documentIds.length };
     }),
 
@@ -170,6 +173,9 @@ export const governanceRouter = router({
         workspaceId,
         details: `Released legal hold. Reason: ${input.releaseReason}`,
       });
+
+      // TODO: Notify document owners about the hold release.
+      // Requires a join to resolve affected document owner user IDs.
 
       return { success: true };
     }),

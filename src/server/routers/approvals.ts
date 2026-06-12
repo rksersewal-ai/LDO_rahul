@@ -11,6 +11,7 @@ import {
   approvalSteps,
   documents,
 } from "@/lib/db/schema";
+import { createAndPushNotification } from "@/lib/notifications/push-notification";
 import type { UserRole } from "@/lib/types/auth";
 import { adminProcedure, protectedProcedure, router } from "@/server/trpc";
 
@@ -151,6 +152,31 @@ export const approvalsRouter = router({
         details: `Created approval chain with ${steps.length} steps using template "${templateRow.name}"`,
         workspaceId,
       });
+
+      // Notify the first step's assigned_to (if set) about the new approval request
+      const [firstStep] = await db
+        .select()
+        .from(approvalSteps)
+        .where(
+          and(
+            eq(approvalSteps.requestId, requestId),
+            eq(approvalSteps.stepOrder, 1),
+          ),
+        )
+        .limit(1);
+
+      if (firstStep?.assignedTo) {
+        await createAndPushNotification({
+          userId: firstStep.assignedTo,
+          type: "approval_request",
+          title: "New approval request",
+          body: `A new ${input.entityType} approval request requires your review.`,
+          entityType: "approval",
+          entityId: requestId,
+          workspaceId,
+          actionUrl: "/approvals",
+        }).catch(() => {});
+      }
 
       return {
         id: requestId,
@@ -323,6 +349,20 @@ export const approvalsRouter = router({
         workspaceId,
       });
 
+      // If chain completed, notify the original requester
+      if (isLastStep && request.requestedBy) {
+        await createAndPushNotification({
+          userId: request.requestedBy,
+          type: "approval_decision",
+          title: "Approval completed",
+          body: `Your ${request.entityType ?? "approval"} request has been fully approved.`,
+          entityType: "approval",
+          entityId: request.id,
+          workspaceId,
+          actionUrl: "/approvals",
+        }).catch(() => {});
+      }
+
       return {
         id: request.id,
         status: isLastStep ? "approved" : "pending",
@@ -410,6 +450,20 @@ export const approvalsRouter = router({
         details: `Rejected at step ${request.currentStep}/${request.totalSteps}: ${input.reason}`,
         workspaceId,
       });
+
+      // Notify the original requester about the rejection
+      if (request.requestedBy) {
+        await createAndPushNotification({
+          userId: request.requestedBy,
+          type: "approval_decision",
+          title: "Request rejected",
+          body: `Your ${request.entityType ?? "approval"} request was rejected: ${input.reason}`,
+          entityType: "approval",
+          entityId: request.id,
+          workspaceId,
+          actionUrl: "/approvals",
+        }).catch(() => {});
+      }
 
       return {
         id: request.id,
