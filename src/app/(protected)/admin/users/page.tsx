@@ -192,9 +192,7 @@ export default function UserManagementPage() {
   };
 
   const handleClearFailedAttempts = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, failedLoginAttempts: 0 } : u)),
-    );
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, failedLoginAttempts: 0 } : u)));
     setSecurityUser((prev) =>
       prev && prev.id === userId ? { ...prev, failedLoginAttempts: 0 } : prev,
     );
