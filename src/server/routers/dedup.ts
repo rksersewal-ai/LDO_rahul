@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
@@ -211,7 +211,27 @@ export const dedupRouter = router({
         .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date() })
         .where(eq(documents.id, archivedId));
 
-      // 5. Redirect PL links from archived to kept
+      // 5. Redirect PL links from archived to kept (handle collisions)
+      // Get existing PL links on the kept document
+      const keptPlLinks = await db
+        .select({ plNumberId: documentPlLinks.plNumberId })
+        .from(documentPlLinks)
+        .where(eq(documentPlLinks.documentId, input.keepDocumentId));
+      const keptPlIds = new Set(keptPlLinks.map((l) => l.plNumberId));
+
+      // Delete colliding links from archived doc
+      if (keptPlIds.size > 0) {
+        await db
+          .delete(documentPlLinks)
+          .where(
+            and(
+              eq(documentPlLinks.documentId, archivedId),
+              inArray(documentPlLinks.plNumberId, [...keptPlIds]),
+            ),
+          );
+      }
+
+      // Redirect remaining non-colliding links
       await db
         .update(documentPlLinks)
         .set({ documentId: input.keepDocumentId })
@@ -298,10 +318,11 @@ export const dedupRouter = router({
    * Fetches all non-deleted documents and scores pairs in batches.
    */
   triggerScan: adminProcedure
-    .input(z.object({ workspaceId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .input(z.object({}))
+    .mutation(async ({ ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
+      const workspaceId = requireWorkspaceId(ctx);
 
       // Fetch all non-deleted documents in workspace
       const allDocs = await db
@@ -319,7 +340,7 @@ export const dedupRouter = router({
         .from(documents)
         .where(
           and(
-            eq(documents.workspaceId, input.workspaceId),
+            eq(documents.workspaceId, workspaceId),
             eq(documents.isDeleted, 0),
           ),
         );
@@ -412,7 +433,7 @@ export const dedupRouter = router({
 
             insertBatch.push({
               id: randomUUID(),
-              workspaceId: input.workspaceId,
+              workspaceId,
               documentAId: aId,
               documentBId: bId,
               score: result.score,
@@ -456,9 +477,9 @@ export const dedupRouter = router({
         userName,
         action: "DEDUP_SCAN",
         resourceType: "workspace",
-        resourceId: input.workspaceId,
+        resourceId: workspaceId,
         details: `Dedup scan completed. Scored ${totalPairsScored} pairs, found ${newDetections} new detections.`,
-        workspaceId: input.workspaceId,
+        workspaceId,
       });
 
       return { newDetections, totalPairsScored };

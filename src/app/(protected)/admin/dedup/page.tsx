@@ -44,13 +44,7 @@ export default function DeduplicationPage() {
   };
 
   const handleRunScan = () => {
-    // triggerScan requires a workspaceId; we use a prompt-style approach
-    // In practice the workspace is available from context; here we pass empty to trigger
-    // the admin scan of their workspace. The scan uses the input workspaceId.
-    const wsId = prompt("Enter workspace ID to scan:");
-    if (wsId) {
-      scanMutation.mutate({ workspaceId: wsId });
-    }
+    scanMutation.mutate({});
   };
 
   const getMatchType = (item: (typeof items)[0]) => {

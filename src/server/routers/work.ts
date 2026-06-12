@@ -532,7 +532,16 @@ export const workRouter = router({
       z.object({
         id: z.string(),
         resolution: z.enum(["keep_client", "keep_server"]),
-        clientPayload: z.record(z.string(), z.unknown()).optional(),
+        clientPayload: z
+          .object({
+            title: z.string().max(512).optional(),
+            description: z.string().max(10000).optional(),
+            priority: z.string().max(16).optional(),
+            section: z.string().max(128).optional(),
+            workshop: z.string().max(128).optional(),
+            locoNumber: z.string().max(32).optional(),
+          })
+          .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -564,13 +573,13 @@ export const workRouter = router({
       };
 
       if (input.resolution === "keep_client" && input.clientPayload) {
-        // Apply allowed fields from clientPayload
-        const allowedFields = ["title", "description", "priority", "section", "workshop", "locoNumber"];
-        for (const field of allowedFields) {
-          if (field in input.clientPayload) {
-            updateData[field] = input.clientPayload[field];
-          }
-        }
+        // Apply validated fields from clientPayload
+        if (input.clientPayload.title !== undefined) updateData.title = input.clientPayload.title;
+        if (input.clientPayload.description !== undefined) updateData.description = input.clientPayload.description;
+        if (input.clientPayload.priority !== undefined) updateData.priority = input.clientPayload.priority;
+        if (input.clientPayload.section !== undefined) updateData.section = input.clientPayload.section;
+        if (input.clientPayload.workshop !== undefined) updateData.workshop = input.clientPayload.workshop;
+        if (input.clientPayload.locoNumber !== undefined) updateData.locoNumber = input.clientPayload.locoNumber;
       }
 
       const [updated] = await db
