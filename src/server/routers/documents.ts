@@ -1,4 +1,10 @@
+import { randomUUID } from "node:crypto";
+import { TRPCError } from "@trpc/server";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { createAuditEntry } from "@/lib/audit/create-entry";
+import { db } from "@/lib/db";
+import { documentCabinets, documents, documentTags } from "@/lib/db/schema";
 import {
   approveDocumentSchema,
   bulkActionSchema,
@@ -19,6 +25,17 @@ import {
 } from "@/server/services/mock-db";
 import { engineerProcedure, protectedProcedure, router, supervisorProcedure } from "@/server/trpc";
 
+function requireWorkspaceId(ctx: { session: { user: { workspaceId: string | null } } }): string {
+  const wsId = ctx.session.user.workspaceId;
+  if (!wsId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No workspace assigned. Contact an administrator.",
+    });
+  }
+  return wsId;
+}
+
 export const documentsRouter = router({
   list: protectedProcedure.input(documentListSchema).query(({ input }) => {
     return listDocuments(input);
@@ -27,7 +44,7 @@ export const documentsRouter = router({
   getById: protectedProcedure.input(z.object({ id: z.string() })).query(({ input }) => {
     const doc = getDocumentById(input.id);
     if (!doc) {
-      throw new Error("Document not found");
+      throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
     return doc;
   }),
@@ -62,7 +79,7 @@ export const documentsRouter = router({
   update: engineerProcedure.input(updateDocumentSchema).mutation(({ input }) => {
     const updated = updateDocument(input.id, input);
     if (!updated) {
-      throw new Error("Document not found");
+      throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
     return updated;
   }),
@@ -70,7 +87,7 @@ export const documentsRouter = router({
   delete: engineerProcedure.input(z.object({ id: z.string() })).mutation(({ input }) => {
     const success = deleteDocument(input.id);
     if (!success) {
-      throw new Error("Document not found");
+      throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
     return { success: true };
   }),
@@ -78,7 +95,7 @@ export const documentsRouter = router({
   linkPL: engineerProcedure.input(linkPlSchema).mutation(({ input }) => {
     const success = linkDocumentToPl(input.documentId, input.plId);
     if (!success) {
-      throw new Error("Document not found");
+      throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
     return { success: true };
   }),
@@ -86,7 +103,7 @@ export const documentsRouter = router({
   unlinkPL: engineerProcedure.input(unlinkPlSchema).mutation(({ input }) => {
     const success = unlinkDocumentFromPl(input.documentId, input.plId);
     if (!success) {
-      throw new Error("Document not found");
+      throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
     return { success: true };
   }),
@@ -94,38 +111,213 @@ export const documentsRouter = router({
   approve: supervisorProcedure.input(approveDocumentSchema).mutation(({ input }) => {
     const updated = updateDocument(input.id, { status: "APPROVED" });
     if (!updated) {
-      throw new Error("Document not found");
+      throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
     return updated;
   }),
 
-  bulkAction: engineerProcedure.input(bulkActionSchema).mutation(({ input }) => {
-    const results = input.ids.map((id) => {
-      switch (input.action) {
-        case "delete":
-          return { id, success: deleteDocument(id) };
-        case "changeStatus":
-          if (input.value) {
-            const updated = updateDocument(id, { status: input.value as MockDocument["status"] });
-            return { id, success: !!updated };
-          }
-          return { id, success: false };
-        case "addTag":
-          if (input.value) {
-            const doc = getDocumentById(id);
-            if (doc && !doc.tags.includes(input.value)) {
-              updateDocument(id, { tags: [...doc.tags, input.value] });
-              return { id, success: true };
-            }
-          }
-          return { id, success: false };
-        default:
-          return { id, success: false };
+  bulkAction: engineerProcedure.input(bulkActionSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const userId = ctx.session.user.id;
+    const userName = ctx.session.user.name ?? "Unknown";
+
+    const succeeded: string[] = [];
+    const failed: string[] = [];
+    const errors: Array<{ id: string; reason: string }> = [];
+
+    // Validate all documents belong to this workspace
+    const docs = await db
+      .select({ id: documents.id, status: documents.status })
+      .from(documents)
+      .where(and(inArray(documents.id, input.ids), eq(documents.workspaceId, workspaceId)));
+
+    const validDocIds = new Set(docs.map((d) => d.id));
+    const docStatusMap = new Map(docs.map((d) => [d.id, d.status]));
+
+    // Check for IDs not in workspace
+    for (const id of input.ids) {
+      if (!validDocIds.has(id)) {
+        failed.push(id);
+        errors.push({ id, reason: "Document not found in workspace" });
       }
+    }
+
+    // Filter to only valid docs
+    const validIds = input.ids.filter((id) => validDocIds.has(id));
+
+    // For delete action, skip legal-held (approved) documents
+    const processableIds: string[] = [];
+    if (input.action === "delete") {
+      for (const id of validIds) {
+        const status = docStatusMap.get(id);
+        if (status === "approved") {
+          failed.push(id);
+          errors.push({ id, reason: "Cannot delete approved/legal-held document" });
+        } else {
+          processableIds.push(id);
+        }
+      }
+    } else {
+      processableIds.push(...validIds);
+    }
+
+    if (processableIds.length === 0) {
+      return { succeeded, failed, errors };
+    }
+
+    // Process the bulk action
+    switch (input.action) {
+      case "archive": {
+        await db
+          .update(documents)
+          .set({ status: "archived", updatedAt: new Date(), updatedBy: userId })
+          .where(
+            and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
+          );
+        succeeded.push(...processableIds);
+        break;
+      }
+
+      case "delete": {
+        await db
+          .update(documents)
+          .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
+          .where(
+            and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
+          );
+        succeeded.push(...processableIds);
+        break;
+      }
+
+      case "tag": {
+        if (!input.value) {
+          for (const id of processableIds) {
+            failed.push(id);
+            errors.push({ id, reason: "Tag ID (value) is required for tag action" });
+          }
+          break;
+        }
+        for (const docId of processableIds) {
+          try {
+            await db
+              .insert(documentTags)
+              .values({
+                documentId: docId,
+                tagId: input.value,
+                taggedBy: userId,
+              })
+              .onConflictDoNothing();
+            succeeded.push(docId);
+          } catch {
+            failed.push(docId);
+            errors.push({ id: docId, reason: "Failed to add tag" });
+          }
+        }
+        break;
+      }
+
+      case "untag": {
+        if (!input.value) {
+          for (const id of processableIds) {
+            failed.push(id);
+            errors.push({ id, reason: "Tag ID (value) is required for untag action" });
+          }
+          break;
+        }
+        await db
+          .delete(documentTags)
+          .where(
+            and(inArray(documentTags.documentId, processableIds), eq(documentTags.tagId, input.value)),
+          );
+        succeeded.push(...processableIds);
+        break;
+      }
+
+      case "cabinet_add": {
+        if (!input.value) {
+          for (const id of processableIds) {
+            failed.push(id);
+            errors.push({ id, reason: "Cabinet ID (value) is required for cabinet_add action" });
+          }
+          break;
+        }
+        for (const docId of processableIds) {
+          try {
+            await db
+              .insert(documentCabinets)
+              .values({
+                documentId: docId,
+                cabinetId: input.value,
+                addedBy: userId,
+              })
+              .onConflictDoNothing();
+            succeeded.push(docId);
+          } catch {
+            failed.push(docId);
+            errors.push({ id: docId, reason: "Failed to add to cabinet" });
+          }
+        }
+        break;
+      }
+
+      case "cabinet_remove": {
+        if (!input.value) {
+          for (const id of processableIds) {
+            failed.push(id);
+            errors.push({
+              id,
+              reason: "Cabinet ID (value) is required for cabinet_remove action",
+            });
+          }
+          break;
+        }
+        await db
+          .delete(documentCabinets)
+          .where(
+            and(
+              inArray(documentCabinets.documentId, processableIds),
+              eq(documentCabinets.cabinetId, input.value),
+            ),
+          );
+        succeeded.push(...processableIds);
+        break;
+      }
+
+      case "classify": {
+        if (!input.value) {
+          for (const id of processableIds) {
+            failed.push(id);
+            errors.push({ id, reason: "Category (value) is required for classify action" });
+          }
+          break;
+        }
+        await db
+          .update(documents)
+          .set({
+            category: input.value as typeof documents.category.enumValues[number],
+            updatedAt: new Date(),
+            updatedBy: userId,
+          })
+          .where(
+            and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
+          );
+        succeeded.push(...processableIds);
+        break;
+      }
+    }
+
+    // Create audit entry for the bulk operation
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: `bulk_${input.action}`,
+      resourceType: "document",
+      resourceId: processableIds[0] ?? input.ids[0],
+      resourceTitle: `Bulk ${input.action} on ${input.ids.length} documents`,
+      details: `Action: ${input.action}, Total: ${input.ids.length}, Succeeded: ${succeeded.length}, Failed: ${failed.length}`,
+      workspaceId,
     });
-    return results;
+
+    return { succeeded, failed, errors };
   }),
 });
-
-// Import type for bulk action
-import type { MockDocument } from "@/lib/mock-data/documents";

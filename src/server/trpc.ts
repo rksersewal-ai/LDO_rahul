@@ -10,7 +10,29 @@ export async function createContext() {
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
 
-const t = initTRPC.context<Context>().create();
+const t = initTRPC.context<Context>().create({
+  errorFormatter({ shape, error }) {
+    const userFriendlyMessages: Record<string, string> = {
+      INTERNAL_SERVER_ERROR: "An unexpected error occurred. Please try again.",
+      TIMEOUT: "Request timed out. Please try again.",
+      TOO_MANY_REQUESTS: "Too many requests. Please wait a moment.",
+      BAD_REQUEST: "Invalid request. Please check your input.",
+      NOT_FOUND: "The requested resource was not found.",
+      UNAUTHORIZED: "You are not authorized. Please log in.",
+      FORBIDDEN: "You do not have permission to perform this action.",
+      PRECONDITION_FAILED: "A required condition was not met.",
+    };
+
+    return {
+      ...shape,
+      message: userFriendlyMessages[error.code] ?? shape.message,
+      data: {
+        ...shape.data,
+        originalMessage: shape.message,
+      },
+    };
+  },
+});
 
 export const router = t.router;
 export const publicProcedure = t.procedure;

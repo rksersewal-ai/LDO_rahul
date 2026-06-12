@@ -1,7 +1,7 @@
 {
   "metadata": {
     "lastUpdated": "2026-06-13T12:00:00.000Z",
-    "currentTask": "FEAT-040",
+    "currentTask": "FEAT-041",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -42,11 +42,18 @@
       "FEAT-037",
       "FEAT-038",
       "FEAT-039",
-      "FEAT-040"
+      "FEAT-040",
+      "FEAT-041"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-041",
+      "description": "Bulk Actions + Error Handling Foundation - real bulk action procedure, global error boundary, tRPC error formatter, graceful fallbacks",
+      "status": "completed",
+      "dependsOn": ["FEAT-040"]
+    },
     {
       "id": "FEAT-040",
       "description": "Document Versioning + Comments + Share Links - schemas, routers, validators, migration, and public share page",

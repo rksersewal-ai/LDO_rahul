@@ -88,9 +88,19 @@ export const approveDocumentSchema = z.object({
   notes: z.string().optional(),
 });
 
+export const bulkActionEnum = z.enum([
+  "archive",
+  "tag",
+  "untag",
+  "cabinet_add",
+  "cabinet_remove",
+  "classify",
+  "delete",
+]);
+
 export const bulkActionSchema = z.object({
-  ids: z.array(z.string()).min(1),
-  action: z.enum(["delete", "archive", "addTag", "removeTag", "changeStatus"]),
+  ids: z.array(z.string().min(1)).min(1, "At least one document ID is required"),
+  action: bulkActionEnum,
   value: z.string().optional(),
 });
 
