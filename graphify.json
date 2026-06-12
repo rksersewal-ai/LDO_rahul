@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-12T21:00:00.000Z",
-    "currentTask": "FEAT-034",
+    "lastUpdated": "2026-06-13T12:00:00.000Z",
+    "currentTask": "FEAT-038",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -36,11 +36,39 @@
       "FEAT-031",
       "FEAT-032",
       "FEAT-033",
-      "FEAT-034"
+      "FEAT-034",
+      "FEAT-035",
+      "FEAT-036",
+      "FEAT-037",
+      "FEAT-038"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-038",
+      "description": "PL Tests + graphify.json update: unit tests for PL validation utilities and alias normalization collision, graphify.json tracking update",
+      "status": "completed",
+      "dependsOn": ["FEAT-035", "FEAT-036", "FEAT-037"]
+    },
+    {
+      "id": "FEAT-037",
+      "description": "Wire PL pages and components to tRPC queries, add sub-pages for PL detail views",
+      "status": "completed",
+      "dependsOn": ["FEAT-036"]
+    },
+    {
+      "id": "FEAT-036",
+      "description": "Complete PL tRPC router with real Drizzle queries for CRUD operations, search, and status management",
+      "status": "completed",
+      "dependsOn": ["FEAT-035"]
+    },
+    {
+      "id": "FEAT-035",
+      "description": "PL schema upgrades, validation utilities (format, Modulo-11, normalization, candidate extraction), and migration",
+      "status": "completed",
+      "dependsOn": ["FEAT-034"]
+    },
     {
       "id": "FEAT-034",
       "description": "Final verification, unit tests for audit helper and auth logic, graphify.json update, commit and push",
