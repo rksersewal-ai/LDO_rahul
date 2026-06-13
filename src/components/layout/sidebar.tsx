@@ -147,6 +147,12 @@ export function Sidebar() {
 
   const visibleSections = navSections.filter((section) => !section.adminOnly || isAdmin);
 
+  const allHrefs = visibleSections.flatMap((s) => s.items.map((i) => i.href));
+  const matches = allHrefs.filter(
+    (href) => pathname === href || (href !== "/" && pathname.startsWith(href + "/")),
+  );
+  const bestMatch = matches.sort((a, b) => b.length - a.length)[0] || "/";
+
   return (
     <aside
       className={cn(
@@ -194,7 +200,7 @@ export function Sidebar() {
                   item={item}
                   collapsed={collapsed}
                   active={
-                    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+                    item.href === "/" ? pathname === "/" : item.href === bestMatch
                   }
                 />
               ))}
