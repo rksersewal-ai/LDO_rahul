@@ -16,6 +16,17 @@ export interface SavedFilter {
 }
 
 function generateId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return `sf_${Date.now()}_${crypto.randomUUID()}`;
+  }
+
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const array = new Uint32Array(2);
+    crypto.getRandomValues(array);
+    return `sf_${Date.now()}_${array[0].toString(36)}${array[1].toString(36)}`;
+  }
+
+  // Fallback for extremely old environments (should be rare)
   return `sf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
