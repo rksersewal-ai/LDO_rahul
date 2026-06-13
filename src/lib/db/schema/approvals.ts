@@ -1,4 +1,4 @@
-import { index, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, integer, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { documents } from "./documents";
 
 export const approvalStatusEnum = pgEnum("approval_status", [
@@ -22,6 +22,15 @@ export const approvals = pgTable(
     comments: text("comments"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     dueDate: timestamp("due_date", { withTimezone: true }),
+    // Chain-related columns
+    chainTemplateId: text("chain_template_id"),
+    currentStep: integer("current_step"),
+    totalSteps: integer("total_steps"),
+    // Workspace scoping
+    workspaceId: text("workspace_id"),
+    // Generic entity support
+    entityType: varchar("entity_type", { length: 64 }),
+    entityId: text("entity_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

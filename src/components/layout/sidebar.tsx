@@ -14,12 +14,11 @@ import {
   LayoutDashboard,
   Megaphone,
   MonitorCheck,
-  Package,
   Search,
-  Send,
   Settings,
   Shield,
   ShieldCheck,
+  Tag,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -53,17 +52,9 @@ const navSections: NavSection[] = [
       { label: "Ledger Reports", href: "/ledger/reports", icon: BarChart3 },
       { label: "BOM Explorer", href: "/bom", icon: FolderTree },
       { label: "Approvals", href: "/approvals", icon: CheckSquare, badge: 11 },
-      { label: "Notifications", href: "/notifications", icon: Bell, badge: 6 },
       { label: "Cases", href: "/cases", icon: AlertTriangle },
-      { label: "Folders", href: "/folders", icon: FolderOpen },
-      { label: "Transmittals", href: "/transmittals", icon: Send },
-    ],
-  },
-  {
-    title: "Management",
-    items: [
-      { label: "Projects", href: "/projects", icon: Package },
-      { label: "Users", href: "/users", icon: Users },
+      { label: "Cabinets", href: "/cabinets", icon: FolderOpen },
+      { label: "Tags", href: "/tags", icon: Tag },
     ],
   },
   {
@@ -83,6 +74,7 @@ const navSections: NavSection[] = [
 ];
 
 const utilityItems: NavItem[] = [
+  { label: "Notifications", href: "/notifications", icon: Bell, badge: 6 },
   { label: "Settings", href: "/settings", icon: Settings },
   { label: "Help Center", href: "/help", icon: HelpCircle },
   { label: "Search", href: "/search", icon: Search },

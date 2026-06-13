@@ -35,6 +35,10 @@ const roleBadgeVariant: Record<UserRole, "default" | "secondary" | "outline" | "
   reviewer: "secondary",
   engineer: "secondary",
   viewer: "outline",
+  classification_officer: "secondary",
+  records_manager: "secondary",
+  legal_hold_officer: "secondary",
+  auditor: "outline",
 };
 
 export default function UserManagementPage() {

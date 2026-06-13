@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
+import { useSyncStore } from "@/stores/sync-store";
 
 function IconButton({
   onClick,
@@ -103,8 +104,11 @@ export function AppHeader() {
           </button>
         </div>
 
-        {/* Right: notifications, clock, help, theme toggle, user menu */}
+        {/* Right: sync status, notifications, clock, help, theme toggle, user menu */}
         <div className="flex items-center justify-end gap-1 px-3">
+          {/* Online/Offline indicator */}
+          <SyncStatusIndicator />
+
           {/* Notification button */}
           <div className="relative">
             <IconButton onClick={() => setNotifOpen(!notifOpen)} label="Notifications">
@@ -138,5 +142,48 @@ export function AppHeader() {
         </div>
       </header>
     </>
+  );
+}
+
+// ─── Sync Status Indicator ─────────────────────────────────────────────────────
+
+function SyncStatusIndicator() {
+  const isOnline = useSyncStore((s) => s.isOnline);
+  const isSyncing = useSyncStore((s) => s.isSyncing);
+  const pendingCount = useSyncStore((s) => s.pendingCount);
+
+  let dotColor = "bg-green-500";
+  let label = "Online";
+
+  if (isSyncing) {
+    dotColor = "bg-amber-500";
+    label = `Syncing (${pendingCount} pending)`;
+  } else if (!isOnline) {
+    dotColor = "bg-red-500";
+    label = `Offline${pendingCount > 0 ? ` (${pendingCount} pending)` : ""}`;
+  } else if (pendingCount > 0) {
+    label = `Online (${pendingCount} pending)`;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2 h-[30px] rounded-md hover:bg-accent transition-colors"
+            aria-label={label}
+          />
+        }
+      >
+        <span className={cn("size-2 rounded-full", dotColor)} />
+        {pendingCount > 0 && (
+          <span className="text-[10px] font-medium text-muted-foreground">{pendingCount}</span>
+        )}
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        <span>{label}</span>
+      </TooltipContent>
+    </Tooltip>
   );
 }

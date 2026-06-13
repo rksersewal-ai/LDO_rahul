@@ -5,14 +5,18 @@ import { authRouter } from "./auth";
 import { bomRouter } from "./bom";
 import { cabinetsRouter } from "./cabinets";
 import { casesRouter } from "./cases";
+import { dashboardRouter } from "./dashboard";
+import { dedupRouter } from "./dedup";
 import { documentCommentsRouter } from "./document-comments";
 import { documentShareLinksRouter } from "./document-share-links";
 import { documentVersionsRouter } from "./document-versions";
 import { documentsRouter } from "./documents";
+import { governanceRouter } from "./governance";
 import { notificationsRouter } from "./notifications";
 import { ocrRouter } from "./ocr";
 import { plRouter } from "./pl";
 import { searchRouter } from "./search";
+import { settingsRouter } from "./settings";
 import { tagsRouter } from "./tags";
 import { workRouter } from "./work";
 import { workspacesRouter } from "./workspaces";
@@ -24,14 +28,18 @@ export const appRouter = router({
   bom: bomRouter,
   cabinets: cabinetsRouter,
   cases: casesRouter,
+  dashboard: dashboardRouter,
+  dedup: dedupRouter,
   documentComments: documentCommentsRouter,
   documentShareLinks: documentShareLinksRouter,
   documentVersions: documentVersionsRouter,
   documents: documentsRouter,
+  governance: governanceRouter,
   notifications: notificationsRouter,
   ocr: ocrRouter,
   pl: plRouter,
   search: searchRouter,
+  settings: settingsRouter,
   tags: tagsRouter,
   work: workRouter,
   workspaces: workspacesRouter,

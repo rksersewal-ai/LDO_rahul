@@ -43,6 +43,10 @@ export const workRecords = pgTable(
     workspaceId: text("workspace_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    clientMutationId: varchar("client_mutation_id", { length: 64 }).unique(),
+    clientDeviceId: varchar("client_device_id", { length: 64 }),
+    syncStatus: varchar("sync_status", { length: 16 }).notNull().default("synced"),
+    conflictPayload: text("conflict_payload"),
   },
   (table) => [
     index("idx_work_records_work_order_number").on(table.workOrderNumber),
@@ -50,5 +54,7 @@ export const workRecords = pgTable(
     index("idx_work_records_status").on(table.status),
     index("idx_work_records_loco_number").on(table.locoNumber),
     index("idx_work_records_created_at").on(table.createdAt),
+    index("idx_work_records_client_mutation_id").on(table.clientMutationId),
+    index("idx_work_records_sync_status").on(table.syncStatus),
   ],
 );

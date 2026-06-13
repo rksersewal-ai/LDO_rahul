@@ -58,6 +58,8 @@ export const createWorkRecordSchema = z
     startDate: z.string().min(1, "Start date is required"),
     closingDate: z.string().nullable().optional(),
     consent: z.enum(["Yes", "No", "N/A"]).nullable().optional(),
+    clientMutationId: z.string().max(64).optional(),
+    clientDeviceId: z.string().max(64).optional(),
   })
   .refine(
     (data) => {
@@ -89,6 +91,9 @@ export const updateWorkRecordSchema = z.object({
   remarks: z.string().nullable().optional(),
   priority: workPriorityEnum.optional(),
   concernedOfficer: z.string().nullable().optional(),
+  clientMutationId: z.string().max(64).optional(),
+  clientDeviceId: z.string().max(64).optional(),
+  expectedUpdatedAt: z.string().optional(),
 });
 
 export type UpdateWorkRecordInput = z.infer<typeof updateWorkRecordSchema>;

@@ -20,7 +20,7 @@ const userFormSchema = z.object({
   email: z.string().email("Invalid email address"),
   name: z.string().min(2, "Name must be at least 2 characters"),
   password: z.string().min(6, "Password must be at least 6 characters").optional(),
-  role: z.enum(["admin", "supervisor", "reviewer", "engineer", "viewer"]),
+  role: z.enum(["admin", "supervisor", "reviewer", "engineer", "viewer", "classification_officer", "records_manager", "legal_hold_officer", "auditor"]),
   designation: z.string().min(1, "Required"),
   department: z.string().min(1, "Required"),
   section: z.string().min(1, "Required"),
@@ -163,6 +163,10 @@ export function UserForm({ defaultValues, isEdit, onSubmit, onCancel }: UserForm
               <SelectItem value="reviewer">Reviewer</SelectItem>
               <SelectItem value="engineer">Engineer</SelectItem>
               <SelectItem value="viewer">Viewer</SelectItem>
+              <SelectItem value="classification_officer">Classification Officer</SelectItem>
+              <SelectItem value="records_manager">Records Manager</SelectItem>
+              <SelectItem value="legal_hold_officer">Legal Hold Officer</SelectItem>
+              <SelectItem value="auditor">Auditor</SelectItem>
             </SelectContent>
           </Select>
         </div>

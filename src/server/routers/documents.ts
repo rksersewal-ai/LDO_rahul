@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
-import { documentCabinets, documentCategoryEnum, documents, documentTags } from "@/lib/db/schema";
+import { documentCabinets, documentCategoryEnum, documents, documentTags, recordDeclarations } from "@/lib/db/schema";
 import {
   approveDocumentSchema,
   bulkActionSchema,
@@ -84,7 +84,20 @@ export const documentsRouter = router({
     return updated;
   }),
 
-  delete: engineerProcedure.input(z.object({ id: z.string() })).mutation(({ input }) => {
+  delete: engineerProcedure.input(z.object({ id: z.string() })).mutation(async ({ input }) => {
+    // Check if this document has an active record declaration
+    const [activeDeclaration] = await db
+      .select({ id: recordDeclarations.id })
+      .from(recordDeclarations)
+      .where(and(eq(recordDeclarations.documentId, input.id), isNull(recordDeclarations.destroyedAt)));
+
+    if (activeDeclaration) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Cannot delete a declared record. The document is under records management.",
+      });
+    }
+
     const success = deleteDocument(input.id);
     if (!success) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
@@ -148,13 +161,26 @@ export const documentsRouter = router({
     // For delete action, skip legal-held (approved) documents
     const processableIds: string[] = [];
     if (input.action === "delete") {
+      // Check for active record declarations
+      const activeDeclarations = await db
+        .select({ documentId: recordDeclarations.documentId })
+        .from(recordDeclarations)
+        .where(and(inArray(recordDeclarations.documentId, validIds), isNull(recordDeclarations.destroyedAt)));
+
+      const declaredDocIds = new Set(activeDeclarations.map((d) => d.documentId));
+
       for (const id of validIds) {
-        const status = docStatusMap.get(id);
-        if (status === "approved") {
+        if (declaredDocIds.has(id)) {
           failed.push(id);
-          errors.push({ id, reason: "Cannot delete approved/legal-held document" });
+          errors.push({ id, reason: "Cannot delete declared record" });
         } else {
-          processableIds.push(id);
+          const status = docStatusMap.get(id);
+          if (status === "approved") {
+            failed.push(id);
+            errors.push({ id, reason: "Cannot delete approved/legal-held document" });
+          } else {
+            processableIds.push(id);
+          }
         }
       }
     } else {

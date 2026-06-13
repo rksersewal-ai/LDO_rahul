@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
+export const runtime = "nodejs";
+
 export default auth((req) => {
   const { nextUrl } = req;
   const isAuthenticated = !!req.auth;
