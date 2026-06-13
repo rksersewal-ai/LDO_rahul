@@ -367,6 +367,19 @@ export const settingsRouter = router({
       return true;
     });
 
-    return activeBanners;
+    // Return banners with all fields including optional targetRoles, actionLabel, actionHref
+    return activeBanners.map((banner) => ({
+      id: banner.id,
+      message: banner.message,
+      type: banner.type,
+      isActive: banner.isActive,
+      startDate: banner.startDate,
+      endDate: banner.endDate,
+      createdBy: banner.createdBy,
+      createdAt: banner.createdAt,
+      ...(banner.targetRoles ? { targetRoles: banner.targetRoles } : {}),
+      ...(banner.actionLabel ? { actionLabel: banner.actionLabel } : {}),
+      ...(banner.actionHref ? { actionHref: banner.actionHref } : {}),
+    }));
   }),
 });

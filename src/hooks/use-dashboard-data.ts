@@ -12,6 +12,8 @@ import { getQueryConfig } from "@/lib/trpc/query-config";
 
 export type TrendRange = "7D" | "30D" | "3M" | "YTD";
 
+export type ComparePeriod = "week" | "month";
+
 export interface UseDashboardDataReturn {
   metrics: DashboardMetric[];
   trendData: TrendDataPoint[];
@@ -26,18 +28,21 @@ export interface UseDashboardDataReturn {
   dataUpdatedAt: number | undefined;
 }
 
-export function useDashboardData(): UseDashboardDataReturn {
+export function useDashboardData(compareRange?: ComparePeriod): UseDashboardDataReturn {
   const [trendRange, setTrendRange] = useState<TrendRange>("30D");
 
   // Dashboard metrics: refetch every 30s, stale after 30s
   const dashboardConfig = getQueryConfig("dashboard");
 
-  const metricsQuery = trpc.dashboard.getMetrics.useQuery(undefined, {
-    staleTime: dashboardConfig.staleTime,
-    gcTime: dashboardConfig.gcTime,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: dashboardConfig.refetchOnWindowFocus,
-  });
+  const metricsQuery = trpc.dashboard.getMetrics.useQuery(
+    { compareRange: compareRange ?? "week" },
+    {
+      staleTime: dashboardConfig.staleTime,
+      gcTime: dashboardConfig.gcTime,
+      refetchInterval: 30_000,
+      refetchOnWindowFocus: dashboardConfig.refetchOnWindowFocus,
+    },
+  );
 
   // Trends: refetch every 30s (same cadence as metrics)
   const trendsQuery = trpc.dashboard.getTrends.useQuery(

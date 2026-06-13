@@ -14,10 +14,9 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
+import type { ComparePeriod } from "@/hooks/use-dashboard-data";
 import { exportToCSV } from "@/lib/utils/export-service";
 import { trpc } from "@/lib/trpc/client";
-
-type ComparePeriod = "week" | "month";
 
 function MetricCardSkeleton() {
   return (
@@ -71,12 +70,12 @@ function DashboardLoadingSkeleton() {
 }
 
 export default function DashboardPage() {
+  const [comparePeriod, setComparePeriod] = useState<ComparePeriod>("week");
   const { metrics, trendData, trendRange, setTrendRange, activities, recentDocs, isLoading, isError, error, refetch, dataUpdatedAt } =
-    useDashboardData();
+    useDashboardData(comparePeriod);
   const [drillOpen, setDrillOpen] = useState(false);
   const [drillMetricId, setDrillMetricId] = useState<string | null>(null);
   const [drillMetricTitle, setDrillMetricTitle] = useState("");
-  const [comparePeriod, setComparePeriod] = useState<ComparePeriod>("week");
 
   // PL Breakdown data
   const plBreakdownQuery = trpc.dashboard.getPlBreakdown.useQuery(undefined, {
@@ -147,11 +146,8 @@ export default function DashboardPage() {
   const rsData = rollingStockQuery.data;
   const pendingApprovals = pendingApprovalsQuery.data ?? [];
 
-  // Compute context string based on compare period
+  // Compute context string based on compare period - now comes from server
   const getContextString = (metric: typeof metrics[0]) => {
-    if (comparePeriod === "month") {
-      return metric.context.replace("this week", "this month");
-    }
     return metric.context;
   };
 

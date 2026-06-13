@@ -110,6 +110,26 @@ export function SystemBanner() {
               )}
             </span>
           ))}
+          {/* Duplicate content for seamless loop */}
+          <span className="mx-2 opacity-50">{SEPARATOR}</span>
+          {tickerSegments.map((segment, idx) => (
+            <span key={`dup-${segment.id}`} className="inline">
+              {idx > 0 && <span className="mx-2 opacity-50">{SEPARATOR}</span>}
+              {segment.actionHref ? (
+                <Link
+                  href={segment.actionHref}
+                  className="hover:underline underline-offset-2"
+                >
+                  {segment.message}
+                  {segment.actionLabel && (
+                    <span className="ml-1 font-semibold">[{segment.actionLabel}]</span>
+                  )}
+                </Link>
+              ) : (
+                <span>{segment.message}</span>
+              )}
+            </span>
+          ))}
         </div>
       </div>
 

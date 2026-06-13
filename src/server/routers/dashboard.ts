@@ -16,6 +16,11 @@ import {
 } from "@/lib/db/schema";
 import { protectedProcedure, router } from "@/server/trpc";
 
+/** Escape LIKE/ILIKE wildcard characters in user-supplied input */
+function escapeLike(str: string): string {
+  return str.replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
 function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | null } } }): string {
   const wsId = ctx.session?.user?.workspaceId;
   if (!wsId) {
@@ -26,11 +31,18 @@ function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | nu
 
 export const dashboardRouter = router({
   /** KPI metrics for dashboard cards */
-  getMetrics: protectedProcedure.query(async ({ ctx }) => {
-    const workspaceId = requireWorkspaceId(ctx);
+  getMetrics: protectedProcedure
+    .input(z.object({ compareRange: z.enum(["week", "month"]).optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+      const compareRange = input?.compareRange ?? "week";
 
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const now = new Date();
+      const deltaMs = compareRange === "month"
+        ? 30 * 24 * 60 * 60 * 1000
+        : 7 * 24 * 60 * 60 * 1000;
+      const periodStart = new Date(now.getTime() - deltaMs);
+      const periodLabel = compareRange === "month" ? "this month" : "this week";
 
     const [
       totalDocsResult,
@@ -47,7 +59,7 @@ export const dashboardRouter = router({
         .from(documents)
         .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0))),
 
-      // Documents added this week
+      // Documents added this period
       // Index: documents(workspace_id, is_deleted, created_at)
       db
         .select({ total: sql<number>`COALESCE(${count()}, 0)` })
@@ -56,7 +68,7 @@ export const dashboardRouter = router({
           and(
             eq(documents.workspaceId, workspaceId),
             eq(documents.isDeleted, 0),
-            gte(documents.createdAt, weekAgo),
+            gte(documents.createdAt, periodStart),
           ),
         ),
 
@@ -122,7 +134,7 @@ export const dashboardRouter = router({
         value: totalDocs,
         delta: `+${docsThisWeek}`,
         deltaDirection: docsThisWeek > 0 ? "up" : ("neutral" as const),
-        context: `${docsThisWeek} added this week`,
+        context: `${docsThisWeek} added ${periodLabel}`,
       },
       {
         id: "pending_approvals",
@@ -452,8 +464,8 @@ export const dashboardRouter = router({
         case "total_documents": {
           const searchFilter = search
             ? or(
-                ilike(documents.documentNumber, `%${search}%`),
-                ilike(documents.title, `%${search}%`),
+                ilike(documents.documentNumber, `%${escapeLike(search)}%`),
+                ilike(documents.title, `%${escapeLike(search)}%`),
               )
             : undefined;
 
@@ -500,8 +512,8 @@ export const dashboardRouter = router({
         case "pending_approvals": {
           const searchFilter = search
             ? or(
-                ilike(documents.documentNumber, `%${search}%`),
-                ilike(documents.title, `%${search}%`),
+                ilike(documents.documentNumber, `%${escapeLike(search)}%`),
+                ilike(documents.title, `%${escapeLike(search)}%`),
               )
             : undefined;
 
@@ -549,7 +561,7 @@ export const dashboardRouter = router({
 
         case "ocr_queue": {
           const searchFilter = search
-            ? ilike(documents.documentNumber, `%${search}%`)
+            ? ilike(documents.documentNumber, `%${escapeLike(search)}%`)
             : undefined;
 
           const baseWhere = and(
@@ -595,8 +607,8 @@ export const dashboardRouter = router({
         case "open_cases": {
           const searchFilter = search
             ? or(
-                ilike(cases.caseNumber, `%${search}%`),
-                ilike(cases.title, `%${search}%`),
+                ilike(cases.caseNumber, `%${escapeLike(search)}%`),
+                ilike(cases.title, `%${escapeLike(search)}%`),
               )
             : undefined;
 
@@ -642,7 +654,7 @@ export const dashboardRouter = router({
 
         case "pending_duplicates": {
           const searchFilter = search
-            ? ilike(documents.documentNumber, `%${search}%`)
+            ? ilike(documents.documentNumber, `%${escapeLike(search)}%`)
             : undefined;
 
           const baseWhere = and(
