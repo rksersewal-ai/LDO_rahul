@@ -19,6 +19,7 @@ import {
   Shield,
   ShieldCheck,
   Tag,
+  Train,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -51,6 +52,7 @@ const navSections: NavSection[] = [
       { label: "Work Ledger", href: "/ledger", icon: ClipboardList },
       { label: "Ledger Reports", href: "/ledger/reports", icon: BarChart3 },
       { label: "BOM Explorer", href: "/bom", icon: FolderTree },
+      { label: "Rolling Stock", href: "/rolling-stock", icon: Train },
       { label: "Approvals", href: "/approvals", icon: CheckSquare, badge: 11 },
       { label: "Cases", href: "/cases", icon: AlertTriangle },
       { label: "Cabinets", href: "/cabinets", icon: FolderOpen },

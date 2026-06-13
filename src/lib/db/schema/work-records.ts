@@ -1,5 +1,6 @@
 import { index, integer, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { plNumbers } from "./pl-numbers";
+import { rollingStockUnits } from "./rolling-stock-units";
 
 export const workRecordStatusEnum = pgEnum("work_record_status", [
   "open",
@@ -25,6 +26,7 @@ export const workRecords = pgTable(
     title: varchar("title", { length: 512 }).notNull(),
     description: text("description"),
     plNumberId: text("pl_number_id").references(() => plNumbers.id),
+    rollingStockUnitId: text("rolling_stock_unit_id").references(() => rollingStockUnits.id),
     status: workRecordStatusEnum("status").notNull().default("open"),
     priority: varchar("priority", { length: 16 }).notNull().default("medium"),
     disposalType: disposalTypeEnum("disposal_type"),
@@ -51,6 +53,7 @@ export const workRecords = pgTable(
   (table) => [
     index("idx_work_records_work_order_number").on(table.workOrderNumber),
     index("idx_work_records_pl_number_id").on(table.plNumberId),
+    index("idx_work_records_rolling_stock_unit_id").on(table.rollingStockUnitId),
     index("idx_work_records_status").on(table.status),
     index("idx_work_records_loco_number").on(table.locoNumber),
     index("idx_work_records_created_at").on(table.createdAt),

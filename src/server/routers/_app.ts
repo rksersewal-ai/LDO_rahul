@@ -15,6 +15,7 @@ import { governanceRouter } from "./governance";
 import { notificationsRouter } from "./notifications";
 import { ocrRouter } from "./ocr";
 import { plRouter } from "./pl";
+import { rollingStockRouter } from "./rolling-stock";
 import { searchRouter } from "./search";
 import { settingsRouter } from "./settings";
 import { tagsRouter } from "./tags";
@@ -38,6 +39,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   ocr: ocrRouter,
   pl: plRouter,
+  rollingStock: rollingStockRouter,
   search: searchRouter,
   settings: settingsRouter,
   tags: tagsRouter,
