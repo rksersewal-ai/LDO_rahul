@@ -17,14 +17,14 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       <SystemBanner />
       <div
         className={cn(
-          "grid overflow-hidden transition-[grid-template-columns] duration-200",
+          "grid overflow-hidden transition-[grid-template-columns] duration-200 min-h-0",
           collapsed ? "grid-cols-[64px_1fr]" : "grid-cols-[var(--sidebar-width)_1fr]",
         )}
       >
         {/* Sidebar with independent scroll */}
         <Sidebar />
         {/* Main content with independent scroll */}
-        <main className="overflow-y-auto">
+        <main className="overflow-y-auto min-h-0">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
