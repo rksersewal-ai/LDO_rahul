@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { and, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
+import { verifyAuditChain } from "@/lib/audit/verify-chain";
 import type { Permission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import {
@@ -693,6 +694,25 @@ export const adminRouter = router({
 
       return { items, total, offset, limit, hashChainValid: true };
     }),
+
+  // --- Audit Chain Verification ---
+  verifyAuditChain: adminProcedure.query(async () => {
+    // Fetch the last 1000 audit entries ordered by createdAt ASC for chain verification
+    const entries = await db
+      .select({
+        id: auditLog.id,
+        action: auditLog.action,
+        userId: auditLog.userId,
+        hashChain: auditLog.hashChain,
+        previousHash: auditLog.previousHash,
+        createdAt: auditLog.createdAt,
+      })
+      .from(auditLog)
+      .orderBy(asc(auditLog.createdAt))
+      .limit(1000);
+
+    return verifyAuditChain(entries);
+  }),
 
   // --- Settings (Real DB) ---
   getSettings: adminProcedure.query(async () => {

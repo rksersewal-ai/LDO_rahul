@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
 import { workRecords } from "@/lib/db/schema";
+import { sanitizeUserInput } from "@/lib/security/sanitize";
 import {
   createWorkRecordSchema,
   getKPIsSchema,
@@ -150,7 +151,7 @@ export const workRouter = router({
         id,
         workOrderNumber,
         title: `${input.workCategory} - ${input.workTypeCode}`,
-        description: input.description,
+        description: input.description ? sanitizeUserInput(input.description) : input.description,
         priority: input.priority?.toLowerCase() ?? "medium",
         status: "open",
         createdBy: userId,
@@ -215,7 +216,7 @@ export const workRouter = router({
       updatedAt: new Date(),
     };
 
-    if (input.description !== undefined) updateData.description = input.description;
+    if (input.description !== undefined) updateData.description = input.description ? sanitizeUserInput(input.description) : input.description;
     if (input.priority !== undefined) updateData.priority = input.priority.toLowerCase();
     if (input.remarks !== undefined) updateData.disposalNotes = input.remarks;
 

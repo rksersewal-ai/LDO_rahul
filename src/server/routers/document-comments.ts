@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
 import { documentComments, documents } from "@/lib/db/schema";
+import { sanitizeUserInput } from "@/lib/security/sanitize";
 import {
   addCommentSchema,
   deleteCommentSchema,
@@ -108,7 +109,7 @@ export const documentCommentsRouter = router({
         documentId: input.documentId,
         versionId: input.versionId ?? null,
         parentId: input.parentId ?? null,
-        content: input.content,
+        content: sanitizeUserInput(input.content),
         createdBy: userId,
         workspaceId,
         createdAt: now,
