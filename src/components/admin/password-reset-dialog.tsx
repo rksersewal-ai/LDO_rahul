@@ -18,8 +18,11 @@ interface PasswordResetDialogProps {
 function generateRandomPassword(length = 12): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*";
   let password = "";
+  // Use cryptographically secure random number generator instead of Math.random()
+  const randomValues = new Uint32Array(length);
+  window.crypto.getRandomValues(randomValues);
   for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+    password += chars.charAt(randomValues[i] % chars.length);
   }
   return password;
 }
