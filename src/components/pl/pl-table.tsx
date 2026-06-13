@@ -2,12 +2,19 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { FileText, Flag, MoreHorizontal } from "lucide-react";
+import { Eye, FileText, Flag, MoreHorizontal } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -169,10 +176,27 @@ const columns: ColumnDef<PlRow, unknown>[] = [
   {
     id: "actions",
     header: "",
-    cell: () => (
-      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-        <MoreHorizontal className="h-3.5 w-3.5" />
-      </Button>
+    cell: ({ row }) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={(e) => e.stopPropagation()}
+            />
+          }
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-36">
+          <DropdownMenuItem render={<Link href={`/pl/${row.original.id}`} />}>
+            <Eye className="h-3 w-3" />
+            <span className="text-xs">View Details</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     ),
     size: 40,
     enableSorting: false,
