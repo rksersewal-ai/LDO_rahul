@@ -105,9 +105,9 @@ async function authorizeLogic(
 describe("auth authorize logic", () => {
   let mockDb: MockDb;
   let mockBcrypt: MockBcrypt;
-  let mockUpdateUser: ReturnType<typeof vi.fn>;
-  let mockFindUser: ReturnType<typeof vi.fn>;
-  let mockCompare: ReturnType<typeof vi.fn>;
+  let mockFindUser: any;
+  let mockUpdateUser: any;
+  let mockCompare: any;
 
   const activeUser: MockUser = {
     id: "u1",

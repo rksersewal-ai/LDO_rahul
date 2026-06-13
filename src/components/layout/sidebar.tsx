@@ -145,12 +145,11 @@ export function Sidebar() {
 
   const visibleSections = navSections.filter((section) => !section.adminOnly || isAdmin);
 
-  const isRouteActive = (itemHref: string) => {
-    if (itemHref === "/") {
-      return pathname === "/";
-    }
-    return pathname === itemHref || pathname.startsWith(itemHref + "/");
-  };
+  const allHrefs = visibleSections.flatMap((s) => s.items.map((i) => i.href));
+  const matches = allHrefs.filter(
+    (href) => pathname === href || (href !== "/" && pathname.startsWith(href + "/")),
+  );
+  const bestMatch = matches.sort((a, b) => b.length - a.length)[0] || "/";
 
   return (
     <aside
@@ -200,7 +199,9 @@ export function Sidebar() {
                   key={item.href}
                   item={item}
                   collapsed={collapsed}
-                  active={isRouteActive(item.href)}
+                  active={
+                    item.href === "/" ? pathname === "/" : item.href === bestMatch
+                  }
                 />
               ))}
             </div>

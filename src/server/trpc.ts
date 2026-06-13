@@ -3,8 +3,15 @@ import { auth } from "@/lib/auth";
 import { isRoleAtLeast } from "@/lib/auth/permissions";
 import type { UserRole } from "@/lib/types/auth";
 
-export async function createContext() {
+export async function createContext(req?: Request) {
   const session = await auth();
+  if (req) {
+    const origin = req.headers.get("origin");
+    const allowedOrigin = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL;
+    if (origin && allowedOrigin && origin !== allowedOrigin) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Invalid origin" });
+    }
+  }
   return { session };
 }
 
