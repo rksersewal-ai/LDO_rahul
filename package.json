@@ -12,7 +12,8 @@
     "graphify": "npx tsx scripts/update-graphify.ts",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "workers": "tsx src/workers/start-workers.ts"
+    "workers": "tsx src/workers/start-workers.ts",
+    "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
