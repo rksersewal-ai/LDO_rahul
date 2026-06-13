@@ -2,6 +2,7 @@
 
 import { ChevronDown, ChevronRight, Download, Shield } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
   MOCK_AUDIT_LOG,
   type ResourceType,
 } from "@/lib/mock-data/admin";
+import { exportToCSV } from "@/lib/utils/export-service";
 
 const actionColors: Record<AuditAction, "default" | "secondary" | "outline" | "destructive"> = {
   LOGIN: "secondary",
@@ -109,7 +111,27 @@ export default function AuditLogPage() {
                 <Shield className="h-2.5 w-2.5" />
                 Hash Chain: Valid
               </Badge>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => {
+                  exportToCSV(
+                    ["Timestamp", "User", "Action", "Resource Type", "Resource ID", "IP", "Details"],
+                    filtered.map((entry) => [
+                      new Date(entry.timestamp).toLocaleString("en-IN"),
+                      entry.userName,
+                      entry.action,
+                      entry.resourceType,
+                      entry.resourceId,
+                      entry.ip,
+                      entry.details,
+                    ]),
+                    "audit-log",
+                  );
+                  toast.success(`Exported ${filtered.length} audit log entries to CSV`);
+                }}
+              >
                 <Download className="h-3 w-3" />
                 Export CSV
               </Button>

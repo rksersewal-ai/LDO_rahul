@@ -124,7 +124,12 @@ export default function DocumentHubPage() {
           subtitle="Centralized document repository with OCR intelligence"
           actions={
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => window.location.reload()}
+              >
                 <RefreshCw className="h-3 w-3" />
                 Refresh
               </Button>

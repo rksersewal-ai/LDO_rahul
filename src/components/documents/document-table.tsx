@@ -3,9 +3,20 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Download, Eye, FileSearch, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,162 +80,182 @@ function mapDocStatus(status: string): StatusType {
   }
 }
 
-const columns: ColumnDef<MockDocument, unknown>[] = [
-  {
-    accessorKey: "documentNumber",
-    header: "Document #",
-    cell: ({ row }) => (
-      <Link
-        href={`/documents/${row.original.id}`}
-        className="font-mono text-[11px] font-medium text-primary hover:underline"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {row.original.documentNumber}
-      </Link>
-    ),
-    size: 160,
-  },
-  {
-    accessorKey: "title",
-    header: "Title",
-    cell: ({ row }) => (
-      <span className="truncate text-xs font-medium max-w-[260px] block">{row.original.title}</span>
-    ),
-    size: 260,
-  },
-  {
-    accessorKey: "category",
-    header: "Category",
-    cell: ({ row }) => (
-      <Badge
-        variant="outline"
-        className={cn("text-[9px] font-semibold", getCategoryColor(row.original.category))}
-      >
-        {row.original.category.replace("_", " ")}
-      </Badge>
-    ),
-    size: 120,
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <StatusBadge
-        status={mapDocStatus(row.original.status)}
-        label={row.original.status.replace("_", " ")}
-      />
-    ),
-    size: 110,
-  },
-  {
-    accessorKey: "revision",
-    header: "Rev",
-    cell: ({ row }) => (
-      <span className="font-mono text-xs text-muted-foreground">{row.original.revision}</span>
-    ),
-    size: 50,
-  },
-  {
-    accessorKey: "agency",
-    header: "Owner",
-    cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.agency}</span>,
-    size: 70,
-  },
-  {
-    accessorKey: "updatedAt",
-    header: "Date",
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">{formatDate(row.original.updatedAt)}</span>
-    ),
-    size: 90,
-  },
-  {
-    accessorKey: "ocrStatus",
-    header: "OCR",
-    cell: ({ row }) => (
-      <OcrStatusBadge status={row.original.ocrStatus} confidence={row.original.ocrConfidence} />
-    ),
-    size: 110,
-  },
-  {
-    accessorKey: "fileType",
-    header: "Type",
-    cell: ({ row }) => (
-      <span className="uppercase text-[10px] font-medium text-muted-foreground">
-        {row.original.fileType}
-      </span>
-    ),
-    size: 50,
-  },
-  {
-    accessorKey: "fileSize",
-    header: "Size",
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">{formatFileSize(row.original.fileSize)}</span>
-    ),
-    size: 70,
-  },
-  {
-    id: "preview",
-    header: "",
-    cell: ({ row }) => (
-      <Link
-        href={`/documents/${row.original.id}/preview`}
-        onClick={(e) => e.stopPropagation()}
-        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        title="Preview document"
-      >
-        <FileSearch className="h-3.5 w-3.5" />
-      </Link>
-    ),
-    size: 36,
-    enableSorting: false,
-  },
-  {
-    id: "actions",
-    header: "",
-    cell: ({ row }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-              onClick={(e) => e.stopPropagation()}
-            />
-          }
+function createColumns(onAction: (action: string, doc: MockDocument) => void): ColumnDef<MockDocument, unknown>[] {
+  return [
+    {
+      accessorKey: "documentNumber",
+      header: "Document #",
+      cell: ({ row }) => (
+        <Link
+          href={`/documents/${row.original.id}`}
+          className="font-mono text-[11px] font-medium text-primary hover:underline"
+          onClick={(e) => e.stopPropagation()}
         >
-          <MoreHorizontal className="h-3.5 w-3.5" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-36">
-          <DropdownMenuItem render={<Link href={`/documents/${row.original.id}`} />}>
-            <Eye className="h-3 w-3" />
-            <span className="text-xs">View</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem render={<Link href={`/documents/${row.original.id}/preview`} />}>
-            <FileSearch className="h-3 w-3" />
-            <span className="text-xs">Preview</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center gap-2">
-            <Download className="h-3 w-3" />
-            <span className="text-xs">Download</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center gap-2">
-            <Pencil className="h-3 w-3" />
-            <span className="text-xs">Edit</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center gap-2 text-destructive">
-            <Trash2 className="h-3 w-3" />
-            <span className="text-xs">Delete</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
-    size: 40,
-    enableSorting: false,
-  },
-];
+          {row.original.documentNumber}
+        </Link>
+      ),
+      size: 160,
+    },
+    {
+      accessorKey: "title",
+      header: "Title",
+      cell: ({ row }) => (
+        <span className="truncate text-xs font-medium max-w-[260px] block">{row.original.title}</span>
+      ),
+      size: 260,
+    },
+    {
+      accessorKey: "category",
+      header: "Category",
+      cell: ({ row }) => (
+        <Badge
+          variant="outline"
+          className={cn("text-[9px] font-semibold", getCategoryColor(row.original.category))}
+        >
+          {row.original.category.replace("_", " ")}
+        </Badge>
+      ),
+      size: 120,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <StatusBadge
+          status={mapDocStatus(row.original.status)}
+          label={row.original.status.replace("_", " ")}
+        />
+      ),
+      size: 110,
+    },
+    {
+      accessorKey: "revision",
+      header: "Rev",
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-muted-foreground">{row.original.revision}</span>
+      ),
+      size: 50,
+    },
+    {
+      accessorKey: "agency",
+      header: "Owner",
+      cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.agency}</span>,
+      size: 70,
+    },
+    {
+      accessorKey: "updatedAt",
+      header: "Date",
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">{formatDate(row.original.updatedAt)}</span>
+      ),
+      size: 90,
+    },
+    {
+      accessorKey: "ocrStatus",
+      header: "OCR",
+      cell: ({ row }) => (
+        <OcrStatusBadge status={row.original.ocrStatus} confidence={row.original.ocrConfidence} />
+      ),
+      size: 110,
+    },
+    {
+      accessorKey: "fileType",
+      header: "Type",
+      cell: ({ row }) => (
+        <span className="uppercase text-[10px] font-medium text-muted-foreground">
+          {row.original.fileType}
+        </span>
+      ),
+      size: 50,
+    },
+    {
+      accessorKey: "fileSize",
+      header: "Size",
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">{formatFileSize(row.original.fileSize)}</span>
+      ),
+      size: 70,
+    },
+    {
+      id: "preview",
+      header: "",
+      cell: ({ row }) => (
+        <Link
+          href={`/documents/${row.original.id}/preview`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          title="Preview document"
+        >
+          <FileSearch className="h-3.5 w-3.5" />
+        </Link>
+      ),
+      size: 36,
+      enableSorting: false,
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={(e) => e.stopPropagation()}
+              />
+            }
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-36">
+            <DropdownMenuItem render={<Link href={`/documents/${row.original.id}`} />}>
+              <Eye className="h-3 w-3" />
+              <span className="text-xs">View</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem render={<Link href={`/documents/${row.original.id}/preview`} />}>
+              <FileSearch className="h-3 w-3" />
+              <span className="text-xs">Preview</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="flex items-center gap-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction("download", row.original);
+              }}
+            >
+              <Download className="h-3 w-3" />
+              <span className="text-xs">Download</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="flex items-center gap-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction("edit", row.original);
+              }}
+            >
+              <Pencil className="h-3 w-3" />
+              <span className="text-xs">Edit</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="flex items-center gap-2 text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction("delete", row.original);
+              }}
+            >
+              <Trash2 className="h-3 w-3" />
+              <span className="text-xs">Delete</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+      size: 40,
+      enableSorting: false,
+    },
+  ];
+}
 
 interface DocumentTableProps {
   data: MockDocument[];
@@ -232,12 +263,80 @@ interface DocumentTableProps {
 }
 
 export function DocumentTable({ data, className }: DocumentTableProps) {
+  const router = useRouter();
+  const [deleteTarget, setDeleteTarget] = useState<MockDocument | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  function handleAction(action: string, doc: MockDocument) {
+    switch (action) {
+      case "download": {
+        if (doc.filePath) {
+          window.open(`/api/documents/${doc.id}/download`, "_blank");
+          toast.success(`Downloading ${doc.documentNumber}...`);
+        } else {
+          toast.error("No file available for download");
+        }
+        break;
+      }
+      case "edit": {
+        router.push(`/documents/${doc.id}?edit=true`);
+        break;
+      }
+      case "delete": {
+        setDeleteTarget(doc);
+        setDeleteDialogOpen(true);
+        break;
+      }
+    }
+  }
+
+  function handleDeleteConfirm() {
+    if (deleteTarget) {
+      toast.success(`Document ${deleteTarget.documentNumber} deleted`);
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
+    }
+  }
+
+  const columns = createColumns(handleAction);
+
   return (
-    <DataTable
-      columns={columns}
-      data={data}
-      enableSelection
-      className={cn("[&_tbody_tr]:cursor-pointer", className)}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={data}
+        enableSelection
+        className={cn("[&_tbody_tr]:cursor-pointer", className)}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {deleteTarget?.documentNumber}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
