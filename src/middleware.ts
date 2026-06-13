@@ -26,6 +26,13 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // Allow health-check endpoint so monitoring tools and load balancers
+  // can reach it without a session cookie.
+  const isHealthApi = nextUrl.pathname === "/api/health";
+  if (isHealthApi) {
+    return NextResponse.next();
+  }
+
   function isSafeRedirect(url: string): boolean {
     return url.startsWith("/") && !url.startsWith("//") && !url.includes("://");
   }

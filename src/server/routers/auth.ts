@@ -1,4 +1,4 @@
-// TODO: Add rate limiting
+import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -58,13 +58,16 @@ export const authRouter = router({
       const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
       if (!user) {
-        throw new Error("User not found");
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       }
 
       // Verify current password
       const isValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
       if (!isValid) {
-        throw new Error("Current password is incorrect");
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Current password is incorrect",
+        });
       }
 
       // Hash new password and update

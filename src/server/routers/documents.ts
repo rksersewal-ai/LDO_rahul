@@ -181,17 +181,17 @@ export const documentsRouter = router({
       })
       .returning();
 
-    // Create PL links if provided
+    // Create PL links if provided — use a single batch insert to avoid N+1 queries
     if (input.linkedPlIds.length > 0) {
-      for (const plId of input.linkedPlIds) {
-        await db.insert(documentPlLinks).values({
+      await db.insert(documentPlLinks).values(
+        input.linkedPlIds.map((plId) => ({
           id: randomUUID(),
           documentId: id,
           plNumberId: plId,
-          linkType: "manual",
+          linkType: "manual" as const,
           linkedBy: userId,
-        });
-      }
+        })),
+      );
     }
 
     await createAuditEntry(db, {
@@ -532,7 +532,7 @@ export const documentsRouter = router({
     .query(async ({ input, ctx }) => {
       const workspaceId = requireWorkspaceId(ctx);
 
-      // Verify document belongs to workspace
+      // Verify document belongs to workspace and is not deleted
       const [doc] = await db
         .select({ id: documents.id })
         .from(documents)
@@ -540,6 +540,7 @@ export const documentsRouter = router({
           and(
             eq(documents.id, input.documentId),
             eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
           ),
         );
 

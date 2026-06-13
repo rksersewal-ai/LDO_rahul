@@ -22,6 +22,14 @@ const pool =
   globalForDb.pgPool ??
   new Pool({
     connectionString: getConnectionString(),
+    // Limit max connections to avoid exhausting the PostgreSQL / PgBouncer pool.
+    // The default (10) is too low for 200+ concurrent users; 40 matches the
+    // PgBouncer default_pool_size recommended in the README.
+    max: Number(process.env.DB_POOL_MAX ?? "40"),
+    // Milliseconds a client can sit idle before being removed from the pool.
+    idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_TIMEOUT_MS ?? "30000"),
+    // Milliseconds to wait for a new client before throwing an error.
+    connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECTION_TIMEOUT_MS ?? "5000"),
   });
 
 if (process.env.NODE_ENV !== "production") {

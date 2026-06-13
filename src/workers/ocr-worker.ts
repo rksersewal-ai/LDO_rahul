@@ -103,26 +103,30 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
       const workspaceId = docRecord[0]?.workspaceId ?? null;
       const uploadedBy = docRecord[0]?.createdBy ?? null;
 
-      // Step h: Insert PL candidates
-      for (const pl of plCandidates) {
-        const candidateConfidence = isValidModulo11(pl) ? 0.9 : 0.6;
-        const idx = extractedText.indexOf(pl);
-        const contextStart = Math.max(0, idx - 15);
-        const contextEnd = Math.min(extractedText.length, idx + pl.length + 15);
-        const context = extractedText.slice(contextStart, contextEnd);
+      // Step h: Insert PL candidates in a single batch to avoid N+1 inserts
+      if (plCandidates.length > 0) {
+        const candidateRows = plCandidates.map((pl) => {
+          const candidateConfidence = isValidModulo11(pl) ? 0.9 : 0.6;
+          const idx = extractedText.indexOf(pl);
+          const contextStart = Math.max(0, idx - 15);
+          const contextEnd = Math.min(extractedText.length, idx + pl.length + 15);
+          const context = extractedText.slice(contextStart, contextEnd);
 
-        await tx.insert(ocrPlCandidates).values({
-          id: nanoid(),
-          documentId,
-          versionId,
-          workspaceId,
-          plNumber: pl,
-          confidence: candidateConfidence,
-          context,
-          mod11Valid: isValidModulo11(pl),
-          status: "pending",
-          createdAt: new Date(),
+          return {
+            id: nanoid(),
+            documentId,
+            versionId,
+            workspaceId,
+            plNumber: pl,
+            confidence: candidateConfidence,
+            context,
+            mod11Valid: isValidModulo11(pl),
+            status: "pending" as const,
+            createdAt: new Date(),
+          };
         });
+
+        await tx.insert(ocrPlCandidates).values(candidateRows);
       }
 
       // Step i: Generate thumbnail via NAS storage
