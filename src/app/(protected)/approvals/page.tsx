@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ApprovalCard } from "@/components/approvals/approval-card";
 import { ApprovalDialog } from "@/components/approvals/approval-dialog";
 import { PageFrame } from "@/components/layout/page-frame";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,7 +15,7 @@ import { trpc } from "@/lib/trpc/client";
 type FilterTab = "all" | ApprovalType;
 
 export default function ApprovalsPage() {
-  const { data: approvalsData, isLoading, refetch } = trpc.approvals.list.useQuery(
+  const { data: approvalsData, isLoading, isError, error, refetch } = trpc.approvals.list.useQuery(
     { status: "pending", limit: 100 },
     { staleTime: 15_000 },
   );
@@ -92,6 +93,11 @@ export default function ApprovalsPage() {
             </Badge>
           }
         />
+
+        {/* Error State */}
+        {isError && !isLoading && (
+          <QueryErrorState error={error} retry={() => refetch()} />
+        )}
 
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as FilterTab)}>
           <TabsList>

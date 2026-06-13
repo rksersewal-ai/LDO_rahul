@@ -7,6 +7,7 @@ import { PageFrame } from "@/components/layout/page-frame";
 import { type PlFilterState, PlFilters } from "@/components/pl/pl-filters";
 import { PlTable } from "@/components/pl/pl-table";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/ui/loading-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -129,11 +130,7 @@ export default function PlHubPage() {
         {isLoading ? (
           <LoadingState variant="table" rows={8} />
         ) : error ? (
-          <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
-            <p className="text-sm text-destructive">
-              Failed to load PL numbers: {error.message}
-            </p>
-          </div>
+          <QueryErrorState error={error} retry={() => refetch()} />
         ) : (
           <PlTable data={data?.data ?? []} />
         )}

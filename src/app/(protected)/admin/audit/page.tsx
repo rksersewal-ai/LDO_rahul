@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Download, Shield } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,7 @@ export default function AuditLogPage() {
   const [resourceFilter, setResourceFilter] = useState<string>("all");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const { data: auditData, isLoading } = trpc.admin.getAuditLog.useQuery(
+  const { data: auditData, isLoading, isError, error, refetch } = trpc.admin.getAuditLog.useQuery(
     {
       search: search || undefined,
       action: actionFilter !== "all" ? actionFilter : undefined,
@@ -187,6 +188,11 @@ export default function AuditLogPage() {
             {filtered.length} entries
           </Badge>
         </div>
+
+        {/* Error State */}
+        {isError && !isLoading && (
+          <QueryErrorState error={error} retry={() => refetch()} />
+        )}
 
         {/* Audit Table */}
         <div className="rounded-lg border">
