@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, Check, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { type Notification, useNotificationStore } from "@/stores/notification-store";
@@ -14,10 +15,12 @@ function NotificationItem({
   item,
   onMarkRead,
   onDismiss,
+  onAction,
 }: {
   item: Notification;
   onMarkRead: (id: string) => void;
   onDismiss: (id: string) => void;
+  onAction: (id: string, href: string) => void;
 }) {
   return (
     <div
@@ -31,7 +34,16 @@ function NotificationItem({
         <p className="text-muted-foreground mt-0.5 truncate">{item.context}</p>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-muted-foreground text-[10px]">{item.timestamp}</span>
-          {item.actionLabel && (
+          {item.actionLabel && item.actionHref && (
+            <button
+              type="button"
+              className="text-primary font-medium hover:underline text-[10px]"
+              onClick={() => onAction(item.id, item.actionHref!)}
+            >
+              {item.actionLabel}
+            </button>
+          )}
+          {item.actionLabel && !item.actionHref && (
             <button
               type="button"
               className="text-primary font-medium hover:underline text-[10px]"
@@ -67,6 +79,7 @@ function NotificationItem({
 }
 
 export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
+  const router = useRouter();
   const { items, markRead, markAllRead, dismiss } = useNotificationStore();
 
   const handleMarkRead = useCallback(
@@ -83,6 +96,15 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
     [dismiss],
   );
 
+  const handleAction = useCallback(
+    (id: string, href: string) => {
+      markRead(id);
+      onClose();
+      router.push(href);
+    },
+    [markRead, onClose, router],
+  );
+
   if (!open) return null;
 
   const actionItems = items.filter((n) => n.group === "action");
@@ -90,80 +112,77 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
   const systemItems = items.filter((n) => n.group === "system");
 
   return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-
-      {/* Panel */}
-      <div className="absolute right-0 top-full mt-1 z-50 w-[360px] rounded-lg border bg-popover shadow-lg">
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="text-sm font-semibold">Notifications</h3>
-          <button
-            type="button"
-            className="text-xs text-primary hover:underline font-medium"
-            onClick={markAllRead}
-          >
-            Mark all read
-          </button>
-        </div>
-
-        <div className="max-h-[420px] overflow-y-auto py-2 px-1">
-          {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Bell className="size-8 text-muted-foreground/50 mb-2" />
-              <p className="text-sm text-muted-foreground">No notifications</p>
-            </div>
-          ) : (
-            <>
-              {actionItems.length > 0 && (
-                <div className="mb-2">
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Needs Action
-                  </p>
-                  {actionItems.map((item) => (
-                    <NotificationItem
-                      key={item.id}
-                      item={item}
-                      onMarkRead={handleMarkRead}
-                      onDismiss={handleDismiss}
-                    />
-                  ))}
-                </div>
-              )}
-              {fyiItems.length > 0 && (
-                <div className="mb-2">
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    FYI
-                  </p>
-                  {fyiItems.map((item) => (
-                    <NotificationItem
-                      key={item.id}
-                      item={item}
-                      onMarkRead={handleMarkRead}
-                      onDismiss={handleDismiss}
-                    />
-                  ))}
-                </div>
-              )}
-              {systemItems.length > 0 && (
-                <div className="mb-2">
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    System
-                  </p>
-                  {systemItems.map((item) => (
-                    <NotificationItem
-                      key={item.id}
-                      item={item}
-                      onMarkRead={handleMarkRead}
-                      onDismiss={handleDismiss}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+    <div className="w-full">
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <h3 className="text-sm font-semibold">Notifications</h3>
+        <button
+          type="button"
+          className="text-xs text-primary hover:underline font-medium"
+          onClick={markAllRead}
+        >
+          Mark all read
+        </button>
       </div>
-    </>
+
+      <div className="max-h-[420px] overflow-y-auto py-2 px-1">
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Bell className="size-8 text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground">No notifications</p>
+          </div>
+        ) : (
+          <>
+            {actionItems.length > 0 && (
+              <div className="mb-2">
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Needs Action
+                </p>
+                {actionItems.map((item) => (
+                  <NotificationItem
+                    key={item.id}
+                    item={item}
+                    onMarkRead={handleMarkRead}
+                    onDismiss={handleDismiss}
+                    onAction={handleAction}
+                  />
+                ))}
+              </div>
+            )}
+            {fyiItems.length > 0 && (
+              <div className="mb-2">
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  FYI
+                </p>
+                {fyiItems.map((item) => (
+                  <NotificationItem
+                    key={item.id}
+                    item={item}
+                    onMarkRead={handleMarkRead}
+                    onDismiss={handleDismiss}
+                    onAction={handleAction}
+                  />
+                ))}
+              </div>
+            )}
+            {systemItems.length > 0 && (
+              <div className="mb-2">
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  System
+                </p>
+                {systemItems.map((item) => (
+                  <NotificationItem
+                    key={item.id}
+                    item={item}
+                    onMarkRead={handleMarkRead}
+                    onDismiss={handleDismiss}
+                    onAction={handleAction}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }

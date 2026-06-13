@@ -21,6 +21,16 @@ export const documentCategoryEnum = pgEnum("document_category", [
   "CORRESPONDENCE",
   "MANUAL",
   "OTHER",
+  "STR",
+  "EC",
+  "SOS",
+  "SOR",
+  "QAP",
+  "SET_LIST",
+  "GAD",
+  "WIRING_DIAGRAM",
+  "BOM_DOCUMENT",
+  "VENDOR_DOCUMENT",
 ]);
 
 export const documentStatusEnum = pgEnum("document_status", [

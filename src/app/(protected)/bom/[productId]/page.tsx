@@ -3,6 +3,7 @@
 import { ArrowLeft, Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { use, useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { AddEntryDialog } from "@/components/bom/add-entry-dialog";
 import { BomNodeDetail } from "@/components/bom/bom-node-detail";
 import { BomTree } from "@/components/bom/bom-tree";
@@ -22,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
 import { type BomEntry, MOCK_BOM_ENTRIES, MOCK_BOM_PRODUCTS } from "@/lib/mock-data/bom";
 import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { exportToExcel } from "@/lib/utils/export-service";
 
 function mapProductStatus(status: string): StatusType {
   switch (status) {
@@ -215,7 +217,28 @@ export default function ProductBomPage({ params }: { params: Promise<{ productId
               <Plus className="h-3 w-3" />
               Add Root Entry
             </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => {
+                exportToExcel(
+                  `BOM - ${product.name}`,
+                  ["Name", "Type", "Quantity", "Unit", "Material", "Weight", "Drawing Ref"],
+                  entries.map((e) => [
+                    e.name,
+                    e.type,
+                    e.quantity,
+                    e.unit,
+                    e.material || "-",
+                    e.weight != null ? e.weight : "-",
+                    e.drawingRef || "-",
+                  ]),
+                  `bom-${product.name.toLowerCase().replace(/\s+/g, "-")}`,
+                );
+                toast.success(`Exported ${entries.length} BOM entries`);
+              }}
+            >
               <Download className="h-3 w-3" />
               Export
             </Button>

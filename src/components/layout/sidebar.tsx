@@ -4,13 +4,14 @@ import {
   AlertTriangle,
   BarChart3,
   Bell,
+  Building2,
   CheckSquare,
   ClipboardList,
   Cpu,
   FileText,
   FolderOpen,
   FolderTree,
-  HelpCircle,
+  Landmark,
   LayoutDashboard,
   Megaphone,
   MonitorCheck,
@@ -19,6 +20,7 @@ import {
   Shield,
   ShieldCheck,
   Tag,
+  Train,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -27,6 +29,7 @@ import { useSession } from "next-auth/react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores/sidebar-store";
+import { useNotificationStore } from "@/stores/notification-store";
 
 interface NavItem {
   label: string;
@@ -51,7 +54,8 @@ const navSections: NavSection[] = [
       { label: "Work Ledger", href: "/ledger", icon: ClipboardList },
       { label: "Ledger Reports", href: "/ledger/reports", icon: BarChart3 },
       { label: "BOM Explorer", href: "/bom", icon: FolderTree },
-      { label: "Approvals", href: "/approvals", icon: CheckSquare, badge: 11 },
+      { label: "Rolling Stock", href: "/rolling-stock", icon: Train },
+      { label: "Approvals", href: "/approvals", icon: CheckSquare },
       { label: "Cases", href: "/cases", icon: AlertTriangle },
       { label: "Cabinets", href: "/cabinets", icon: FolderOpen },
       { label: "Tags", href: "/tags", icon: Tag },
@@ -63,6 +67,8 @@ const navSections: NavSection[] = [
     items: [
       { label: "Admin Dashboard", href: "/admin", icon: ShieldCheck },
       { label: "User Management", href: "/admin/users", icon: Users },
+      { label: "Organizations", href: "/admin/organizations", icon: Landmark },
+      { label: "Workspaces", href: "/admin/workspaces", icon: Building2 },
       { label: "System Health", href: "/admin/health", icon: MonitorCheck },
       { label: "OCR Monitor", href: "/admin/ocr", icon: Cpu },
       { label: "Audit Log", href: "/admin/audit", icon: Shield },
@@ -71,13 +77,6 @@ const navSections: NavSection[] = [
       { label: "Banners", href: "/admin/banners", icon: Megaphone },
     ],
   },
-];
-
-const utilityItems: NavItem[] = [
-  { label: "Notifications", href: "/notifications", icon: Bell, badge: 6 },
-  { label: "Settings", href: "/settings", icon: Settings },
-  { label: "Help Center", href: "/help", icon: HelpCircle },
-  { label: "Search", href: "/search", icon: Search },
 ];
 
 function NavLink({
@@ -95,7 +94,7 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-2 h-[30px] rounded-md px-2 text-xs font-semibold transition-colors",
+        "relative flex items-center gap-2 h-[30px] rounded-md px-2 text-xs font-semibold transition-colors",
         active
           ? "bg-primary text-primary-foreground font-bold"
           : "text-foreground/80 hover:bg-accent hover:text-foreground",
@@ -106,12 +105,12 @@ function NavLink({
       {!collapsed && <span className="truncate">{item.label}</span>}
       {!collapsed && item.badge != null && item.badge > 0 && (
         <span className="ml-auto inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold min-w-[16px] h-4 px-1">
-          {item.badge}
+          {item.badge > 99 ? "99+" : item.badge}
         </span>
       )}
       {collapsed && item.badge != null && item.badge > 0 && (
         <span className="absolute top-0 right-0.5 inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[8px] font-bold min-w-[14px] h-3.5 px-0.5">
-          {item.badge}
+          {item.badge > 99 ? "99+" : item.badge}
         </span>
       )}
     </Link>
@@ -136,6 +135,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+
+  const utilityItems: NavItem[] = [
+    { label: "Notifications", href: "/notifications", icon: Bell, badge: unreadCount },
+    { label: "Profile", href: "/profile", icon: Settings },
+    { label: "Search", href: "/search", icon: Search },
+  ];
 
   const visibleSections = navSections.filter((section) => !section.adminOnly || isAdmin);
 
@@ -157,23 +163,25 @@ export function Sidebar() {
       <div
         className={cn("flex items-center h-12 border-b px-3", collapsed && "justify-center px-2")}
       >
-        {collapsed ? (
-          <div className="flex items-center justify-center size-8 rounded-md bg-primary text-primary-foreground font-bold text-sm">
-            L
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center size-7 rounded-md bg-primary text-primary-foreground font-bold text-xs">
-              L2
+        <Link href="/" className="flex items-center gap-2">
+          {collapsed ? (
+            <div className="flex items-center justify-center size-8 rounded-md bg-primary text-primary-foreground font-bold text-sm">
+              L
             </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-bold leading-tight">LDO-2 EDMS</span>
-              <span className="text-[10px] text-muted-foreground leading-tight">
-                Document Intelligence
-              </span>
-            </div>
-          </div>
-        )}
+          ) : (
+            <>
+              <div className="flex items-center justify-center size-7 rounded-md bg-primary text-primary-foreground font-bold text-xs">
+                L2
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold leading-tight">LDO-2 EDMS</span>
+                <span className="text-[10px] text-muted-foreground leading-tight">
+                  Document Intelligence
+                </span>
+              </div>
+            </>
+          )}
+        </Link>
       </div>
 
       {/* Scrollable nav section */}

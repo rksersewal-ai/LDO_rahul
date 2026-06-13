@@ -4,6 +4,9 @@ export const plCategoryEnum = z.enum(["CAT-A", "CAT-B", "CAT-C", "CAT-D"]);
 export const plStatusEnum = z.enum(["active", "inactive", "deprecated", "under_review", "obsolete"]);
 export const lifecycleStageEnum = z.enum(["draft", "active", "restricted", "obsolete", "deprecated"]);
 
+export const plItemTypeEnum = z.enum(["VD", "NVD"]);
+export const inspectionAgencyEnum = z.enum(["RDSO", "ZONAL", "WORKSHOP", "STORES"]);
+
 export const plAliasTypeEnum = z.enum(["legacy", "vendor", "drawing", "local_name"]);
 export const plRelationTypeEnum = z.enum([
   "equivalent_to",
@@ -59,6 +62,18 @@ export const createPlSchema = z.object({
   vendorCode: z.string().nullable().optional(),
   partFamily: z.string().nullable().optional(),
   lifecycleStage: lifecycleStageEnum.optional(),
+  // Railway-specific fields
+  itemType: plItemTypeEnum.nullable().optional(),
+  uvamItemId: z.string().max(64).nullable().optional(),
+  eligibilityCriteriaText: z.string().nullable().optional(),
+  eligibilityCriteriaDocId: z.string().nullable().optional(),
+  strDocId: z.string().nullable().optional(),
+  qapDocId: z.string().nullable().optional(),
+  inspectionAgency: inspectionAgencyEnum.nullable().optional(),
+  unitOfMeasurement: z.string().max(16).nullable().optional(),
+  shelfLifeMonths: z.number().int().min(0).nullable().optional(),
+  lastProcurementRate: z.number().min(0).nullable().optional(),
+  lastProcurementDate: z.string().datetime().nullable().optional(),
 });
 
 export const updatePlSchema = z.object({
@@ -76,6 +91,18 @@ export const updatePlSchema = z.object({
   vendorCode: z.string().nullable().optional(),
   partFamily: z.string().nullable().optional(),
   lifecycleStage: lifecycleStageEnum.optional(),
+  // Railway-specific fields
+  itemType: plItemTypeEnum.nullable().optional(),
+  uvamItemId: z.string().max(64).nullable().optional(),
+  eligibilityCriteriaText: z.string().nullable().optional(),
+  eligibilityCriteriaDocId: z.string().nullable().optional(),
+  strDocId: z.string().nullable().optional(),
+  qapDocId: z.string().nullable().optional(),
+  inspectionAgency: inspectionAgencyEnum.nullable().optional(),
+  unitOfMeasurement: z.string().max(16).nullable().optional(),
+  shelfLifeMonths: z.number().int().min(0).nullable().optional(),
+  lastProcurementRate: z.number().min(0).nullable().optional(),
+  lastProcurementDate: z.string().datetime().nullable().optional(),
 });
 
 export const plSearchSchema = z.object({
@@ -134,6 +161,11 @@ export const plChangeStatusSchema = z.object({
   reason: z.string().min(1, "Reason is required for status changes"),
 });
 
+export const searchDocumentsForLinkingSchema = z.object({
+  query: z.string().min(1, "Search query is required"),
+  limit: z.number().int().min(1).max(50).default(10),
+});
+
 export type PlListInput = z.infer<typeof plListSchema>;
 export type CreatePlInput = z.infer<typeof createPlSchema>;
 export type UpdatePlInput = z.infer<typeof updatePlSchema>;
@@ -142,3 +174,4 @@ export type PlRelationshipInput = z.infer<typeof plRelationshipSchema>;
 export type PlLinkDocumentInput = z.infer<typeof plLinkDocumentSchema>;
 export type PlBulkImportInput = z.infer<typeof plBulkImportSchema>;
 export type PlChangeStatusInput = z.infer<typeof plChangeStatusSchema>;
+export type SearchDocumentsForLinkingInput = z.infer<typeof searchDocumentsForLinkingSchema>;

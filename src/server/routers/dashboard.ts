@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
+import { getCached } from "@/lib/cache/query-cache";
 import { db } from "@/lib/db";
 import {
   approvals,
@@ -9,6 +10,8 @@ import {
   documents,
   duplicateDetections,
   ocrJobs,
+  plNumbers,
+  rollingStockUnits,
   users,
 } from "@/lib/db/schema";
 import { protectedProcedure, router } from "@/server/trpc";
@@ -362,5 +365,129 @@ export const dashboardRouter = router({
       date: string;
       ocrStatus: "completed" | "processing" | "queued" | "failed" | "not_required";
     }>;
+  }),
+
+  /** PL Breakdown: total PLs, VD/NVD counts, by-category, safety-critical count */
+  getPlBreakdown: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const cacheKey = `pl_breakdown_${workspaceId}`;
+
+    return getCached(cacheKey, 30_000, async () => {
+      const [totalResult, vdResult, nvdResult, catResults, safetyResult] = await Promise.all([
+        // Total PLs in workspace
+        db
+          .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+          .from(plNumbers)
+          .where(eq(plNumbers.workspaceId, workspaceId)),
+
+        // VD count
+        db
+          .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+          .from(plNumbers)
+          .where(and(eq(plNumbers.workspaceId, workspaceId), eq(plNumbers.itemType, "VD"))),
+
+        // NVD count
+        db
+          .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+          .from(plNumbers)
+          .where(and(eq(plNumbers.workspaceId, workspaceId), eq(plNumbers.itemType, "NVD"))),
+
+        // By category breakdown
+        db
+          .select({
+            category: plNumbers.category,
+            total: sql<number>`COALESCE(${count()}, 0)`,
+          })
+          .from(plNumbers)
+          .where(eq(plNumbers.workspaceId, workspaceId))
+          .groupBy(plNumbers.category),
+
+        // Safety-critical count
+        db
+          .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+          .from(plNumbers)
+          .where(and(eq(plNumbers.workspaceId, workspaceId), eq(plNumbers.safetyCritical, true))),
+      ]);
+
+      const byCategory: Record<string, number> = {};
+      for (const row of catResults) {
+        byCategory[row.category] = row.total;
+      }
+
+      return {
+        total: totalResult[0]?.total ?? 0,
+        vdCount: vdResult[0]?.total ?? 0,
+        nvdCount: nvdResult[0]?.total ?? 0,
+        byCategory: {
+          "CAT-A": byCategory["CAT-A"] ?? 0,
+          "CAT-B": byCategory["CAT-B"] ?? 0,
+          "CAT-C": byCategory["CAT-C"] ?? 0,
+          "CAT-D": byCategory["CAT-D"] ?? 0,
+        },
+        safetyCriticalCount: safetyResult[0]?.total ?? 0,
+      };
+    });
+  }),
+
+  /** Rolling Stock Summary: total units, by-status, by-product-type */
+  getRollingStockSummary: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const cacheKey = `rolling_stock_summary_${workspaceId}`;
+
+    return getCached(cacheKey, 30_000, async () => {
+      const [totalResult, statusResults, productTypeResults] = await Promise.all([
+        // Total rolling stock units in workspace
+        db
+          .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+          .from(rollingStockUnits)
+          .where(eq(rollingStockUnits.workspaceId, workspaceId)),
+
+        // By status breakdown
+        db
+          .select({
+            status: rollingStockUnits.status,
+            total: sql<number>`COALESCE(${count()}, 0)`,
+          })
+          .from(rollingStockUnits)
+          .where(eq(rollingStockUnits.workspaceId, workspaceId))
+          .groupBy(rollingStockUnits.status),
+
+        // By product type (via bom_products join)
+        db
+          .select({
+            productType: sql<string>`COALESCE(bp."product_type", 'unclassified')`,
+            total: sql<number>`COALESCE(${count()}, 0)`,
+          })
+          .from(rollingStockUnits)
+          .leftJoin(
+            sql`"bom_products" AS bp`,
+            sql`bp."id" = ${rollingStockUnits.productId}`,
+          )
+          .where(eq(rollingStockUnits.workspaceId, workspaceId))
+          .groupBy(sql`bp."product_type"`),
+      ]);
+
+      const byStatus: Record<string, number> = {};
+      for (const row of statusResults) {
+        byStatus[row.status] = row.total;
+      }
+
+      const byProductType: Record<string, number> = {};
+      for (const row of productTypeResults) {
+        byProductType[row.productType] = row.total;
+      }
+
+      return {
+        total: totalResult[0]?.total ?? 0,
+        byStatus: {
+          active: byStatus["active"] ?? 0,
+          under_overhaul: byStatus["under_overhaul"] ?? 0,
+          condemned: byStatus["condemned"] ?? 0,
+          transferred: byStatus["transferred"] ?? 0,
+          awaiting_commissioning: byStatus["awaiting_commissioning"] ?? 0,
+        },
+        byProductType,
+      };
+    });
   }),
 });

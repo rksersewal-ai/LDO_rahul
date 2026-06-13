@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "lastUpdated": "2026-06-13T12:00:00.000Z",
-    "currentTask": "FEAT-041",
+    "lastUpdated": "2026-06-14T12:00:00.000Z",
+    "currentTask": "FEAT-005-railway",
     "completedTasks": [
       "FEAT-001",
       "FEAT-002",
@@ -43,11 +43,46 @@
       "FEAT-038",
       "FEAT-039",
       "FEAT-040",
-      "FEAT-041"
+      "FEAT-041",
+      "FEAT-RD-001",
+      "FEAT-RD-002",
+      "FEAT-RD-003",
+      "FEAT-RD-004",
+      "FEAT-RD-005"
     ],
     "blockedTasks": []
   },
   "tasks": [
+    {
+      "id": "FEAT-RD-005",
+      "description": "Railway Domain Phase G: PostgreSQL schema migration, enhanced dashboard with PL VD/NVD breakdown and rolling stock summary, query caching, virtual scrolling optimization",
+      "status": "completed",
+      "dependsOn": ["FEAT-RD-001", "FEAT-RD-002", "FEAT-RD-003", "FEAT-RD-004"]
+    },
+    {
+      "id": "FEAT-RD-004",
+      "description": "Railway-specific OCR pattern extraction for RDSO specifications, loco numbers, and railway document references",
+      "status": "completed",
+      "dependsOn": ["FEAT-RD-003"]
+    },
+    {
+      "id": "FEAT-RD-003",
+      "description": "Rolling Stock Units schema, BOM product variants, CRUD tRPC router, and listing/detail pages",
+      "status": "completed",
+      "dependsOn": ["FEAT-RD-002"]
+    },
+    {
+      "id": "FEAT-RD-002",
+      "description": "Enhanced PL detail page with VD/NVD display, document search and link/unlink, and CAT-A inspection warning",
+      "status": "completed",
+      "dependsOn": ["FEAT-RD-001"]
+    },
+    {
+      "id": "FEAT-RD-001",
+      "description": "Railway-specific fields added to PL schema (item_type VD/NVD, inspection_agency, UVAM ID, procurement data), extended document categories, search for linking documents",
+      "status": "completed",
+      "dependsOn": ["FEAT-041"]
+    },
     {
       "id": "FEAT-041",
       "description": "Bulk Actions + Error Handling Foundation - real bulk action procedure, global error boundary, tRPC error formatter, graceful fallbacks",

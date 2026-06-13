@@ -6,19 +6,31 @@ import {
   Download,
   FileText,
   Link2,
+  Loader2,
   Pencil,
   Plus,
   Trash2,
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { use } from "react";
+import { useRouter } from "next/navigation";
+import { use, useState } from "react";
+import { toast } from "sonner";
 import { OcrResultsPanel } from "@/components/documents/ocr-results-panel";
 import { OcrStatusBadge } from "@/components/documents/ocr-status-badge";
 import { type RevisionEntry, RevisionTimeline } from "@/components/documents/revision-timeline";
 import { PageFrame } from "@/components/layout/page-frame";
+import { PLNumberSelect } from "@/components/shared/pl-number-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
 import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
 import { MOCK_OCR_JOBS } from "@/lib/mock-data/ocr-jobs";
@@ -99,7 +111,17 @@ function generateRevisionHistory(doc: (typeof MOCK_DOCUMENTS)[0]): RevisionEntry
 
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const doc = MOCK_DOCUMENTS.find((d) => d.id === id);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [linkPlOpen, setLinkPlOpen] = useState(false);
+  const [selectedPlNumber, setSelectedPlNumber] = useState<string | null>(null);
 
   if (!doc) {
     return (
@@ -116,6 +138,72 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   const linkedPls = MOCK_PL_NUMBERS.filter((pl) => doc.linkedPlIds.includes(pl.id));
   const revisions = generateRevisionHistory(doc);
+
+  // Status-based button visibility
+  const canEdit = ["DRAFT", "UNDER_REVIEW"].includes(doc.status);
+  const canApprove = doc.status === "UNDER_REVIEW";
+  const canDelete = doc.status === "DRAFT";
+  const canRevise = ["APPROVED", "ACTIVE"].includes(doc.status);
+
+  // Capture doc as non-null for use in closures (TS narrowing doesn't persist in nested functions)
+  const currentDoc = doc;
+
+  function handleDownload() {
+    if (currentDoc.filePath) {
+      const downloadUrl = `/api/documents/${currentDoc.id}/download`;
+      window.open(downloadUrl, "_blank");
+      toast.success(`Downloading ${currentDoc.documentNumber}...`);
+    } else {
+      toast.error("No file available for download");
+    }
+  }
+
+  function handleEdit() {
+    router.push(`/documents/${currentDoc.id}?edit=true`);
+    toast.info("Entering edit mode");
+  }
+
+  function handleNewRevision() {
+    router.push(`/documents/upload?revises=${currentDoc.id}`);
+  }
+
+  function handleApprove() {
+    setIsApproving(true);
+    setTimeout(() => {
+      setIsApproving(false);
+      setApproveDialogOpen(false);
+      toast.success(`Document ${currentDoc.documentNumber} approved`);
+    }, 800);
+  }
+
+  function handleReject() {
+    setIsRejecting(true);
+    setTimeout(() => {
+      setIsRejecting(false);
+      setRejectDialogOpen(false);
+      toast.success(`Document ${currentDoc.documentNumber} rejected and returned to draft`);
+    }, 800);
+  }
+
+  function handleDelete() {
+    setIsDeleting(true);
+    setTimeout(() => {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      toast.success(`Document ${currentDoc.documentNumber} deleted`);
+      router.push("/documents");
+    }, 800);
+  }
+
+  function handleLinkPl() {
+    if (!selectedPlNumber) {
+      toast.error("Please select a PL number");
+      return;
+    }
+    toast.success(`PL ${selectedPlNumber} linked successfully`);
+    setLinkPlOpen(false);
+    setSelectedPlNumber(null);
+  }
 
   return (
     <PageFrame size="xl">
@@ -150,23 +238,46 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             <h2 className="text-base font-medium text-foreground">{doc.title}</h2>
           </div>
 
-          {/* Action buttons */}
+          {/* Action buttons - contextually shown based on status */}
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={handleDownload}
+            >
               <Download className="h-3 w-3" />
               Download
             </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-              <Pencil className="h-3 w-3" />
-              Edit
-            </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-              <Plus className="h-3 w-3" />
-              New Revision
-            </Button>
-            {doc.status === "UNDER_REVIEW" && (
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={handleEdit}
+              >
+                <Pencil className="h-3 w-3" />
+                Edit
+              </Button>
+            )}
+            {canRevise && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={handleNewRevision}
+              >
+                <Plus className="h-3 w-3" />
+                New Revision
+              </Button>
+            )}
+            {canApprove && (
               <>
-                <Button size="sm" className="h-7 text-xs gap-1">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => setApproveDialogOpen(true)}
+                >
                   <CheckCircle className="h-3 w-3" />
                   Approve
                 </Button>
@@ -174,22 +285,30 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs gap-1 text-destructive border-destructive/30"
+                  onClick={() => setRejectDialogOpen(true)}
                 >
                   <XCircle className="h-3 w-3" />
                   Reject
                 </Button>
               </>
             )}
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-destructive">
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1 text-destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
           </div>
         </div>
 
         {/* Main content grid */}
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Left column: Metadata + OCR */}
-          <div className="col-span-2 flex flex-col gap-5">
+          <div className="col-span-1 lg:col-span-2 flex flex-col gap-5">
             {/* Metadata section */}
             <div className="rounded-lg border bg-card p-4">
               <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">
@@ -313,7 +432,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 <h3 className="text-xs font-semibold uppercase text-muted-foreground">
                   Linked PL Numbers
                 </h3>
-                <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[10px] gap-1"
+                  onClick={() => setLinkPlOpen(true)}
+                >
                   <Link2 className="h-3 w-3" />
                   Link PL
                 </Button>
@@ -349,6 +473,156 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
       </div>
+
+      {/* Approve Confirmation Dialog */}
+      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Approve Document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to approve {doc.documentNumber}? This will mark the document as approved.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setApproveDialogOpen(false)}
+              disabled={isApproving}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleApprove} disabled={isApproving}>
+              {isApproving ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3 w-3" />
+                  Approve
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Confirmation Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reject Document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to reject {doc.documentNumber}? The document will be returned to draft status.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRejectDialogOpen(false)}
+              disabled={isRejecting}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleReject}
+              disabled={isRejecting}
+            >
+              {isRejecting ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Rejecting...
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-3 w-3" />
+                  Reject
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {doc.documentNumber}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link PL Dialog */}
+      <Dialog open={linkPlOpen} onOpenChange={setLinkPlOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Link PL Number</DialogTitle>
+            <DialogDescription>
+              Search and select a PL number to link to this document.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <PLNumberSelect
+              value={selectedPlNumber}
+              onChange={setSelectedPlNumber}
+              placeholder="Search PL number..."
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLinkPlOpen(false);
+                setSelectedPlNumber(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleLinkPl} disabled={!selectedPlNumber}>
+              <Link2 className="h-3 w-3" />
+              Link PL
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageFrame>
   );
 }

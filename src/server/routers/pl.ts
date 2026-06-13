@@ -26,6 +26,7 @@ import {
   plLinkDocumentSchema,
   plListSchema,
   plRelationshipSchema,
+  searchDocumentsForLinkingSchema,
   updatePlSchema,
 } from "@/lib/validators/pl-numbers";
 import { engineerProcedure, protectedProcedure, router } from "@/server/trpc";
@@ -190,6 +191,14 @@ export const plRouter = router({
     const id = randomUUID();
     const now = new Date();
 
+    // Business rule advisories for railway-specific fields
+    if (input.itemType === "VD" && !input.uvamItemId) {
+      console.warn(`[pl.create] Advisory: VD item ${input.plNumber} created without uvamItemId`);
+    }
+    if (input.itemType === "NVD" && !input.eligibilityCriteriaText && !input.eligibilityCriteriaDocId) {
+      console.warn(`[pl.create] Advisory: NVD item ${input.plNumber} created without eligibility criteria`);
+    }
+
     const [created] = await db
       .insert(plNumbers)
       .values({
@@ -208,6 +217,18 @@ export const plRouter = router({
         vendorCode: input.vendorCode ?? null,
         partFamily: input.partFamily ?? null,
         lifecycleStage: input.lifecycleStage ?? "active",
+        // Railway-specific fields
+        itemType: input.itemType ?? null,
+        uvamItemId: input.uvamItemId ?? null,
+        eligibilityCriteriaText: input.eligibilityCriteriaText ?? null,
+        eligibilityCriteriaDocId: input.eligibilityCriteriaDocId ?? null,
+        strDocId: input.strDocId ?? null,
+        qapDocId: input.qapDocId ?? null,
+        inspectionAgency: input.inspectionAgency ?? null,
+        unitOfMeasurement: input.unitOfMeasurement ?? null,
+        shelfLifeMonths: input.shelfLifeMonths ?? null,
+        lastProcurementRate: input.lastProcurementRate ?? null,
+        lastProcurementDate: input.lastProcurementDate ? new Date(input.lastProcurementDate) : null,
         workspaceId,
         createdBy: userId,
         updatedBy: userId,
@@ -298,6 +319,34 @@ export const plRouter = router({
     if (updates.vendorCode !== undefined) setValues.vendorCode = updates.vendorCode;
     if (updates.partFamily !== undefined) setValues.partFamily = updates.partFamily;
     if (updates.lifecycleStage !== undefined) setValues.lifecycleStage = updates.lifecycleStage;
+    // Railway-specific fields
+    if (updates.itemType !== undefined) setValues.itemType = updates.itemType;
+    if (updates.uvamItemId !== undefined) setValues.uvamItemId = updates.uvamItemId;
+    if (updates.eligibilityCriteriaText !== undefined) setValues.eligibilityCriteriaText = updates.eligibilityCriteriaText;
+    if (updates.eligibilityCriteriaDocId !== undefined) setValues.eligibilityCriteriaDocId = updates.eligibilityCriteriaDocId;
+    if (updates.strDocId !== undefined) setValues.strDocId = updates.strDocId;
+    if (updates.qapDocId !== undefined) setValues.qapDocId = updates.qapDocId;
+    if (updates.inspectionAgency !== undefined) setValues.inspectionAgency = updates.inspectionAgency;
+    if (updates.unitOfMeasurement !== undefined) setValues.unitOfMeasurement = updates.unitOfMeasurement;
+    if (updates.shelfLifeMonths !== undefined) setValues.shelfLifeMonths = updates.shelfLifeMonths;
+    if (updates.lastProcurementRate !== undefined) setValues.lastProcurementRate = updates.lastProcurementRate;
+    if (updates.lastProcurementDate !== undefined) setValues.lastProcurementDate = updates.lastProcurementDate ? new Date(updates.lastProcurementDate) : null;
+
+    // Business rule advisories for railway-specific fields
+    const effectiveItemType = (updates.itemType !== undefined ? updates.itemType : oldPl.itemType) as string | null;
+    if (effectiveItemType === "VD") {
+      const effectiveUvamId = updates.uvamItemId !== undefined ? updates.uvamItemId : (oldPl as Record<string, unknown>).uvamItemId;
+      if (!effectiveUvamId) {
+        console.warn(`[pl.update] Advisory: VD item ${oldPl.plNumber} updated without uvamItemId`);
+      }
+    }
+    if (effectiveItemType === "NVD") {
+      const effectiveEcText = updates.eligibilityCriteriaText !== undefined ? updates.eligibilityCriteriaText : (oldPl as Record<string, unknown>).eligibilityCriteriaText;
+      const effectiveEcDoc = updates.eligibilityCriteriaDocId !== undefined ? updates.eligibilityCriteriaDocId : (oldPl as Record<string, unknown>).eligibilityCriteriaDocId;
+      if (!effectiveEcText && !effectiveEcDoc) {
+        console.warn(`[pl.update] Advisory: NVD item ${oldPl.plNumber} updated without eligibility criteria`);
+      }
+    }
 
     const [updated] = await db
       .update(plNumbers)
@@ -763,7 +812,7 @@ export const plRouter = router({
       }
       if (input.category) {
         conditions.push(
-          eq(documents.category, input.category as "DRAWING" | "SPECIFICATION" | "ELIGIBILITY_CRITERIA" | "INSPECTION_REPORT" | "TEST_CERTIFICATE" | "MATERIAL_CERTIFICATE" | "PROCEDURE" | "WORK_ORDER" | "CORRESPONDENCE" | "MANUAL" | "OTHER"),
+          eq(documents.category, input.category as "DRAWING" | "SPECIFICATION" | "ELIGIBILITY_CRITERIA" | "INSPECTION_REPORT" | "TEST_CERTIFICATE" | "MATERIAL_CERTIFICATE" | "PROCEDURE" | "WORK_ORDER" | "CORRESPONDENCE" | "MANUAL" | "OTHER" | "STR" | "EC" | "SOS" | "SOR" | "QAP" | "SET_LIST" | "GAD" | "WIRING_DIAGRAM" | "BOM_DOCUMENT" | "VENDOR_DOCUMENT"),
         );
       }
 
@@ -1131,7 +1180,37 @@ export const plRouter = router({
       return results;
     }),
 
-  // --- 21. pl.bulkImport ---
+  // --- 21. pl.searchDocumentsForLinking ---
+  searchDocumentsForLinking: protectedProcedure
+    .input(searchDocumentsForLinkingSchema)
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+      const searchTerm = `%${input.query.trim()}%`;
+
+      const results = await db
+        .select({
+          id: documents.id,
+          documentNumber: documents.documentNumber,
+          title: documents.title,
+          category: documents.category,
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
+            or(
+              ilike(documents.documentNumber, searchTerm),
+              ilike(documents.title, searchTerm),
+            ),
+          ),
+        )
+        .limit(input.limit);
+
+      return results;
+    }),
+
+  // --- 22. pl.bulkImport ---
   bulkImport: engineerProcedure.input(plBulkImportSchema).mutation(async ({ input, ctx }) => {
     const workspaceId = requireWorkspaceId(ctx);
     const userId = ctx.session.user.id;

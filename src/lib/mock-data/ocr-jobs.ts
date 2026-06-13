@@ -12,6 +12,8 @@ function makeStructuredOutput(overrides: Partial<OcrStructuredOutput> = {}): Ocr
     title: null,
     revision: null,
     plNumbers: [],
+    rdsoSpecs: [],
+    locoNumbers: [],
     sheetInfo: null,
     scale: null,
     date: null,

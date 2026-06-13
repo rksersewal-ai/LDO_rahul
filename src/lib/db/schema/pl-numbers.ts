@@ -1,13 +1,16 @@
 import {
   boolean,
   index,
+  integer,
   pgEnum,
   pgTable,
+  real,
   text,
   timestamp,
   unique,
   varchar,
 } from "drizzle-orm/pg-core";
+import { documents } from "./documents";
 
 export const plCategoryEnum = pgEnum("pl_category", ["CAT-A", "CAT-B", "CAT-C", "CAT-D"]);
 
@@ -43,6 +46,15 @@ export const plRelationTypeEnum = pgEnum("pl_relation_type", [
   "related_to",
 ]);
 
+export const plItemTypeEnum = pgEnum("pl_item_type", ["VD", "NVD"]);
+
+export const inspectionAgencyEnum = pgEnum("inspection_agency", [
+  "RDSO",
+  "ZONAL",
+  "WORKSHOP",
+  "STORES",
+]);
+
 export const plNumbers = pgTable(
   "pl_numbers",
   {
@@ -62,6 +74,18 @@ export const plNumbers = pgTable(
     vendorCode: varchar("vendor_code", { length: 128 }),
     partFamily: varchar("part_family", { length: 128 }),
     lifecycleStage: plLifecycleStageEnum("lifecycle_stage").default("active"),
+    // Railway-specific fields
+    itemType: plItemTypeEnum("item_type"),
+    uvamItemId: varchar("uvam_item_id", { length: 64 }),
+    eligibilityCriteriaText: text("eligibility_criteria_text"),
+    eligibilityCriteriaDocId: text("eligibility_criteria_doc_id").references(() => documents.id),
+    strDocId: text("str_doc_id").references(() => documents.id),
+    qapDocId: text("qap_doc_id").references(() => documents.id),
+    inspectionAgency: inspectionAgencyEnum("inspection_agency"),
+    unitOfMeasurement: varchar("unit_of_measurement", { length: 16 }),
+    shelfLifeMonths: integer("shelf_life_months"),
+    lastProcurementRate: real("last_procurement_rate"),
+    lastProcurementDate: timestamp("last_procurement_date", { withTimezone: true }),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     metadataJson: text("metadata_json"),
     createdBy: text("created_by"),

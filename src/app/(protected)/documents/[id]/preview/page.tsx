@@ -9,6 +9,7 @@ import {
   FileImage,
   FileText,
   Fingerprint,
+  Loader2,
   Minimize2,
   RefreshCw,
   ShieldCheck,
@@ -17,6 +18,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
@@ -100,6 +102,7 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const router = useRouter();
   const [minimized, setMinimized] = useState(false);
+  const [isReindexing, setIsReindexing] = useState(false);
 
   const doc = MOCK_DOCUMENTS.find((d) => d.id === id);
 
@@ -443,9 +446,26 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
 
                     {/* Reindex button */}
                     <div className="mt-3 border-t border-border pt-3">
-                      <Button size="sm" variant="secondary" className="w-full">
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        Reindex
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="w-full"
+                        disabled={isReindexing}
+                        onClick={() => {
+                          setIsReindexing(true);
+                          // In production: trpc.ocr.retrigger.mutate({ documentId: id })
+                          setTimeout(() => {
+                            setIsReindexing(false);
+                            toast.success("OCR reindex queued successfully");
+                          }, 1200);
+                        }}
+                      >
+                        {isReindexing ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        )}
+                        {isReindexing ? "Reindexing..." : "Reindex"}
                       </Button>
                     </div>
                   </div>

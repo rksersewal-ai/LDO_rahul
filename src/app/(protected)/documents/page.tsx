@@ -21,17 +21,16 @@ import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
 
 const VIEW_MODE_KEY = "doc-hub-view-mode";
 
-function getInitialViewMode(): ViewMode {
-  if (typeof window === "undefined") return "list";
-  const stored = localStorage.getItem(VIEW_MODE_KEY);
-  if (stored === "grid" || stored === "list") return stored;
-  return "list";
-}
-
 export default function DocumentHubPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const bulkUploadEnabled = useFeatureFlag("bulk_upload");
   const [loadError, setLoadError] = useState<Error | null>(null);
+
+  // Hydration-safe: read localStorage only on client after first render
+  useEffect(() => {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    if (stored === "grid" || stored === "list") setViewMode(stored);
+  }, []);
   const [filters, setFilters] = useState<DocumentFilterState>({
     search: "",
     category: "",
@@ -124,7 +123,12 @@ export default function DocumentHubPage() {
           subtitle="Centralized document repository with OCR intelligence"
           actions={
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => window.location.reload()}
+              >
                 <RefreshCw className="h-3 w-3" />
                 Refresh
               </Button>

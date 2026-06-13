@@ -36,6 +36,13 @@
       "when": 1781262532600,
       "tag": "0004_dedup_scan_history",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781262532700,
+      "tag": "0005_railway_domain_enrichment",
+      "breakpoints": true
     }
   ]
 }

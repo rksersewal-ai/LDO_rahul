@@ -1,8 +1,10 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { FileText, Flag, MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -182,8 +184,112 @@ interface PlTableProps {
   className?: string;
 }
 
+/** Threshold above which virtual scrolling is used for performance */
+const VIRTUAL_SCROLL_THRESHOLD = 100;
+const VIRTUAL_ROW_HEIGHT = 38;
+const VIRTUAL_CONTAINER_HEIGHT = 600;
+
 export function PlTable({ data, className }: PlTableProps) {
   const router = useRouter();
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: data.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => VIRTUAL_ROW_HEIGHT,
+    overscan: 10,
+  });
+
+  const useVirtual = data.length > VIRTUAL_SCROLL_THRESHOLD;
+
+  if (useVirtual) {
+    return (
+      <div className={className}>
+        <div
+          ref={parentRef}
+          className="overflow-auto rounded-md border"
+          style={{ height: `${VIRTUAL_CONTAINER_HEIGHT}px` }}
+        >
+          {/* Table header */}
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+              <tr className="border-b">
+                <th className="px-2 py-1.5 text-left font-medium w-[110px]">PL Number</th>
+                <th className="px-2 py-1.5 text-left font-medium w-[240px]">Name</th>
+                <th className="px-2 py-1.5 text-left font-medium w-[90px]">Category</th>
+                <th className="px-2 py-1.5 text-left font-medium w-[120px]">Status</th>
+                <th className="px-2 py-1.5 text-left font-medium w-[70px]">Safety</th>
+                <th className="px-2 py-1.5 text-left font-medium w-[140px]">Workshop</th>
+              </tr>
+            </thead>
+          </table>
+          {/* Virtualized body */}
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const row = data[virtualRow.index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  className="absolute left-0 w-full flex items-center border-b cursor-pointer hover:bg-muted/50 transition-colors"
+                  style={{
+                    top: 0,
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  onClick={() => router.push(`/pl/${row.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") router.push(`/pl/${row.id}`);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span className="px-2 font-mono text-xs font-medium w-[110px] truncate">
+                    {row.plNumber}
+                  </span>
+                  <span className="px-2 text-xs font-medium w-[240px] truncate">
+                    {row.name}
+                  </span>
+                  <span className="px-2 w-[90px]">
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px] font-semibold", getCategoryBadgeClass(row.category))}
+                    >
+                      {row.category}
+                    </Badge>
+                  </span>
+                  <span className="px-2 w-[120px]">
+                    <StatusBadge
+                      status={mapPlStatus(row.status)}
+                      label={row.status.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    />
+                  </span>
+                  <span className="px-2 w-[70px]">
+                    {row.safetyCritical ? (
+                      <Flag className="h-3.5 w-3.5 text-destructive fill-destructive/20" />
+                    ) : (
+                      <span className="text-muted-foreground text-xs">-</span>
+                    )}
+                  </span>
+                  <span className="px-2 text-xs text-muted-foreground w-[140px] truncate">
+                    {row.workshop ?? "-"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Showing {data.length} items (virtual scrolling enabled)
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div

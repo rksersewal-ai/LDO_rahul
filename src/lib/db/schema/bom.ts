@@ -1,5 +1,20 @@
-import { boolean, index, integer, pgTable, real, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgEnum, pgTable, real, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { plNumbers } from "./pl-numbers";
+
+export const bomProductTypeEnum = pgEnum("bom_product_type", [
+  "locomotive",
+  "coach",
+  "emu",
+  "assembly",
+  "sub_assembly",
+  "component",
+]);
+
+export const bomGaugeEnum = pgEnum("bom_gauge", [
+  "broad_gauge",
+  "metre_gauge",
+  "narrow_gauge",
+]);
 
 export const bomProducts = pgTable(
   "bom_products",
@@ -17,6 +32,10 @@ export const bomProducts = pgTable(
     lockedAt: timestamp("locked_at", { withTimezone: true }),
     lockedBy: text("locked_by"),
     cloneSourceId: text("clone_source_id"),
+    productType: bomProductTypeEnum("product_type"),
+    baseProductId: text("base_product_id"),
+    variantNotes: text("variant_notes"),
+    gauge: bomGaugeEnum("gauge"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
