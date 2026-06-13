@@ -1,7 +1,10 @@
 "use client";
 
-import { AlertTriangle, Info, X, XCircle } from "lucide-react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
+import { X } from "lucide-react";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 export interface BannerItem {
@@ -10,34 +13,36 @@ export interface BannerItem {
   message: string;
   actionLabel?: string;
   actionHref?: string;
+  targetRoles?: string[];
 }
 
-const bannerStyles: Record<BannerItem["type"], string> = {
-  info: "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-200",
+const tickerStyles: Record<BannerItem["type"], string> = {
+  info: "bg-[oklch(0.95_0.02_250)] text-[oklch(0.35_0.08_250)] dark:bg-[oklch(0.25_0.04_250)] dark:text-[oklch(0.85_0.06_250)]",
   warning:
-    "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/50 dark:border-amber-800 dark:text-amber-200",
+    "bg-[oklch(0.95_0.04_85)] text-[oklch(0.35_0.1_85)] dark:bg-[oklch(0.25_0.04_85)] dark:text-[oklch(0.85_0.08_85)]",
   critical:
-    "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/50 dark:border-red-800 dark:text-red-200",
+    "bg-[oklch(0.93_0.04_25)] text-[oklch(0.35_0.12_25)] dark:bg-[oklch(0.25_0.06_25)] dark:text-[oklch(0.85_0.08_25)]",
 };
 
-const bannerIcons: Record<BannerItem["type"], React.ComponentType<{ className?: string }>> = {
-  info: Info,
-  warning: AlertTriangle,
-  critical: XCircle,
-};
+const SEPARATOR = " \u2022 ";
 
 export function SystemBanner() {
-  const [banners, setBanners] = useState<BannerItem[]>([]);
+  const { data: session } = useSession();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
+  const { data: banners = [] } = trpc.settings.getActiveBanners.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+
   useEffect(() => {
-    // Load dismissed banners from session storage
     const stored = sessionStorage.getItem("dismissed-banners");
     if (stored) {
-      setDismissed(new Set(JSON.parse(stored)));
+      try {
+        setDismissed(new Set(JSON.parse(stored)));
+      } catch {
+        // Ignore corrupted sessionStorage
+      }
     }
-    // No mock banners - will be wired to admin banners tRPC query when available
-    setBanners([]);
   }, []);
 
   const dismissBanner = useCallback(
@@ -50,43 +55,73 @@ export function SystemBanner() {
     [dismissed],
   );
 
-  const visibleBanners = banners.filter((b) => !dismissed.has(b.id));
+  // Filter by dismissed and targetRoles
+  const userRole = (session?.user?.role as string) ?? "";
+  const visibleBanners = banners.filter((b: BannerItem) => {
+    if (dismissed.has(b.id)) return false;
+    if (b.targetRoles && b.targetRoles.length > 0) {
+      if (!userRole || !b.targetRoles.includes(userRole)) return false;
+    }
+    return true;
+  });
 
   if (visibleBanners.length === 0) return null;
 
+  // Determine the dominant type for styling (critical > warning > info)
+  const dominantType: BannerItem["type"] = visibleBanners.some((b: BannerItem) => b.type === "critical")
+    ? "critical"
+    : visibleBanners.some((b: BannerItem) => b.type === "warning")
+      ? "warning"
+      : "info";
+
+  // Build ticker content: concatenate messages with separator dots
+  const tickerSegments = visibleBanners.map((b: BannerItem) => ({
+    id: b.id,
+    message: b.message,
+    actionHref: b.actionHref,
+    actionLabel: b.actionLabel,
+  }));
+
   return (
-    <div className="flex flex-col">
-      {visibleBanners.map((banner) => {
-        const Icon = bannerIcons[banner.type];
-        return (
-          <div
-            key={banner.id}
-            className={cn(
-              "flex items-center gap-2 px-4 py-1.5 text-xs border-b",
-              bannerStyles[banner.type],
-            )}
-          >
-            <Icon className="size-3.5 shrink-0" />
-            <span className="flex-1 truncate">{banner.message}</span>
-            {banner.actionLabel && banner.actionHref && (
-              <a
-                href={banner.actionHref}
-                className="font-medium underline underline-offset-2 hover:no-underline shrink-0"
-              >
-                {banner.actionLabel}
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={() => dismissBanner(banner.id)}
-              className="shrink-0 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-              aria-label="Dismiss banner"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-        );
-      })}
+    <div
+      className={cn(
+        "relative flex items-center h-7 w-full overflow-hidden text-xs font-medium border-b",
+        tickerStyles[dominantType],
+      )}
+    >
+      {/* Scrolling ticker content */}
+      <div className="flex-1 overflow-hidden h-full flex items-center group">
+        <div className="animate-marquee whitespace-nowrap group-hover:[animation-play-state:paused]">
+          {tickerSegments.map((segment, idx) => (
+            <span key={segment.id} className="inline">
+              {idx > 0 && <span className="mx-2 opacity-50">{SEPARATOR}</span>}
+              {segment.actionHref ? (
+                <Link
+                  href={segment.actionHref}
+                  className="hover:underline underline-offset-2"
+                >
+                  {segment.message}
+                  {segment.actionLabel && (
+                    <span className="ml-1 font-semibold">[{segment.actionLabel}]</span>
+                  )}
+                </Link>
+              ) : (
+                <span>{segment.message}</span>
+              )}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Dismiss button for all visible banners */}
+      <button
+        type="button"
+        onClick={() => visibleBanners.forEach((b: BannerItem) => dismissBanner(b.id))}
+        className="shrink-0 mr-2 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+        aria-label="Dismiss all banners"
+      >
+        <X className="size-3.5" />
+      </button>
     </div>
   );
 }
