@@ -56,8 +56,9 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
       pageCount = data.numpages;
 
       if (extractedText.length <= 100) {
-        // Image-only PDF - use tesseract for OCR
-        const ocrResult = await recognizeImage(fileBuffer, mimeType);
+        // Image-only PDF - render first page to PNG then OCR
+        const pngBuffer = await sharp(fileBuffer, { page: 0 }).png().toBuffer();
+        const ocrResult = await recognizeImage(pngBuffer, "image/png");
         if (ocrResult.text.length > 0) {
           extractedText = ocrResult.text;
           confidence = ocrResult.confidence;

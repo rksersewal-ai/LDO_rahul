@@ -337,10 +337,13 @@ export const dedupRouter = router({
   /**
    * Get scan history for admin dashboard (most recent 20 scans).
    */
-  getScanHistory: adminProcedure.query(async () => {
+  getScanHistory: adminProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+
     const history = await db
       .select()
       .from(dedupScanHistory)
+      .where(eq(dedupScanHistory.workspaceId, workspaceId))
       .orderBy(desc(dedupScanHistory.startedAt))
       .limit(20);
 
@@ -422,23 +425,14 @@ export const dedupRouter = router({
             updatedBy: userId,
             updatedAt: now,
           })
-          .onConflictDoNothing()
-          .then(async () => {
-            // Upsert: if conflict, update value
-            await db
-              .update(settings)
-              .set({
-                value: update.value,
-                dataType: update.dataType,
-                updatedBy: userId,
-                updatedAt: now,
-              })
-              .where(
-                and(
-                  eq(settings.scope, "system"),
-                  eq(settings.key, update.key),
-                ),
-              );
+          .onConflictDoUpdate({
+            target: [settings.scope, settings.scopeId, settings.key],
+            set: {
+              value: update.value,
+              dataType: update.dataType,
+              updatedBy: userId,
+              updatedAt: now,
+            },
           });
 
         await createAuditEntry(db, {

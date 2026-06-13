@@ -119,16 +119,30 @@ export async function deleteFile(path: string): Promise<void> {
 
 /**
  * Check if a file exists at the given path.
+ * Does NOT retry on ENOENT (file not found is a definitive answer).
+ * Only retries on transient I/O errors.
  */
 export async function fileExists(path: string): Promise<boolean> {
-  return withRetry(async () => {
-    try {
-      await stat(path);
-      return true;
-    } catch {
+  try {
+    await stat(path);
+    return true;
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "code" in error && (error as { code: string }).code === "ENOENT") {
       return false;
     }
-  }, `fileExists(${path})`);
+    // Transient I/O error - retry
+    return withRetry(async () => {
+      try {
+        await stat(path);
+        return true;
+      } catch (retryError: unknown) {
+        if (retryError && typeof retryError === "object" && "code" in retryError && (retryError as { code: string }).code === "ENOENT") {
+          return false;
+        }
+        throw retryError;
+      }
+    }, `fileExists(${path})`);
+  }
 }
 
 /**
