@@ -9,7 +9,16 @@ interface RateLimitEntry {
   resetAt: number;
 }
 
-/** In-memory sliding window rate limiter keyed by userId. */
+/**
+ * In-memory sliding window rate limiter keyed by userId.
+ *
+ * NOTE: This store is per-process only. In multi-replica deployments (PM2 cluster,
+ * multiple Kubernetes pods, serverless instances), each process maintains its own
+ * independent counter, allowing up to MAX_REQUESTS * N requests per window where N
+ * is the number of processes. For production multi-replica deployments, replace this
+ * Map with a Redis-backed store (e.g., using ioredis with INCR + EXPIRE) to enforce
+ * global rate limits across all instances.
+ */
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
 // Periodic cleanup of expired entries

@@ -171,6 +171,15 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     onError: (err) => toast.error(err.message),
   });
 
+  const rejectMutation = trpc.documents.reject.useMutation({
+    onSuccess: () => {
+      toast.success("Document rejected and returned to draft");
+      setRejectDialogOpen(false);
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const linkPlMutation = trpc.documents.linkPL.useMutation({
     onSuccess: () => {
       toast.success("PL linked successfully");
@@ -258,13 +267,10 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   function handleReject() {
     setIsRejecting(true);
-    // Use update to set status back to draft (reject)
-    setTimeout(() => {
-      setIsRejecting(false);
-      setRejectDialogOpen(false);
-      toast.success(`Document ${doc!.documentNumber} rejected and returned to draft`);
-      refetch();
-    }, 800);
+    rejectMutation.mutate(
+      { id: doc!.id },
+      { onSettled: () => setIsRejecting(false) },
+    );
   }
 
   function handleDelete() {

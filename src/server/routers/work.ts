@@ -6,6 +6,7 @@ import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
 import { workRecords } from "@/lib/db/schema";
 import { sanitizeUserInput } from "@/lib/security/sanitize";
+import { escapeLikePattern } from "@/lib/utils/escape-like";
 import {
   createWorkRecordSchema,
   getKPIsSchema,
@@ -35,11 +36,12 @@ export const workRouter = router({
     const conditions = [eq(workRecords.workspaceId, workspaceId)];
 
     if (input.search) {
+      const escaped = escapeLikePattern(input.search);
       conditions.push(
         or(
-          ilike(workRecords.title, `%${input.search}%`),
-          ilike(workRecords.workOrderNumber, `%${input.search}%`),
-          ilike(workRecords.description, `%${input.search}%`),
+          ilike(workRecords.title, `%${escaped}%`),
+          ilike(workRecords.workOrderNumber, `%${escaped}%`),
+          ilike(workRecords.description, `%${escaped}%`),
         )!,
       );
     }

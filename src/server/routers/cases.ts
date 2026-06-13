@@ -5,6 +5,8 @@ import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
 import { cases } from "@/lib/db/schema";
+import { sanitizeUserInput } from "@/lib/security/sanitize";
+import { escapeLikePattern } from "@/lib/utils/escape-like";
 import {
   assignCaseSchema,
   caseListSchema,
@@ -77,7 +79,14 @@ function mapCaseToFrontend(row: typeof cases.$inferSelect) {
     plNumber: row.relatedPlId ?? null,
     vendorName: row.vendorName ?? null,
     tenderNumber: row.tenderNumber ?? null,
-    linkedDocumentIds: row.linkedDocumentIds ? JSON.parse(row.linkedDocumentIds) : [],
+    linkedDocumentIds: (() => {
+      if (!row.linkedDocumentIds) return [];
+      try {
+        return JSON.parse(row.linkedDocumentIds);
+      } catch {
+        return [];
+      }
+    })(),
     resolution: row.resolution ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -109,11 +118,12 @@ export const casesRouter = router({
     }
 
     if (input.search) {
+      const escaped = escapeLikePattern(input.search);
       conditions.push(
         or(
-          ilike(cases.title, `%${input.search}%`),
-          ilike(cases.caseNumber, `%${input.search}%`),
-          ilike(cases.description, `%${input.search}%`),
+          ilike(cases.title, `%${escaped}%`),
+          ilike(cases.caseNumber, `%${escaped}%`),
+          ilike(cases.description, `%${escaped}%`),
         )!,
       );
     }
@@ -179,8 +189,8 @@ export const casesRouter = router({
         id,
         workspaceId,
         caseNumber,
-        title: input.title,
-        description: input.description,
+        title: sanitizeUserInput(input.title),
+        description: sanitizeUserInput(input.description),
         status: "open",
         priority: mapSeverityToDbPriority(input.severity),
         type: input.type,
@@ -229,8 +239,8 @@ export const casesRouter = router({
 
     const updateValues: Record<string, unknown> = { updatedBy: userId, updatedAt: new Date() };
 
-    if (input.title !== undefined) updateValues.title = input.title;
-    if (input.description !== undefined) updateValues.description = input.description;
+    if (input.title !== undefined) updateValues.title = sanitizeUserInput(input.title);
+    if (input.description !== undefined) updateValues.description = sanitizeUserInput(input.description);
     if (input.type !== undefined) updateValues.type = input.type;
     if (input.severity !== undefined) {
       updateValues.severity = input.severity;

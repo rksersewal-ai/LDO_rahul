@@ -1010,26 +1010,106 @@ export const adminRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const banners = await getSettingValue<Banner[]>(BANNERS_KEY, MOCK_BANNERS);
-      const newBanner: Banner = {
-        id: `banner-${Date.now()}`,
-        ...input,
-        createdBy: userName,
-        createdAt: new Date().toISOString(),
-      };
-      banners.push(newBanner);
-      await upsertSettingValue(BANNERS_KEY, banners, userId);
+
+      const newBanner: Banner = await db.transaction(async (tx) => {
+        // Lock the settings row to prevent concurrent read-modify-write races
+        const [locked] = await tx
+          .select()
+          .from(settingsTable)
+          .where(
+            and(
+              eq(settingsTable.scope, "system"),
+              eq(settingsTable.key, BANNERS_KEY),
+            ),
+          )
+          .for("update");
+
+        let banners: Banner[];
+        if (locked) {
+          try {
+            banners = JSON.parse(locked.value) as Banner[];
+          } catch {
+            banners = [...MOCK_BANNERS];
+          }
+        } else {
+          banners = [...MOCK_BANNERS];
+        }
+
+        const banner: Banner = {
+          id: `banner-${Date.now()}`,
+          ...input,
+          createdBy: userName,
+          createdAt: new Date().toISOString(),
+        };
+        banners.push(banner);
+
+        const jsonValue = JSON.stringify(banners);
+        if (locked) {
+          await tx
+            .update(settingsTable)
+            .set({ value: jsonValue, updatedBy: userId, updatedAt: new Date() })
+            .where(eq(settingsTable.id, locked.id));
+        } else {
+          const { nanoid } = await import("nanoid");
+          await tx.insert(settingsTable).values({
+            id: nanoid(),
+            scope: "system",
+            scopeId: null,
+            key: BANNERS_KEY,
+            value: jsonValue,
+            dataType: "json",
+            updatedBy: userId,
+            updatedAt: new Date(),
+          });
+        }
+
+        return banner;
+      });
+
       return newBanner;
     }),
 
   deleteBanner: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
     const userId = ctx.session.user?.id ?? "system";
-    const banners = await getSettingValue<Banner[]>(BANNERS_KEY, MOCK_BANNERS);
-    const idx = banners.findIndex((b) => b.id === input.id);
-    if (idx === -1) return null;
-    const removed = banners.splice(idx, 1);
-    await upsertSettingValue(BANNERS_KEY, banners, userId);
-    return removed[0];
+
+    const removed = await db.transaction(async (tx) => {
+      // Lock the settings row to prevent concurrent read-modify-write races
+      const [locked] = await tx
+        .select()
+        .from(settingsTable)
+        .where(
+          and(
+            eq(settingsTable.scope, "system"),
+            eq(settingsTable.key, BANNERS_KEY),
+          ),
+        )
+        .for("update");
+
+      let banners: Banner[];
+      if (locked) {
+        try {
+          banners = JSON.parse(locked.value) as Banner[];
+        } catch {
+          banners = [...MOCK_BANNERS];
+        }
+      } else {
+        return null;
+      }
+
+      const idx = banners.findIndex((b) => b.id === input.id);
+      if (idx === -1) return null;
+      const [removedBanner] = banners.splice(idx, 1);
+
+      const jsonValue = JSON.stringify(banners);
+      await tx
+        .update(settingsTable)
+        .set({ value: jsonValue, updatedBy: userId, updatedAt: new Date() })
+        .where(eq(settingsTable.id, locked.id));
+
+      return removedBanner;
+    });
+
+    return removed;
   }),
 
   // --- Feature Toggles (DB-backed via settings table) ---

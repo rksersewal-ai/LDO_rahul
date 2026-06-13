@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
+import { sql } from "drizzle-orm";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,16 +56,9 @@ export async function GET(_request: NextRequest) {
 async function checkDatabase(): Promise<ServiceCheck> {
   const start = performance.now();
   try {
-    const connectionString =
-      process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
-    const pool = new Pool({
-      connectionString,
-      connectionTimeoutMillis: 5000,
-      max: 1,
-    });
-    await pool.query("SELECT 1");
+    // Use the app's shared database pool to avoid creating a new connection per request
+    await db.execute(sql`SELECT 1`);
     const latencyMs = Math.round(performance.now() - start);
-    await pool.end();
     return { name: "database", status: "healthy", latencyMs };
   } catch (error) {
     const latencyMs = Math.round(performance.now() - start);

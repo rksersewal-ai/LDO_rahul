@@ -13,6 +13,8 @@ import {
   plNumbers,
   recordDeclarations,
 } from "@/lib/db/schema";
+import { sanitizeUserInput } from "@/lib/security/sanitize";
+import { escapeLikePattern } from "@/lib/utils/escape-like";
 import {
   approveDocumentSchema,
   bulkActionSchema,
@@ -45,11 +47,12 @@ export const documentsRouter = router({
     ];
 
     if (input.search) {
+      const escaped = escapeLikePattern(input.search);
       conditions.push(
         or(
-          ilike(documents.documentNumber, `%${input.search}%`),
-          ilike(documents.title, `%${input.search}%`),
-          ilike(documents.tags, `%${input.search}%`),
+          ilike(documents.documentNumber, `%${escaped}%`),
+          ilike(documents.title, `%${escaped}%`),
+          ilike(documents.tags, `%${escaped}%`),
         )!,
       );
     }
@@ -164,7 +167,7 @@ export const documentsRouter = router({
       .values({
         id,
         documentNumber: input.documentNumber,
-        title: input.title,
+        title: sanitizeUserInput(input.title),
         category: input.category as typeof documents.category.enumValues[number],
         status: "draft",
         revision: input.revision || "A",
@@ -229,7 +232,7 @@ export const documentsRouter = router({
       updatedAt: new Date(),
     };
 
-    if (input.title !== undefined) updateData.title = input.title;
+    if (input.title !== undefined) updateData.title = sanitizeUserInput(input.title);
     if (input.category !== undefined) updateData.category = input.category;
     if (input.status !== undefined) updateData.status = input.status.toLowerCase();
     if (input.revision !== undefined) updateData.revision = input.revision;
@@ -444,6 +447,52 @@ export const documentsRouter = router({
 
     return updated;
   }),
+
+  reject: supervisorProcedure
+    .input(z.object({ id: z.string(), reason: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+      const userId = ctx.session.user?.id ?? "unknown";
+      const userName = ctx.session.user?.name ?? "Unknown User";
+
+      const [current] = await db
+        .select()
+        .from(documents)
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
+          ),
+        );
+
+      if (!current) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+      }
+
+      const [updated] = await db
+        .update(documents)
+        .set({
+          status: "draft",
+          updatedBy: userId,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)))
+        .returning();
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "document.reject",
+        resourceType: "document",
+        resourceId: input.id,
+        resourceTitle: updated.title,
+        details: input.reason ?? "Document rejected and returned to draft",
+        workspaceId,
+      });
+
+      return updated;
+    }),
 
   checkDuplicate: protectedProcedure
     .input(z.object({ fileHash: z.string() }))

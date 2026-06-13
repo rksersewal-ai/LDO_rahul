@@ -87,7 +87,12 @@ export default function WorkLedgerPage() {
 
   const filteredRecords = useMemo(() => {
     if (categoryFilter === "all") return records;
-    return records.filter((r: Record<string, unknown>) => (r.title as string)?.includes(categoryFilter));
+    // Filter by section field which maps to work category in the DB
+    return records.filter((r: Record<string, unknown>) => {
+      const section = (r.section as string) ?? "";
+      return section.toUpperCase() === categoryFilter.toUpperCase()
+        || section.toUpperCase().startsWith(categoryFilter.toUpperCase());
+    });
   }, [records, categoryFilter]);
 
   // KPI calculations from real data
