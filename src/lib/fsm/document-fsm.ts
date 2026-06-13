@@ -35,7 +35,7 @@ const TRANSITIONS: Record<DocumentStatus, DocumentStatus[]> = {
 /**
  * Transitions that require supervisor role or higher.
  */
-const SUPERVISOR_ONLY_TARGETS: DocumentStatus[] = ["archived"];
+const SUPERVISOR_ONLY_TARGETS: DocumentStatus[] = ["archived", "rejected"];
 
 /**
  * User-friendly labels for transition targets (used by UI).

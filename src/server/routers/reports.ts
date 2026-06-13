@@ -243,6 +243,10 @@ async function generateOcrSuccessRate(
   return { headers, rows };
 }
 
+/**
+ * Date range filters by PL creation date. Shows coverage status of PLs
+ * created within the specified period.
+ */
 async function generatePlCoverage(
   workspaceId: string,
   _dateFrom?: string,
@@ -305,11 +309,26 @@ async function generateWorkLedgerSummary(
 
 async function generateOverdueAnalysis(
   workspaceId: string,
-  _dateFrom?: string,
-  _dateTo?: string,
+  dateFrom?: string,
+  dateTo?: string,
 ): Promise<{ headers: string[]; rows: ReportRow[] }> {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // Use dateTo as the reference date (defaults to now if not provided).
+  // Documents in draft/pending_review created more than 30 days before the
+  // reference date are considered overdue.
+  const referenceDate = dateTo ? new Date(dateTo) : new Date();
+  const thirtyDaysBeforeRef = new Date(referenceDate);
+  thirtyDaysBeforeRef.setDate(thirtyDaysBeforeRef.getDate() - 30);
+
+  const filters = [
+    eq(documents.workspaceId, workspaceId),
+    sql`${documents.status} in ('draft', 'pending_review')`,
+    lte(documents.createdAt, thirtyDaysBeforeRef),
+  ];
+
+  // If dateFrom is provided, only include documents created after dateFrom
+  if (dateFrom) {
+    filters.push(gte(documents.createdAt, new Date(dateFrom)));
+  }
 
   const overdueDocuments = await db
     .select({
@@ -320,13 +339,7 @@ async function generateOverdueAnalysis(
       createdAt: documents.createdAt,
     })
     .from(documents)
-    .where(
-      and(
-        eq(documents.workspaceId, workspaceId),
-        sql`${documents.status} in ('draft', 'pending_review')`,
-        lte(documents.createdAt, thirtyDaysAgo),
-      ),
-    );
+    .where(and(...filters));
 
   const headers = ["ID", "Document Number", "Title", "Status", "Created At"];
   const rows: ReportRow[] = overdueDocuments.map((d) => ({

@@ -13,9 +13,9 @@ describe("document-fsm", () => {
       expect(result).toEqual(["under_review"]);
     });
 
-    it("returns [approved, rejected] for under_review status (engineer)", () => {
+    it("returns [approved] for under_review status (engineer, no rejected/archived)", () => {
       const result = getValidTransitions("under_review", "engineer");
-      expect(result).toEqual(["approved", "rejected"]);
+      expect(result).toEqual(["approved"]);
     });
 
     it("returns [superseded] for approved status (engineer, no archived)", () => {
@@ -45,6 +45,13 @@ describe("document-fsm", () => {
         const result = getValidTransitions(status, "supervisor");
         expect(result).toContain("archived");
       }
+    });
+
+    it("supervisor can see rejected for under_review", () => {
+      const result = getValidTransitions("under_review", "supervisor");
+      expect(result).toContain("approved");
+      expect(result).toContain("rejected");
+      expect(result).toContain("archived");
     });
 
     it("does NOT add archived for engineer role", () => {
@@ -82,8 +89,12 @@ describe("document-fsm", () => {
       expect(canTransition("under_review", "approved", "engineer")).toBe(true);
     });
 
-    it("returns true for valid transition: under_review -> rejected", () => {
-      expect(canTransition("under_review", "rejected", "engineer")).toBe(true);
+    it("returns true for valid transition: under_review -> rejected (supervisor)", () => {
+      expect(canTransition("under_review", "rejected", "supervisor")).toBe(true);
+    });
+
+    it("returns false for engineer trying to reject", () => {
+      expect(canTransition("under_review", "rejected", "engineer")).toBe(false);
     });
 
     it("returns true for valid transition: approved -> superseded", () => {
@@ -124,11 +135,12 @@ describe("document-fsm", () => {
       expect(canTransition("rejected", "approved", "engineer")).toBe(false);
     });
 
-    it("rejected is only valid from under_review", () => {
-      expect(canTransition("under_review", "rejected", "engineer")).toBe(true);
-      expect(canTransition("draft", "rejected", "engineer")).toBe(false);
-      expect(canTransition("pending_review", "rejected", "engineer")).toBe(false);
-      expect(canTransition("approved", "rejected", "engineer")).toBe(false);
+    it("rejected is only valid from under_review (supervisor+ only)", () => {
+      expect(canTransition("under_review", "rejected", "supervisor")).toBe(true);
+      expect(canTransition("under_review", "rejected", "engineer")).toBe(false);
+      expect(canTransition("draft", "rejected", "supervisor")).toBe(false);
+      expect(canTransition("pending_review", "rejected", "supervisor")).toBe(false);
+      expect(canTransition("approved", "rejected", "supervisor")).toBe(false);
     });
   });
 
