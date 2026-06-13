@@ -13,7 +13,6 @@ import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
 import { cn } from "@/lib/utils";
 import { type UploadFormValues, uploadFormSchema } from "@/lib/validators/documents-form";
 
@@ -36,15 +35,14 @@ function simulateHashComputation(): DedupResult {
 
   // 10% chance of duplicate for demo
   const isDuplicate = Math.random() < 0.1;
-  const existingDoc = isDuplicate ? MOCK_DOCUMENTS[0] : undefined;
 
   return {
     fullHash: randomHash(),
     threePointHash: randomHash(),
     isDuplicate,
-    existingDocumentNumber: existingDoc?.documentNumber,
-    existingDocumentTitle: existingDoc?.title,
-    existingDocumentId: existingDoc?.id,
+    existingDocumentNumber: isDuplicate ? "DRG-2024-0001" : undefined,
+    existingDocumentTitle: isDuplicate ? "Existing Document (duplicate detected)" : undefined,
+    existingDocumentId: isDuplicate ? "duplicate-placeholder" : undefined,
   };
 }
 

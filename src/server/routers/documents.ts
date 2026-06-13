@@ -1,10 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
-import { documentCabinets, documentCategoryEnum, documents, documentTags, recordDeclarations } from "@/lib/db/schema";
+import {
+  documentCabinets,
+  documentCategoryEnum,
+  documentPlLinks,
+  documents,
+  documentTags,
+  plNumbers,
+  recordDeclarations,
+} from "@/lib/db/schema";
 import {
   approveDocumentSchema,
   bulkActionSchema,
@@ -14,15 +22,6 @@ import {
   updateDocumentSchema,
   uploadDocumentSchema,
 } from "@/lib/validators/documents";
-import {
-  createDocument,
-  deleteDocument,
-  getDocumentById,
-  linkDocumentToPl,
-  listDocuments,
-  unlinkDocumentFromPl,
-  updateDocument,
-} from "@/server/services/mock-db";
 import { engineerProcedure, protectedProcedure, router, supervisorProcedure } from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId: string | null } } }): string {
@@ -37,54 +36,235 @@ function requireWorkspaceId(ctx: { session: { user: { workspaceId: string | null
 }
 
 export const documentsRouter = router({
-  list: protectedProcedure.input(documentListSchema).query(({ input }) => {
-    return listDocuments(input);
+  list: protectedProcedure.input(documentListSchema).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+
+    const conditions = [
+      eq(documents.workspaceId, workspaceId),
+      eq(documents.isDeleted, 0),
+    ];
+
+    if (input.search) {
+      conditions.push(
+        or(
+          ilike(documents.documentNumber, `%${input.search}%`),
+          ilike(documents.title, `%${input.search}%`),
+          ilike(documents.tags, `%${input.search}%`),
+        )!,
+      );
+    }
+
+    if (input.category) {
+      const categoryLower = input.category.toLowerCase();
+      const validCategories = documentCategoryEnum.enumValues;
+      const matchedCategory = validCategories.find(
+        (c) => c.toLowerCase() === categoryLower || c === input.category,
+      );
+      if (matchedCategory) {
+        conditions.push(eq(documents.category, matchedCategory));
+      }
+    }
+
+    if (input.status) {
+      conditions.push(eq(documents.status, input.status.toLowerCase() as typeof documents.status.enumValues[number]));
+    }
+
+    if (input.ocrStatus) {
+      const ocrStatusLower = input.ocrStatus.toLowerCase();
+      conditions.push(eq(documents.ocrStatus, ocrStatusLower as typeof documents.ocrStatus.enumValues[number]));
+    }
+
+    if (input.fileType) {
+      conditions.push(ilike(documents.mimeType, `%${input.fileType}%`));
+    }
+
+    if (input.ownerId) {
+      conditions.push(eq(documents.createdBy, input.ownerId));
+    }
+
+    if (input.dateFrom) {
+      conditions.push(gte(documents.createdAt, new Date(input.dateFrom)));
+    }
+
+    if (input.dateTo) {
+      conditions.push(lte(documents.createdAt, new Date(input.dateTo)));
+    }
+
+    const whereClause = and(...conditions);
+
+    const sortColumnMap: Record<string, typeof documents.createdAt | typeof documents.updatedAt> = {
+      createdAt: documents.createdAt,
+      updatedAt: documents.updatedAt,
+      documentNumber: documents.documentNumber as never,
+      title: documents.title as never,
+      category: documents.category as never,
+      status: documents.status as never,
+    };
+
+    const sortCol = sortColumnMap[input.sortBy] ?? documents.createdAt;
+    const orderFn = input.sortOrder === "asc" ? asc : desc;
+
+    const [data, totalResult] = await Promise.all([
+      db
+        .select()
+        .from(documents)
+        .where(whereClause)
+        .orderBy(orderFn(sortCol))
+        .limit(input.limit)
+        .offset(input.offset),
+      db.select({ total: count() }).from(documents).where(whereClause),
+    ]);
+
+    return {
+      data,
+      total: totalResult[0]?.total ?? 0,
+      limit: input.limit,
+      offset: input.offset,
+    };
   }),
 
-  getById: protectedProcedure.input(z.object({ id: z.string() })).query(({ input }) => {
-    const doc = getDocumentById(input.id);
+  getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+
+    const [doc] = await db
+      .select()
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, input.id),
+          eq(documents.workspaceId, workspaceId),
+          eq(documents.isDeleted, 0),
+        ),
+      );
+
     if (!doc) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
-    return doc;
+
+    // Fetch linked PL IDs
+    const links = await db
+      .select({ plNumberId: documentPlLinks.plNumberId })
+      .from(documentPlLinks)
+      .where(eq(documentPlLinks.documentId, input.id));
+
+    const linkedPlIds = links.map((l) => l.plNumberId);
+
+    return { ...doc, linkedPlIds };
   }),
 
-  upload: engineerProcedure.input(uploadDocumentSchema).mutation(({ input, ctx }) => {
-    const newDoc = createDocument({
-      documentNumber: input.documentNumber,
-      title: input.title,
-      category: input.category,
-      status: "DRAFT",
-      revision: input.revision,
-      revisionDate: input.revisionDate || null,
-      agency: input.agency || "CLW",
-      fileType: "pdf",
-      fileSize: 0,
-      fileHash: null,
-      filePath: null,
-      pages: 1,
-      ownerId: ctx.session.user?.id || "unknown",
-      uploadedBy: ctx.session.user?.id || "unknown",
-      ocrStatus: "PENDING",
-      ocrConfidence: null,
-      ocrText: null,
-      tags: input.tags,
-      isLatest: true,
-      isDuplicate: false,
-      linkedPlIds: input.linkedPlIds,
+  upload: engineerProcedure.input(uploadDocumentSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
+    const id = randomUUID();
+
+    const [newDoc] = await db
+      .insert(documents)
+      .values({
+        id,
+        documentNumber: input.documentNumber,
+        title: input.title,
+        category: input.category as typeof documents.category.enumValues[number],
+        status: "draft",
+        revision: input.revision || "A",
+        revisionDate: input.revisionDate ? new Date(input.revisionDate) : null,
+        workshop: input.agency || null,
+        ocrStatus: "queued",
+        tags: input.tags.length > 0 ? input.tags.join(",") : null,
+        createdBy: userId,
+        updatedBy: userId,
+        workspaceId,
+      })
+      .returning();
+
+    // Create PL links if provided
+    if (input.linkedPlIds.length > 0) {
+      for (const plId of input.linkedPlIds) {
+        await db.insert(documentPlLinks).values({
+          id: randomUUID(),
+          documentId: id,
+          plNumberId: plId,
+          linkType: "manual",
+          linkedBy: userId,
+        });
+      }
+    }
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "document.create",
+      resourceType: "document",
+      resourceId: id,
+      resourceTitle: newDoc.title,
+      workspaceId,
     });
+
     return newDoc;
   }),
 
-  update: engineerProcedure.input(updateDocumentSchema).mutation(({ input }) => {
-    const updated = updateDocument(input.id, input);
-    if (!updated) {
+  update: engineerProcedure.input(updateDocumentSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
+    const [current] = await db
+      .select()
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, input.id),
+          eq(documents.workspaceId, workspaceId),
+          eq(documents.isDeleted, 0),
+        ),
+      );
+
+    if (!current) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
+
+    const updateData: Record<string, unknown> = {
+      updatedBy: userId,
+      updatedAt: new Date(),
+    };
+
+    if (input.title !== undefined) updateData.title = input.title;
+    if (input.category !== undefined) updateData.category = input.category;
+    if (input.status !== undefined) updateData.status = input.status.toLowerCase();
+    if (input.revision !== undefined) updateData.revision = input.revision;
+    if (input.revisionDate !== undefined) {
+      updateData.revisionDate = input.revisionDate ? new Date(input.revisionDate) : null;
+    }
+    if (input.agency !== undefined) updateData.workshop = input.agency;
+    if (input.tags !== undefined) updateData.tags = input.tags.join(",");
+
+    const [updated] = await db
+      .update(documents)
+      .set(updateData)
+      .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)))
+      .returning();
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "document.update",
+      resourceType: "document",
+      resourceId: input.id,
+      resourceTitle: updated.title,
+      oldValue: JSON.stringify(current),
+      newValue: JSON.stringify(updated),
+      workspaceId,
+    });
+
     return updated;
   }),
 
-  delete: engineerProcedure.input(z.object({ id: z.string() })).mutation(async ({ input }) => {
+  delete: engineerProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
     // Check if this document has an active record declaration
     const [activeDeclaration] = await db
       .select({ id: recordDeclarations.id })
@@ -98,36 +278,240 @@ export const documentsRouter = router({
       });
     }
 
-    const success = deleteDocument(input.id);
-    if (!success) {
+    const [current] = await db
+      .select()
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, input.id),
+          eq(documents.workspaceId, workspaceId),
+          eq(documents.isDeleted, 0),
+        ),
+      );
+
+    if (!current) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
+
+    await db
+      .update(documents)
+      .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
+      .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)));
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "document.delete",
+      resourceType: "document",
+      resourceId: input.id,
+      resourceTitle: current.title,
+      workspaceId,
+    });
+
     return { success: true };
   }),
 
-  linkPL: engineerProcedure.input(linkPlSchema).mutation(({ input }) => {
-    const success = linkDocumentToPl(input.documentId, input.plId);
-    if (!success) {
+  linkPL: engineerProcedure.input(linkPlSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
+    // Verify document exists in workspace
+    const [doc] = await db
+      .select({ id: documents.id })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, input.documentId),
+          eq(documents.workspaceId, workspaceId),
+          eq(documents.isDeleted, 0),
+        ),
+      );
+
+    if (!doc) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
+
+    await db
+      .insert(documentPlLinks)
+      .values({
+        id: randomUUID(),
+        documentId: input.documentId,
+        plNumberId: input.plId,
+        linkType: input.linkType === "reference" ? "manual" : "manual",
+        linkedBy: userId,
+      })
+      .onConflictDoNothing();
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "document.link_pl",
+      resourceType: "document",
+      resourceId: input.documentId,
+      details: `Linked PL ${input.plId}`,
+      workspaceId,
+    });
+
     return { success: true };
   }),
 
-  unlinkPL: engineerProcedure.input(unlinkPlSchema).mutation(({ input }) => {
-    const success = unlinkDocumentFromPl(input.documentId, input.plId);
-    if (!success) {
+  unlinkPL: engineerProcedure.input(unlinkPlSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
+    // Verify document exists in workspace
+    const [doc] = await db
+      .select({ id: documents.id })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, input.documentId),
+          eq(documents.workspaceId, workspaceId),
+          eq(documents.isDeleted, 0),
+        ),
+      );
+
+    if (!doc) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
+
+    await db
+      .delete(documentPlLinks)
+      .where(
+        and(
+          eq(documentPlLinks.documentId, input.documentId),
+          eq(documentPlLinks.plNumberId, input.plId),
+        ),
+      );
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "document.unlink_pl",
+      resourceType: "document",
+      resourceId: input.documentId,
+      details: `Unlinked PL ${input.plId}`,
+      workspaceId,
+    });
+
     return { success: true };
   }),
 
-  approve: supervisorProcedure.input(approveDocumentSchema).mutation(({ input }) => {
-    const updated = updateDocument(input.id, { status: "APPROVED" });
-    if (!updated) {
+  approve: supervisorProcedure.input(approveDocumentSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
+    const [current] = await db
+      .select()
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, input.id),
+          eq(documents.workspaceId, workspaceId),
+          eq(documents.isDeleted, 0),
+        ),
+      );
+
+    if (!current) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
+
+    const [updated] = await db
+      .update(documents)
+      .set({
+        status: "approved",
+        approvedBy: userId,
+        approvedAt: new Date(),
+        updatedBy: userId,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)))
+      .returning();
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "document.approve",
+      resourceType: "document",
+      resourceId: input.id,
+      resourceTitle: updated.title,
+      details: input.notes ?? undefined,
+      workspaceId,
+    });
+
     return updated;
   }),
+
+  checkDuplicate: protectedProcedure
+    .input(z.object({ fileHash: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      const [existing] = await db
+        .select({
+          id: documents.id,
+          documentNumber: documents.documentNumber,
+          title: documents.title,
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.fileHash, input.fileHash),
+            eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        return {
+          isDuplicate: true,
+          existingDocumentId: existing.id,
+          existingDocumentNumber: existing.documentNumber,
+          existingDocumentTitle: existing.title,
+        };
+      }
+
+      return { isDuplicate: false };
+    }),
+
+  getLinkedPls: protectedProcedure
+    .input(z.object({ documentId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      // Verify document belongs to workspace
+      const [doc] = await db
+        .select({ id: documents.id })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.id, input.documentId),
+            eq(documents.workspaceId, workspaceId),
+          ),
+        );
+
+      if (!doc) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+      }
+
+      const linkedPls = await db
+        .select({
+          id: plNumbers.id,
+          plNumber: plNumbers.plNumber,
+          name: plNumbers.name,
+          category: plNumbers.category,
+          status: plNumbers.status,
+        })
+        .from(documentPlLinks)
+        .innerJoin(plNumbers, eq(documentPlLinks.plNumberId, plNumbers.id))
+        .where(eq(documentPlLinks.documentId, input.documentId));
+
+      return linkedPls;
+    }),
 
   bulkAction: engineerProcedure.input(bulkActionSchema).mutation(async ({ input, ctx }) => {
     const workspaceId = requireWorkspaceId(ctx);
