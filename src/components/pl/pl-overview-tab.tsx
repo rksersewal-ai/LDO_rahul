@@ -1,6 +1,6 @@
 "use client";
 
-import { Shield } from "lucide-react";
+import { ExternalLink, FileText, Shield } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,18 @@ export interface PlDetailData {
   updatedAt: Date | string;
   aliases: PlAlias[];
   relationships: PlRelationship[];
+  // Railway-specific fields
+  itemType: "VD" | "NVD" | null;
+  uvamItemId: string | null;
+  eligibilityCriteriaText: string | null;
+  eligibilityCriteriaDocId: string | null;
+  strDocId: string | null;
+  qapDocId: string | null;
+  inspectionAgency: "RDSO" | "ZONAL" | "WORKSHOP" | "STORES" | null;
+  unitOfMeasurement: string | null;
+  shelfLifeMonths: number | null;
+  lastProcurementRate: number | null;
+  lastProcurementDate: Date | string | null;
   [key: string]: unknown;
 }
 
@@ -92,6 +104,70 @@ function getAliasTypeBadgeVariant(type: string): "default" | "secondary" | "outl
 export function PlOverviewTab({ pl }: PlOverviewTabProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Item Type & UVAM */}
+      {pl.itemType && (
+        <section className="md:col-span-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+            Item Classification
+          </h3>
+          <div className="rounded-md border p-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-xs font-bold px-3 py-1",
+                  pl.itemType === "VD"
+                    ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400"
+                    : "bg-orange-500/10 text-orange-700 border-orange-500/30 dark:text-orange-400",
+                )}
+              >
+                {pl.itemType === "VD" ? "VD - Vendor Developed" : "NVD - Non-Vendor Developed"}
+              </Badge>
+              {pl.itemType === "VD" && pl.uvamItemId && (
+                <span className="inline-flex items-center gap-1.5 text-xs">
+                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">UVAM ID:</span>
+                  <span className="font-mono font-medium text-primary">{pl.uvamItemId}</span>
+                </span>
+              )}
+              {pl.itemType === "VD" && !pl.uvamItemId && (
+                <Badge variant="secondary" className="text-[10px]">UVAM Registered</Badge>
+              )}
+            </div>
+            {/* Eligibility Criteria */}
+            {pl.itemType === "NVD" && pl.eligibilityCriteriaText && (
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <p className="text-xs text-muted-foreground font-medium mb-1">Eligibility Criteria</p>
+                <p className="text-xs text-foreground">{pl.eligibilityCriteriaText}</p>
+              </div>
+            )}
+            {/* Linked STR/QAP Documents */}
+            {(pl.strDocId || pl.qapDocId) && (
+              <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap gap-3">
+                {pl.strDocId && (
+                  <Link
+                    href={`/documents/${pl.strDocId}`}
+                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                  >
+                    <FileText className="h-3 w-3" />
+                    Linked STR Document
+                  </Link>
+                )}
+                {pl.qapDocId && (
+                  <Link
+                    href={`/documents/${pl.qapDocId}`}
+                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                  >
+                    <FileText className="h-3 w-3" />
+                    Linked QAP Document
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Basic Information */}
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
@@ -168,6 +244,35 @@ export function PlOverviewTab({ pl }: PlOverviewTabProps) {
           <InfoRow label="Manufacturer" value={pl.manufacturer} />
           <InfoRow label="Vendor Code" value={pl.vendorCode} />
           <InfoRow label="Part Family" value={pl.partFamily} />
+        </dl>
+      </section>
+
+      {/* Procurement & Inspection */}
+      <section>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          Procurement & Inspection
+        </h3>
+        <dl className="rounded-md border p-3">
+          <InfoRow
+            label="Inspection Agency"
+            value={pl.inspectionAgency ?? null}
+          />
+          <InfoRow
+            label="Unit of Measurement"
+            value={pl.unitOfMeasurement ?? null}
+          />
+          <InfoRow
+            label="Shelf Life"
+            value={pl.shelfLifeMonths != null ? `${pl.shelfLifeMonths} months` : null}
+          />
+          <InfoRow
+            label="Last Rate"
+            value={pl.lastProcurementRate != null ? `INR ${pl.lastProcurementRate.toLocaleString()}` : null}
+          />
+          <InfoRow
+            label="Last Procured"
+            value={pl.lastProcurementDate ? new Date(pl.lastProcurementDate).toLocaleDateString() : null}
+          />
         </dl>
       </section>
 

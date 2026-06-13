@@ -4,6 +4,7 @@ import { ArrowLeft, Shield } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
+import { InspectionWarningBanner } from "@/components/pl/inspection-warning-banner";
 import { PlBomTab } from "@/components/pl/pl-bom-tab";
 import { PlCasesTab } from "@/components/pl/pl-cases-tab";
 import { PlDocumentsTab } from "@/components/pl/pl-documents-tab";
@@ -92,8 +93,21 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3 mb-1">
+            <div className="flex items-center gap-3 mb-1 flex-wrap">
               <h1 className="font-mono text-2xl font-bold tracking-tight">{pl.plNumber}</h1>
+              {pl.itemType && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-xs font-bold",
+                    pl.itemType === "VD"
+                      ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400"
+                      : "bg-orange-500/10 text-orange-700 border-orange-500/30 dark:text-orange-400",
+                  )}
+                >
+                  {pl.itemType}
+                </Badge>
+              )}
               <Badge
                 variant="outline"
                 className={cn("text-xs font-semibold", getCategoryBadgeClass(pl.category))}
@@ -120,6 +134,9 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
             <p className="mt-0.5 text-sm text-muted-foreground">{pl.description}</p>
           </div>
         </div>
+
+        {/* Inspection Warning Banner for CAT-A items */}
+        <InspectionWarningBanner plId={pl.id} category={pl.category} />
 
         {/* Tabs */}
         <Tabs defaultValue="overview">
