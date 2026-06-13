@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 
@@ -187,9 +187,10 @@ export default function ShareTokenPage() {
   const token = params.token as string;
   const [password, setPassword] = useState<string | undefined>(undefined);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const passwordRef = useRef<string | undefined>(undefined);
 
   const { data, isLoading, error, refetch } = trpc.documentShareLinks.resolveShareToken.useQuery(
-    { token, password },
+    { token, password: passwordRef.current },
     {
       enabled: !!token,
       retry: false,
@@ -198,9 +199,9 @@ export default function ShareTokenPage() {
 
   const handlePasswordSubmit = (pw: string) => {
     setPasswordError(null);
+    passwordRef.current = pw;
     setPassword(pw);
-    // Trigger refetch with the new password
-    setTimeout(() => refetch(), 0);
+    refetch();
   };
 
   if (isLoading) {

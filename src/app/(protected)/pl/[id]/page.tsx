@@ -2,14 +2,15 @@
 
 import { ArrowLeft, Shield } from "lucide-react";
 import Link from "next/link";
-import { use } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, use } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { InspectionWarningBanner } from "@/components/pl/inspection-warning-banner";
 import { PlBomTab } from "@/components/pl/pl-bom-tab";
 import { PlCasesTab } from "@/components/pl/pl-cases-tab";
 import { PlDocumentsTab } from "@/components/pl/pl-documents-tab";
 import { PlHistoryTab } from "@/components/pl/pl-history-tab";
-import { PlOverviewTab } from "@/components/pl/pl-overview-tab";
+import { type PlDetailData, PlOverviewTab } from "@/components/pl/pl-overview-tab";
 import { PlWorkTab } from "@/components/pl/pl-work-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,48 +139,66 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
         {/* Inspection Warning Banner for CAT-A items */}
         <InspectionWarningBanner plId={pl.id} category={pl.category} />
 
-        {/* Tabs */}
-        <Tabs defaultValue="overview">
-          <TabsList variant="line">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="bom">BOM</TabsTrigger>
-            <TabsTrigger value="work">Work Records</TabsTrigger>
-            <TabsTrigger value="traceability">Traceability</TabsTrigger>
-            <TabsTrigger value="cases">Cases</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="mt-4">
-            <PlOverviewTab pl={pl} />
-          </TabsContent>
-
-          <TabsContent value="documents" className="mt-4">
-            <PlDocumentsTab plId={pl.id} />
-          </TabsContent>
-
-          <TabsContent value="bom" className="mt-4">
-            <PlBomTab plId={pl.id} />
-          </TabsContent>
-
-          <TabsContent value="work" className="mt-4">
-            <PlWorkTab plId={pl.id} />
-          </TabsContent>
-
-          <TabsContent value="traceability" className="mt-4">
-            <TraceabilityTab plId={pl.id} />
-          </TabsContent>
-
-          <TabsContent value="cases" className="mt-4">
-            <PlCasesTab />
-          </TabsContent>
-
-          <TabsContent value="history" className="mt-4">
-            <PlHistoryTab />
-          </TabsContent>
-        </Tabs>
+        {/* Tabs with URL-persisted active tab */}
+        <Suspense fallback={null}>
+          <PlDetailTabs pl={pl} />
+        </Suspense>
       </div>
     </PageFrame>
+  );
+}
+
+function PlDetailTabs({ pl }: { pl: PlDetailData }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") || "overview";
+
+  const handleTabChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", value);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
+  return (
+    <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <TabsList variant="line">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="documents">Documents</TabsTrigger>
+        <TabsTrigger value="bom">BOM</TabsTrigger>
+        <TabsTrigger value="work">Work Records</TabsTrigger>
+        <TabsTrigger value="traceability">Traceability</TabsTrigger>
+        <TabsTrigger value="cases">Cases</TabsTrigger>
+        <TabsTrigger value="history">History</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="overview" className="mt-4">
+        <PlOverviewTab pl={pl} />
+      </TabsContent>
+
+      <TabsContent value="documents" className="mt-4">
+        <PlDocumentsTab plId={pl.id} />
+      </TabsContent>
+
+      <TabsContent value="bom" className="mt-4">
+        <PlBomTab plId={pl.id} />
+      </TabsContent>
+
+      <TabsContent value="work" className="mt-4">
+        <PlWorkTab plId={pl.id} />
+      </TabsContent>
+
+      <TabsContent value="traceability" className="mt-4">
+        <TraceabilityTab plId={pl.id} />
+      </TabsContent>
+
+      <TabsContent value="cases" className="mt-4">
+        <PlCasesTab />
+      </TabsContent>
+
+      <TabsContent value="history" className="mt-4">
+        <PlHistoryTab />
+      </TabsContent>
+    </Tabs>
   );
 }
 

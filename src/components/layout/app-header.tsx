@@ -2,13 +2,14 @@
 
 import { Bell, CircleHelp, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BreadcrumbNav } from "@/components/layout/breadcrumb-nav";
 import { LiveClock } from "@/components/layout/live-clock";
 import { NotificationPanel } from "@/components/layout/notification-panel";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { HelpCenter } from "@/components/shared/help-center";
 import { UserMenu } from "@/components/shared/user-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/stores/notification-store";
@@ -59,6 +60,11 @@ export function AppHeader() {
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    setIsMac(/Mac/i.test(navigator.platform));
+  }, []);
 
   return (
     <>
@@ -99,7 +105,7 @@ export function AppHeader() {
             <Search className="size-3.5" />
             <span>Search documents...</span>
             <kbd className="ml-auto hidden sm:inline-flex h-5 items-center gap-1 rounded border bg-background px-1.5 text-[10px] font-medium text-muted-foreground">
-              <span className="text-xs">&#8984;</span>K
+              {isMac ? <span className="text-xs">&#8984;</span> : <span className="text-xs">Ctrl+</span>}K
             </kbd>
           </button>
         </div>
@@ -109,16 +115,24 @@ export function AppHeader() {
           {/* Online/Offline indicator */}
           <SyncStatusIndicator />
 
-          {/* Notification button */}
-          <div className="relative">
-            <IconButton onClick={() => setNotifOpen(!notifOpen)} label="Notifications">
+          {/* Notification button with Popover for click-outside dismiss */}
+          <Popover open={notifOpen} onOpenChange={setNotifOpen}>
+            <PopoverTrigger
+              className={cn(
+                "relative flex items-center justify-center size-[30px] rounded-md",
+                "hover:bg-accent text-muted-foreground hover:text-foreground transition-colors",
+              )}
+              aria-label="Notifications"
+            >
               <Bell className="size-4" />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 size-2 rounded-full bg-primary" />
               )}
-            </IconButton>
-            <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
-          </div>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="bottom" sideOffset={8} className="w-[360px] p-0">
+              <NotificationPanel open={true} onClose={() => setNotifOpen(false)} />
+            </PopoverContent>
+          </Popover>
 
           {/* Clock */}
           <LiveClock />

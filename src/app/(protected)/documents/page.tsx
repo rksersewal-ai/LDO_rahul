@@ -21,17 +21,16 @@ import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
 
 const VIEW_MODE_KEY = "doc-hub-view-mode";
 
-function getInitialViewMode(): ViewMode {
-  if (typeof window === "undefined") return "list";
-  const stored = localStorage.getItem(VIEW_MODE_KEY);
-  if (stored === "grid" || stored === "list") return stored;
-  return "list";
-}
-
 export default function DocumentHubPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const bulkUploadEnabled = useFeatureFlag("bulk_upload");
   const [loadError, setLoadError] = useState<Error | null>(null);
+
+  // Hydration-safe: read localStorage only on client after first render
+  useEffect(() => {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    if (stored === "grid" || stored === "list") setViewMode(stored);
+  }, []);
   const [filters, setFilters] = useState<DocumentFilterState>({
     search: "",
     category: "",

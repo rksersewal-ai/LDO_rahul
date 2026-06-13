@@ -112,83 +112,77 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
   const systemItems = items.filter((n) => n.group === "system");
 
   return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-
-      {/* Panel */}
-      <div className="absolute right-0 top-full mt-1 z-50 w-[360px] rounded-lg border bg-popover shadow-lg">
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="text-sm font-semibold">Notifications</h3>
-          <button
-            type="button"
-            className="text-xs text-primary hover:underline font-medium"
-            onClick={markAllRead}
-          >
-            Mark all read
-          </button>
-        </div>
-
-        <div className="max-h-[420px] overflow-y-auto py-2 px-1">
-          {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Bell className="size-8 text-muted-foreground/50 mb-2" />
-              <p className="text-sm text-muted-foreground">No notifications</p>
-            </div>
-          ) : (
-            <>
-              {actionItems.length > 0 && (
-                <div className="mb-2">
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Needs Action
-                  </p>
-                  {actionItems.map((item) => (
-                    <NotificationItem
-                      key={item.id}
-                      item={item}
-                      onMarkRead={handleMarkRead}
-                      onDismiss={handleDismiss}
-                      onAction={handleAction}
-                    />
-                  ))}
-                </div>
-              )}
-              {fyiItems.length > 0 && (
-                <div className="mb-2">
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    FYI
-                  </p>
-                  {fyiItems.map((item) => (
-                    <NotificationItem
-                      key={item.id}
-                      item={item}
-                      onMarkRead={handleMarkRead}
-                      onDismiss={handleDismiss}
-                      onAction={handleAction}
-                    />
-                  ))}
-                </div>
-              )}
-              {systemItems.length > 0 && (
-                <div className="mb-2">
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    System
-                  </p>
-                  {systemItems.map((item) => (
-                    <NotificationItem
-                      key={item.id}
-                      item={item}
-                      onMarkRead={handleMarkRead}
-                      onDismiss={handleDismiss}
-                      onAction={handleAction}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+    <div className="w-full">
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <h3 className="text-sm font-semibold">Notifications</h3>
+        <button
+          type="button"
+          className="text-xs text-primary hover:underline font-medium"
+          onClick={markAllRead}
+        >
+          Mark all read
+        </button>
       </div>
-    </>
+
+      <div className="max-h-[420px] overflow-y-auto py-2 px-1">
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Bell className="size-8 text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground">No notifications</p>
+          </div>
+        ) : (
+          <>
+            {actionItems.length > 0 && (
+              <div className="mb-2">
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Needs Action
+                </p>
+                {actionItems.map((item) => (
+                  <NotificationItem
+                    key={item.id}
+                    item={item}
+                    onMarkRead={handleMarkRead}
+                    onDismiss={handleDismiss}
+                    onAction={handleAction}
+                  />
+                ))}
+              </div>
+            )}
+            {fyiItems.length > 0 && (
+              <div className="mb-2">
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  FYI
+                </p>
+                {fyiItems.map((item) => (
+                  <NotificationItem
+                    key={item.id}
+                    item={item}
+                    onMarkRead={handleMarkRead}
+                    onDismiss={handleDismiss}
+                    onAction={handleAction}
+                  />
+                ))}
+              </div>
+            )}
+            {systemItems.length > 0 && (
+              <div className="mb-2">
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  System
+                </p>
+                {systemItems.map((item) => (
+                  <NotificationItem
+                    key={item.id}
+                    item={item}
+                    onMarkRead={handleMarkRead}
+                    onDismiss={handleDismiss}
+                    onAction={handleAction}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
