@@ -17,6 +17,8 @@ export interface OcrStructuredOutput {
   title: string | null;
   revision: string | null;
   plNumbers: string[];
+  rdsoSpecs: string[];
+  locoNumbers: string[];
   sheetInfo: string | null;
   scale: string | null;
   date: string | null;

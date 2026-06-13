@@ -35,6 +35,14 @@ const SHEET_PATTERN = /\b(?:SHEET|SH\.?)\s*(\d+)\s*(?:OF|\/)\s*(\d+)\b/gi;
 const APPROVED_BY_PATTERN =
   /(?:APPROVED\s*(?:BY)?|APPD\.?\s*(?:BY)?)\s*[:-]?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/gi;
 
+/** RDSO specification numbers: patterns like RDSO/2020/EL/SPEC/0001 or variations */
+const RDSO_SPEC_PATTERN =
+  /\bRDSO\/\d{4}\/[A-Z]{2,4}\/(?:SPEC|STD|DRG|TCD|CAMTECH|SPN)\/\d{3,5}(?:\/[A-Za-z0-9]+)?\b/g;
+
+/** Loco/rolling stock unit numbers: WAP-7 30001, WAG-9HC 31501, WDP-4D 40201, etc. */
+const LOCO_NUMBER_PATTERN =
+  /\b(W[A-Z]{2,3}-\d[A-Z]{0,2})\s+(\d{5})\b/g;
+
 // --- Extraction Functions ---
 
 /**
@@ -116,6 +124,52 @@ export function extractTitle(text: string): string | null {
 }
 
 /**
+ * Extract RDSO specification numbers from OCR text.
+ * Matches patterns like RDSO/2020/EL/SPEC/0001 or RDSO/2019/MECH/STD/0045/Rev2.
+ */
+export function extractRdsoSpecNumbers(text: string): string[] {
+  const matches = text.match(RDSO_SPEC_PATTERN);
+  if (!matches) return [];
+  return [...new Set(matches)];
+}
+
+/**
+ * Extract locomotive/rolling stock unit numbers from OCR text.
+ * Matches patterns like WAP-7 30001, WAG-9HC 31501, WDP-4D 40201.
+ */
+export function extractLocoNumbers(text: string): string[] {
+  const results: string[] = [];
+  let match: RegExpExecArray | null;
+  // Reset lastIndex before use
+  LOCO_NUMBER_PATTERN.lastIndex = 0;
+  while ((match = LOCO_NUMBER_PATTERN.exec(text)) !== null) {
+    results.push(`${match[1]} ${match[2]}`);
+  }
+  return [...new Set(results)];
+}
+
+/**
+ * Extract all railway-specific identifiers from OCR text.
+ * Returns combined RDSO specs, loco numbers, and drawing numbers.
+ */
+export function extractRailwayIdentifiers(text: string): {
+  rdsoSpecs: string[];
+  locoNumbers: string[];
+  drawingNumbers: string[];
+} {
+  const drawingNumber = extractDrawingNumber(text);
+  // Also get all drawing number matches (not just first)
+  const drawingMatches = text.match(DRAWING_NUMBER_PATTERN);
+  const drawingNumbers = drawingMatches ? [...new Set(drawingMatches)] : [];
+
+  return {
+    rdsoSpecs: extractRdsoSpecNumbers(text),
+    locoNumbers: extractLocoNumbers(text),
+    drawingNumbers,
+  };
+}
+
+/**
  * Extract all structured fields from OCR text.
  * Returns a typed OcrStructuredOutput with confidence and warnings.
  */
@@ -126,6 +180,8 @@ export function extractStructuredData(ocrText: string): OcrStructuredOutput {
   const title = extractTitle(ocrText);
   const revision = extractRevisionCode(ocrText);
   const plNumbers = extractPlNumbers(ocrText);
+  const rdsoSpecs = extractRdsoSpecNumbers(ocrText);
+  const locoNumbers = extractLocoNumbers(ocrText);
   const sheetInfo = extractSheetInfo(ocrText);
   const scale = extractScale(ocrText);
   const date = extractDate(ocrText);
@@ -133,12 +189,14 @@ export function extractStructuredData(ocrText: string): OcrStructuredOutput {
 
   // Calculate confidence based on how many fields were extracted
   let fieldsFound = 0;
-  const totalFields = 8;
+  const totalFields = 10;
 
   if (drawingNumber) fieldsFound++;
   if (title) fieldsFound++;
   if (revision) fieldsFound++;
   if (plNumbers.length > 0) fieldsFound++;
+  if (rdsoSpecs.length > 0) fieldsFound++;
+  if (locoNumbers.length > 0) fieldsFound++;
   if (sheetInfo) fieldsFound++;
   if (scale) fieldsFound++;
   if (date) fieldsFound++;
@@ -157,6 +215,8 @@ export function extractStructuredData(ocrText: string): OcrStructuredOutput {
     title,
     revision,
     plNumbers,
+    rdsoSpecs,
+    locoNumbers,
     sheetInfo,
     scale,
     date,
