@@ -4,12 +4,12 @@ import pdf from "pdf-parse";
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { readFile } from "node:fs/promises";
 
 import { db } from "@/lib/db";
 import { documents, ocrJobs, ocrPlCandidates, notifications } from "@/lib/db/schema";
 import { extractPlCandidates, isValidModulo11 } from "@/lib/pl/validation";
 import { recognizeImage } from "@/lib/ocr/tesseract-engine";
+import * as nasStorage from "@/lib/storage/nas-storage";
 import type { OcrJobPayload } from "./ocr-queue";
 
 /**
@@ -26,8 +26,23 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
       .set({ ocrStatus: "processing" })
       .where(eq(documents.id, documentId));
 
-    // Step b: Load file
-    const fileBuffer = await readFile(filePath);
+    // Step b: Load file from NAS storage
+    let fileBuffer: Buffer;
+    try {
+      fileBuffer = await nasStorage.getFile(filePath);
+    } catch (storageError) {
+      const storageMsg =
+        storageError instanceof Error ? storageError.message : "Unknown storage error";
+      await db
+        .update(ocrJobs)
+        .set({ status: "failed", errorMessage: `NAS storage unavailable: ${storageMsg}` })
+        .where(eq(ocrJobs.id, job.data.jobId));
+      await db
+        .update(documents)
+        .set({ ocrStatus: "failed" })
+        .where(eq(documents.id, documentId));
+      return;
+    }
 
     // Step c: Initialize extraction variables
     let extractedText = "";
@@ -109,12 +124,18 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
         });
       }
 
-      // Step i: Generate thumbnail
+      // Step i: Generate thumbnail via NAS storage
+      let thumbnailPath = nasStorage.getThumbnailPath(workspaceId ?? "default", documentId);
       try {
-        await sharp(fileBuffer)
+        const thumbnailBuffer = await sharp(fileBuffer)
           .resize({ width: 400 })
-          .png()
-          .toFile(`storage/thumbnails/${documentId}.png`);
+          .webp()
+          .toBuffer();
+        thumbnailPath = await nasStorage.storeThumbnail(
+          thumbnailBuffer,
+          workspaceId ?? "default",
+          documentId,
+        );
       } catch {
         // Skip thumbnail generation if it fails (e.g., for PDFs)
       }
@@ -127,7 +148,7 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
           ocrText: extractedText.slice(0, 10000),
           ocrConfidence: confidence,
           pageCount,
-          thumbnailPath: `storage/thumbnails/${documentId}.png`,
+          thumbnailPath,
         })
         .where(eq(documents.id, documentId));
 
