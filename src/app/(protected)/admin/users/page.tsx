@@ -69,8 +69,9 @@ export default function UserManagementPage() {
   });
 
   const handleCreate = (values: UserFormValues) => {
+    const { nanoid } = require("nanoid");
     const newUser: MockUser = {
-      id: `u-${Date.now()}`,
+      id: `u-${nanoid()}`,
       username: values.username,
       email: values.email,
       name: values.name,
@@ -121,13 +122,16 @@ export default function UserManagementPage() {
     setPasswordResetOpen(true);
   };
 
-  const handlePasswordReset = (userId: string, newPassword: string, forceChange: boolean) => {
+  const handlePasswordReset = async (userId: string, newPassword: string, forceChange: boolean) => {
+    const bcrypt = await import("bcryptjs");
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
     setUsers(
       users.map((u) =>
         u.id === userId
           ? {
               ...u,
-              password: newPassword,
+              password: passwordHash,
               passwordChangedAt: new Date().toISOString(),
               forcePasswordChange: forceChange,
             }

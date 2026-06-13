@@ -24,16 +24,25 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  function isSafeRedirect(url: string): boolean {
+    return url.startsWith("/") && !url.startsWith("//") && !url.includes("://");
+  }
+
   // Protect all other routes
   if (!isAuthenticated) {
     const loginUrl = new URL("/login", nextUrl);
-    loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
+    const safePath = isSafeRedirect(nextUrl.pathname) ? nextUrl.pathname : "/";
+    loginUrl.searchParams.set("callbackUrl", safePath);
     return NextResponse.redirect(loginUrl);
   }
 
   // Force password change redirect
   const forcePasswordChange = (req.auth?.user as Record<string, unknown>)?.forcePasswordChange;
-  if (forcePasswordChange && !isChangePasswordPage) {
+  if (
+    forcePasswordChange &&
+    nextUrl.pathname !== "/change-password" &&
+    !isAuthApi
+  ) {
     return NextResponse.redirect(new URL("/change-password", nextUrl));
   }
 
