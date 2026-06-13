@@ -24,6 +24,8 @@ export function RecentSearches({ onSelect, className }: RecentSearchesProps) {
           type="button"
           className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           onClick={clearRecentSearches}
+          aria-label="Clear all recent searches"
+          title="Clear all recent searches"
         >
           <Trash2 className="size-3" />
         </button>
@@ -41,8 +43,10 @@ export function RecentSearches({ onSelect, className }: RecentSearchesProps) {
             </button>
             <button
               type="button"
-              className="opacity-0 group-hover:opacity-100 flex items-center justify-center size-5 rounded hover:bg-muted transition-all"
+              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 flex items-center justify-center size-5 rounded hover:bg-muted transition-all"
               onClick={() => removeRecentSearch(search)}
+              aria-label={`Remove "${search}" from recent searches`}
+              title="Remove search"
             >
               <X className="size-3 text-muted-foreground" />
             </button>
