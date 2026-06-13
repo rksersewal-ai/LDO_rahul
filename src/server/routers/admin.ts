@@ -126,7 +126,10 @@ export const adminRouter = router({
         username: z.string().min(3),
         email: z.string().email(),
         name: z.string().min(2),
-        password: z.string().min(6),
+        password: z.string().min(12).regex(
+          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).+$/,
+          "Password must contain uppercase, lowercase, number, and special character"
+        ),
         role: z.enum(["admin", "supervisor", "reviewer", "engineer", "viewer"]),
         designation: z.string(),
         department: z.string(),
@@ -137,22 +140,15 @@ export const adminRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const id = randomUUID();
+      const { password: _, ...userFields } = input;
       const passwordHash = await bcrypt.hash(input.password, 12);
 
       const [newUser] = await db
         .insert(users)
         .values({
           id,
-          username: input.username,
-          email: input.email,
-          name: input.name,
+          ...userFields,
           passwordHash,
-          designation: input.designation,
-          department: input.department,
-          section: input.section,
-          employeeId: input.employeeId,
-          phone: input.phone,
-          role: input.role,
           isActive: true,
           forcePasswordChange: true,
           failedLoginAttempts: 0,
@@ -276,7 +272,10 @@ export const adminRouter = router({
     .input(
       z.object({
         userId: z.string(),
-        newPassword: z.string().min(6),
+        newPassword: z.string().min(12).regex(
+          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).+$/,
+          "Password must contain uppercase, lowercase, number, and special character"
+        ),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -589,7 +588,7 @@ export const adminRouter = router({
           dateFrom: z.string().optional(),
           dateTo: z.string().optional(),
           offset: z.number().default(0),
-          limit: z.number().default(20),
+          limit: z.number().min(1).max(100).default(20),
         })
         .optional(),
     )
@@ -931,11 +930,11 @@ export const adminRouter = router({
         endDate: z.string().nullable().default(null),
       }),
     )
-    .mutation(({ input }) => {
+    .mutation(({ input, ctx }) => {
       const newBanner: Banner = {
         id: `banner-${Date.now()}`,
         ...input,
-        createdBy: "Admin",
+        createdBy: ctx.session.user?.id ?? "unknown",
         createdAt: new Date().toISOString(),
       };
       banners.push(newBanner);
@@ -1237,30 +1236,30 @@ export const adminRouter = router({
             name: z.string(),
             enabled: z.boolean(),
           })
-          .passthrough();
+          .strict();
         const securityPoliciesSchema = z
           .object({
-            password: z.object({}).passthrough().optional(),
-            login: z.object({}).passthrough().optional(),
-            session: z.object({}).passthrough().optional(),
-            ipRestrictions: z.object({}).passthrough().optional(),
+            password: z.object({}).strict().optional(),
+            login: z.object({}).strict().optional(),
+            session: z.object({}).strict().optional(),
+            ipRestrictions: z.object({}).strict().optional(),
           })
-          .passthrough();
+          .strict();
         const complianceSettingsSchema = z
           .object({
-            auditRetention: z.object({}).passthrough().optional(),
-            approvalWorkflow: z.object({}).passthrough().optional(),
-            versionControl: z.object({}).passthrough().optional(),
+            auditRetention: z.object({}).strict().optional(),
+            approvalWorkflow: z.object({}).strict().optional(),
+            versionControl: z.object({}).strict().optional(),
           })
-          .passthrough();
+          .strict();
         const systemConfigSchema = z
           .object({
-            upload: z.object({}).passthrough().optional(),
-            ocr: z.object({}).passthrough().optional(),
-            notifications: z.object({}).passthrough().optional(),
-            storage: z.object({}).passthrough().optional(),
+            upload: z.object({}).strict().optional(),
+            ocr: z.object({}).strict().optional(),
+            notifications: z.object({}).strict().optional(),
+            storage: z.object({}).strict().optional(),
           })
-          .passthrough();
+          .strict();
 
         if (parsed.featureToggles) {
           const validated = z.array(featureToggleSchema).safeParse(parsed.featureToggles);
@@ -1290,7 +1289,7 @@ export const adminRouter = router({
           }
           securityPolicies = {
             ...securityPolicies,
-            ...parsed.securityPolicies,
+            ...validated.data,
           } as SecurityPolicies;
           changes.push("Updated security policies");
         }
@@ -1305,7 +1304,7 @@ export const adminRouter = router({
           }
           complianceSettings = {
             ...complianceSettings,
-            ...parsed.complianceSettings,
+            ...validated.data,
           } as ComplianceSettings;
           changes.push("Updated compliance settings");
         }
@@ -1320,7 +1319,7 @@ export const adminRouter = router({
           }
           systemConfiguration = {
             ...systemConfiguration,
-            ...parsed.systemConfiguration,
+            ...validated.data,
           } as SystemConfiguration;
           changes.push("Updated system configuration");
         }
