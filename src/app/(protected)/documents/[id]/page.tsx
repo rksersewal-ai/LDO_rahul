@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowRight,
   CheckCircle,
   Download,
   FileText,
@@ -33,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
+import { getValidTransitions, TRANSITION_LABELS } from "@/lib/fsm/document-fsm";
 import type { OcrStatus } from "@/lib/mock-data/documents";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -190,6 +192,20 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     onError: (err) => toast.error(err.message),
   });
 
+  // Transition mutation (FSM)
+  const [transitioningTo, setTransitioningTo] = useState<string | null>(null);
+  const transitionMutation = trpc.documents.transition.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Document status changed to ${(data.status ?? "").replace("_", " ")}`);
+      setTransitioningTo(null);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message);
+      setTransitioningTo(null);
+    },
+  });
+
   // Loading state
   if (isLoading) {
     return (
@@ -320,6 +336,39 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
               </span>
             </div>
             <h2 className="text-base font-medium text-foreground">{doc.title}</h2>
+            {/* FSM Transition Buttons */}
+            {(() => {
+              // Use a sensible default role for client-side rendering
+              const validTransitions = getValidTransitions(doc.status ?? "draft", "engineer");
+              if (validTransitions.length === 0) return null;
+              return (
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase mr-1">
+                    Transition:
+                  </span>
+                  {validTransitions.map((target) => (
+                    <Button
+                      key={target}
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[10px] gap-1"
+                      disabled={transitionMutation.isPending && transitioningTo === target}
+                      onClick={() => {
+                        setTransitioningTo(target);
+                        transitionMutation.mutate({ id: doc.id, newStatus: target });
+                      }}
+                    >
+                      {transitionMutation.isPending && transitioningTo === target ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-3 w-3" />
+                      )}
+                      {TRANSITION_LABELS[target as keyof typeof TRANSITION_LABELS] ?? target.replace("_", " ")}
+                    </Button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Action buttons - contextually shown based on status */}
