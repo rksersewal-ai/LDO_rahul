@@ -2,6 +2,7 @@
 
 import { Keyboard, LogOut, Settings, User } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { MOCK_USERS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 const roleColors: Record<string, string> = {
@@ -28,10 +28,15 @@ const roleColors: Record<string, string> = {
 
 export function UserMenu() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [open, setOpen] = useState(false);
 
-  // Current user (mock: first user as admin)
-  const currentUser = MOCK_USERS[0];
+  // Use session data instead of mock user
+  const currentUser = {
+    name: session?.user?.name ?? "Unknown User",
+    email: session?.user?.email ?? "",
+    role: (session?.user as Record<string, unknown>)?.role as string ?? "viewer",
+  };
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -66,7 +71,7 @@ export function UserMenu() {
           <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
           <Badge
             variant="secondary"
-            className={cn("mt-1.5 text-[10px] h-4 px-1.5", roleColors[currentUser.role])}
+            className={cn("mt-1.5 text-[10px] h-4 px-1.5", roleColors[currentUser.role] ?? roleColors.viewer)}
           >
             {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
           </Badge>
@@ -114,7 +119,7 @@ export function UserMenu() {
           variant="destructive"
           onClick={() => {
             setOpen(false);
-            router.push("/login");
+            signOut({ callbackUrl: "/login" });
           }}
         >
           <LogOut className="size-3.5" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, Check, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { type Notification, useNotificationStore } from "@/stores/notification-store";
@@ -14,10 +15,12 @@ function NotificationItem({
   item,
   onMarkRead,
   onDismiss,
+  onAction,
 }: {
   item: Notification;
   onMarkRead: (id: string) => void;
   onDismiss: (id: string) => void;
+  onAction: (id: string, href: string) => void;
 }) {
   return (
     <div
@@ -31,7 +34,16 @@ function NotificationItem({
         <p className="text-muted-foreground mt-0.5 truncate">{item.context}</p>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-muted-foreground text-[10px]">{item.timestamp}</span>
-          {item.actionLabel && (
+          {item.actionLabel && item.actionHref && (
+            <button
+              type="button"
+              className="text-primary font-medium hover:underline text-[10px]"
+              onClick={() => onAction(item.id, item.actionHref!)}
+            >
+              {item.actionLabel}
+            </button>
+          )}
+          {item.actionLabel && !item.actionHref && (
             <button
               type="button"
               className="text-primary font-medium hover:underline text-[10px]"
@@ -67,6 +79,7 @@ function NotificationItem({
 }
 
 export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
+  const router = useRouter();
   const { items, markRead, markAllRead, dismiss } = useNotificationStore();
 
   const handleMarkRead = useCallback(
@@ -81,6 +94,15 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
       dismiss(id);
     },
     [dismiss],
+  );
+
+  const handleAction = useCallback(
+    (id: string, href: string) => {
+      markRead(id);
+      onClose();
+      router.push(href);
+    },
+    [markRead, onClose, router],
   );
 
   if (!open) return null;
@@ -126,6 +148,7 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
                       item={item}
                       onMarkRead={handleMarkRead}
                       onDismiss={handleDismiss}
+                      onAction={handleAction}
                     />
                   ))}
                 </div>
@@ -141,6 +164,7 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
                       item={item}
                       onMarkRead={handleMarkRead}
                       onDismiss={handleDismiss}
+                      onAction={handleAction}
                     />
                   ))}
                 </div>
@@ -156,6 +180,7 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
                       item={item}
                       onMarkRead={handleMarkRead}
                       onDismiss={handleDismiss}
+                      onAction={handleAction}
                     />
                   ))}
                 </div>

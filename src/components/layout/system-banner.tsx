@@ -26,17 +26,6 @@ const bannerIcons: Record<BannerItem["type"], React.ComponentType<{ className?: 
   critical: XCircle,
 };
 
-// Mock active banners (would come from admin/tRPC in production)
-const MOCK_BANNERS: BannerItem[] = [
-  {
-    id: "banner-maintenance",
-    type: "info",
-    message: "Scheduled maintenance: System will be unavailable on Sunday 05:00-07:00 IST.",
-    actionLabel: "Details",
-    actionHref: "/notifications",
-  },
-];
-
 export function SystemBanner() {
   const [banners, setBanners] = useState<BannerItem[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -47,7 +36,8 @@ export function SystemBanner() {
     if (stored) {
       setDismissed(new Set(JSON.parse(stored)));
     }
-    setBanners(MOCK_BANNERS);
+    // No mock banners - will be wired to admin banners tRPC query when available
+    setBanners([]);
   }, []);
 
   const dismissBanner = useCallback(

@@ -1,7 +1,8 @@
 "use client";
 
-import { Book, ExternalLink, Headphones, Keyboard, MessageCircle, Search } from "lucide-react";
+import { ArrowLeft, Book, ExternalLink, Headphones, Keyboard, MessageCircle, Search } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { SHORTCUTS } from "@/components/shared/keyboard-shortcuts";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -44,11 +45,29 @@ const helpTopics = [
   { title: "BOM Management", description: "Bill of Materials structure and linking", icon: Book },
 ];
 
+const TOPIC_CONTENT: Record<string, string> = {
+  "Getting Started":
+    "Welcome to LDO-2 EDMS. Start by navigating the sidebar to access Documents, PL Knowledge Hub, Work Ledger, and more. Use the search bar (Ctrl+K) for quick access to any document or PL number. Your dashboard shows pending approvals, recent activity, and key metrics.",
+  "Document Upload":
+    "To upload a document, navigate to Documents and click 'Upload'. Select files (PDF, DWG, DOC, etc.), assign metadata including PL number, category, and discipline. Documents go through an approval workflow before becoming active. OCR is automatically applied to extract text content.",
+  "PL Numbers":
+    "PL (Parts List) numbers are the primary organizational unit. Each PL represents a specific component or assembly. Format: CLW/EL/PL/XXXX/YYYY where XXXX is the category code and YYYY is the serial. Use the PL Knowledge Hub to browse, search, and manage PL entries.",
+  "Approval Workflows":
+    "Documents requiring approval follow: Draft -> Under Review -> Approved/Rejected. Approvers are assigned based on document category and discipline. Critical documents require DyCME approval. Use the Approvals page to review pending items.",
+  "Search Tips":
+    "Use Ctrl+K for global search. Supported operators: exact phrase with quotes, category: filter, discipline: filter, status: filter. The search indexes document titles, descriptions, PL numbers, and OCR-extracted text content.",
+  "BOM Management":
+    "The BOM (Bill of Materials) Explorer shows hierarchical product structures. Navigate products, assemblies, and parts. Each BOM entry links to PL numbers and associated documents. Use the tree view to explore parent-child relationships.",
+};
+
 type Tab = "guide" | "shortcuts" | "releases" | "support";
 
 export function HelpCenter({ open, onOpenChange }: HelpCenterProps) {
   const [activeTab, setActiveTab] = useState<Tab>("guide");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [reportText, setReportText] = useState("");
+  const [reportSubmitted, setReportSubmitted] = useState(false);
 
   const filteredTopics = helpTopics.filter(
     (topic) =>
@@ -61,6 +80,18 @@ export function HelpCenter({ open, onOpenChange }: HelpCenterProps) {
       s.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.keys.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+
+  const handleSubmitReport = () => {
+    if (!reportText.trim()) return;
+    window.open(
+      `mailto:it-support@ldo.railways.gov.in?subject=Issue+Report&body=${encodeURIComponent(reportText)}`,
+      "_blank",
+    );
+    setReportSubmitted(true);
+    setReportText("");
+    toast.success("Report submitted. Check your email client to send.");
+    setTimeout(() => setReportSubmitted(false), 3000);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -80,7 +111,7 @@ export function HelpCenter({ open, onOpenChange }: HelpCenterProps) {
 
         {/* Tabs */}
         <div className="flex border-b px-4">
-          <TabButton active={activeTab === "guide"} onClick={() => setActiveTab("guide")}>
+          <TabButton active={activeTab === "guide"} onClick={() => { setActiveTab("guide"); setSelectedTopic(null); }}>
             <Book className="size-3" />
             Guide
           </TabButton>
@@ -102,7 +133,22 @@ export function HelpCenter({ open, onOpenChange }: HelpCenterProps) {
         <div className="flex-1 overflow-y-auto p-4">
           {activeTab === "guide" && (
             <div className="space-y-2">
-              {filteredTopics.length === 0 ? (
+              {selectedTopic ? (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTopic(null)}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+                  >
+                    <ArrowLeft className="size-3" />
+                    Back to topics
+                  </button>
+                  <h4 className="text-sm font-semibold">{selectedTopic}</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {TOPIC_CONTENT[selectedTopic] ?? "Content coming soon."}
+                  </p>
+                </div>
+              ) : filteredTopics.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4">
                   No topics found for &quot;{searchQuery}&quot;
                 </p>
@@ -111,6 +157,7 @@ export function HelpCenter({ open, onOpenChange }: HelpCenterProps) {
                   <button
                     key={topic.title}
                     type="button"
+                    onClick={() => setSelectedTopic(topic.title)}
                     className="flex items-start gap-2.5 w-full rounded-lg border p-2.5 text-left hover:bg-accent/50 transition-colors"
                   >
                     <topic.icon className="size-4 text-muted-foreground mt-0.5 shrink-0" />
@@ -209,12 +256,19 @@ export function HelpCenter({ open, onOpenChange }: HelpCenterProps) {
                 <textarea
                   className="w-full h-20 rounded-md border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring/50"
                   placeholder="Describe the issue you are facing..."
+                  value={reportText}
+                  onChange={(e) => setReportText(e.target.value)}
                 />
                 <button
                   type="button"
-                  className="mt-2 h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                  onClick={handleSubmitReport}
+                  disabled={!reportText.trim()}
+                  className={cn(
+                    "mt-2 h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors",
+                    !reportText.trim() && "opacity-50 cursor-not-allowed",
+                  )}
                 >
-                  Submit Report
+                  {reportSubmitted ? "Submitted" : "Submit Report"}
                 </button>
               </div>
             </div>

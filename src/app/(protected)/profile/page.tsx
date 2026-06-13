@@ -2,7 +2,9 @@
 
 import { Clock, KeyRound, Lock, Mail, Monitor, Moon, Phone, Shield, Sun, User } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { MOCK_USERS } from "@/lib/mock-data";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 const roleColors: Record<string, string> = {
@@ -32,6 +35,7 @@ const roleColors: Record<string, string> = {
 
 export default function ProfilePage() {
   const currentUser = MOCK_USERS[0];
+  const { data: session } = useSession();
   const { theme, setTheme } = useTheme();
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(true);
@@ -46,6 +50,21 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  const changePasswordMutation = trpc.auth.changePassword.useMutation({
+    onSuccess: () => {
+      setPasswordSuccess(true);
+      setPasswordError("");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password updated successfully.");
+    },
+    onError: (err) => {
+      setPasswordError(err.message || "Failed to change password.");
+      toast.error(err.message || "Failed to change password.");
+    },
+  });
 
   const handlePasswordChange = () => {
     setPasswordError("");
@@ -64,11 +83,7 @@ export default function ProfilePage() {
       return;
     }
 
-    // Mock success
-    setPasswordSuccess(true);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    changePasswordMutation.mutate({ currentPassword, newPassword });
   };
 
   return (
@@ -316,8 +331,8 @@ export default function ProfilePage() {
                 Password updated successfully.
               </p>
             )}
-            <Button size="sm" onClick={handlePasswordChange}>
-              Update Password
+            <Button size="sm" onClick={handlePasswordChange} disabled={changePasswordMutation.isPending}>
+              {changePasswordMutation.isPending ? "Updating..." : "Update Password"}
             </Button>
           </CardContent>
         </Card>
