@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { sseRegistry } from "@/lib/notifications/sse-registry";
 
+export const runtime = "nodejs";
+
 export async function GET(_request: Request) {
   const session = await auth();
   const userId = session?.user?.id;
