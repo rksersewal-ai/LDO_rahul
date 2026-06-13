@@ -24,11 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  type AuditAction,
-  type AuditLogEntry,
-  type ResourceType,
-} from "@/lib/mock-data/admin";
+import type { AuditAction, AuditLogEntry, ResourceType } from "@/lib/mock-data/admin";
 import { trpc } from "@/lib/trpc/client";
 import { exportToCSV } from "@/lib/utils/export-service";
 
@@ -56,7 +52,13 @@ export default function AuditLogPage() {
   const [resourceFilter, setResourceFilter] = useState<string>("all");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const { data: auditData, isLoading, isError, error, refetch } = trpc.admin.getAuditLog.useQuery(
+  const {
+    data: auditData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = trpc.admin.getAuditLog.useQuery(
     {
       search: search || undefined,
       action: actionFilter !== "all" ? actionFilter : undefined,
@@ -65,6 +67,11 @@ export default function AuditLogPage() {
     },
     { staleTime: 15_000 },
   );
+
+  // Real hash-chain integrity verification (replaces the previous static badge).
+  const { data: chain, isLoading: chainLoading } = trpc.admin.verifyAuditChain.useQuery(undefined, {
+    staleTime: 60_000,
+  });
 
   const filtered = (auditData?.items ?? []).map((item: Record<string, unknown>) => ({
     id: (item.id as string) ?? "",
@@ -118,9 +125,19 @@ export default function AuditLogPage() {
           subtitle="Complete system activity history with hash chain integrity"
           actions={
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-[10px] h-5 gap-1">
+              <Badge
+                variant={chain && !chain.valid ? "destructive" : "secondary"}
+                className="text-[10px] h-5 gap-1"
+                title={chain?.details ?? undefined}
+              >
                 <Shield className="h-2.5 w-2.5" />
-                Hash Chain: Valid
+                {chainLoading
+                  ? "Hash Chain: Checking…"
+                  : chain
+                    ? chain.valid
+                      ? "Hash Chain: Valid"
+                      : `Hash Chain: BROKEN${typeof chain.brokenAt === "number" ? ` @ #${chain.brokenAt}` : ""}`
+                    : "Hash Chain: Unknown"}
               </Badge>
               <Button
                 variant="outline"
@@ -128,16 +145,27 @@ export default function AuditLogPage() {
                 className="h-7 text-xs gap-1"
                 onClick={() => {
                   exportToCSV(
-                    ["Timestamp", "User", "Action", "Resource Type", "Resource ID", "IP", "Details"],
-                    filtered.map((entry) => [
-                      new Date(entry.timestamp).toLocaleString("en-IN"),
-                      entry.userName,
-                      entry.action,
-                      entry.resourceType,
-                      entry.resourceId,
-                      entry.ip,
-                      entry.details,
-                    ] as (string | number)[]),
+                    [
+                      "Timestamp",
+                      "User",
+                      "Action",
+                      "Resource Type",
+                      "Resource ID",
+                      "IP",
+                      "Details",
+                    ],
+                    filtered.map(
+                      (entry) =>
+                        [
+                          new Date(entry.timestamp).toLocaleString("en-IN"),
+                          entry.userName,
+                          entry.action,
+                          entry.resourceType,
+                          entry.resourceId,
+                          entry.ip,
+                          entry.details,
+                        ] as (string | number)[],
+                    ),
                     "audit-log",
                   );
                   toast.success(`Exported ${filtered.length} audit log entries to CSV`);
@@ -190,9 +218,7 @@ export default function AuditLogPage() {
         </div>
 
         {/* Error State */}
-        {isError && !isLoading && (
-          <QueryErrorState error={error} retry={() => refetch()} />
-        )}
+        {isError && !isLoading && <QueryErrorState error={error} retry={() => refetch()} />}
 
         {/* Audit Table */}
         <div className="rounded-lg border">

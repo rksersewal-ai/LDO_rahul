@@ -119,9 +119,10 @@ describe("createAuditEntry", () => {
       createAuditEntry(mockDb as unknown as Database, baseInput),
     ).resolves.toBeUndefined();
 
+    // Failure is logged via the structured logger, which writes a single
+    // JSON string to console.error containing the failure message.
     expect(consoleSpy).toHaveBeenCalledWith(
-      "[AuditLog] Failed to create audit entry:",
-      expect.any(Error),
+      expect.stringContaining("[AuditLog] Failed to create audit entry"),
     );
 
     consoleSpy.mockRestore();

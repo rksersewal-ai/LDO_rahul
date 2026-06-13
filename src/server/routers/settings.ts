@@ -1,13 +1,13 @@
-import { nanoid } from "nanoid";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNull } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
 import type { Banner } from "@/lib/mock-data/admin";
 import { MOCK_BANNERS } from "@/lib/mock-data/admin";
-import { getEffectiveSetting } from "@/lib/settings/get-effective-setting";
+import { getEffectiveSetting, invalidateSettingsCache } from "@/lib/settings/get-effective-setting";
 import { adminProcedure, protectedProcedure, router, supervisorProcedure } from "@/server/trpc";
 
 const scopeValues = ["system", "organization", "workspace", "user"] as const;
@@ -17,21 +17,23 @@ export const settingsRouter = router({
   /**
    * Get the effective value of a setting for the current user context.
    */
-  get: protectedProcedure
-    .input(z.object({ key: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user?.id;
-      const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as string | undefined;
-      const orgId = (ctx.session.user as Record<string, unknown>)?.organizationId as string | undefined;
+  get: protectedProcedure.input(z.object({ key: z.string() })).query(async ({ input, ctx }) => {
+    const userId = ctx.session.user?.id;
+    const workspaceId = (ctx.session.user as Record<string, unknown>)?.workspaceId as
+      | string
+      | undefined;
+    const orgId = (ctx.session.user as Record<string, unknown>)?.organizationId as
+      | string
+      | undefined;
 
-      const value = await getEffectiveSetting(input.key, {
-        userId,
-        workspaceId,
-        orgId,
-      });
+    const value = await getEffectiveSetting(input.key, {
+      userId,
+      workspaceId,
+      orgId,
+    });
 
-      return { key: input.key, value };
-    }),
+    return { key: input.key, value };
+  }),
 
   /**
    * Get all settings for a given scope and optional scopeId.
@@ -172,6 +174,9 @@ export const settingsRouter = router({
         newValue: input.value,
       });
 
+      // Clear cached resolved settings so reads reflect the change immediately.
+      invalidateSettingsCache();
+
       return { success: true, key: input.key, scope: input.scope };
     }),
 
@@ -218,10 +223,7 @@ export const settingsRouter = router({
 
       const scopeId = input.scope === "user" ? (input.scopeId ?? userId) : (input.scopeId ?? null);
 
-      const conditions = [
-        eq(settings.scope, input.scope),
-        eq(settings.key, input.key),
-      ];
+      const conditions = [eq(settings.scope, input.scope), eq(settings.key, input.key)];
 
       if (scopeId) {
         conditions.push(eq(settings.scopeId, scopeId));
@@ -241,6 +243,8 @@ export const settingsRouter = router({
         details: `Reset ${input.scope} setting "${input.key}" to default`,
       });
 
+      invalidateSettingsCache();
+
       return { success: true, key: input.key, scope: input.scope };
     }),
 
@@ -256,12 +260,7 @@ export const settingsRouter = router({
     const rows = await db
       .select()
       .from(settings)
-      .where(
-        and(
-          eq(settings.scope, "user"),
-          eq(settings.scopeId, userId),
-        ),
-      );
+      .where(and(eq(settings.scope, "user"), eq(settings.scopeId, userId)));
 
     return rows;
   }),
@@ -317,6 +316,8 @@ export const settingsRouter = router({
         newValue: input.value,
       });
 
+      invalidateSettingsCache();
+
       return { success: true, key: input.key };
     }),
 
@@ -334,12 +335,7 @@ export const settingsRouter = router({
     const [row] = await db
       .select()
       .from(settings)
-      .where(
-        and(
-          eq(settings.scope, "system"),
-          eq(settings.key, BANNERS_KEY),
-        ),
-      );
+      .where(and(eq(settings.scope, "system"), eq(settings.key, BANNERS_KEY)));
 
     let allBanners: Banner[];
     if (row) {

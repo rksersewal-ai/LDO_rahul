@@ -37,146 +37,145 @@ export const dashboardRouter = router({
       const workspaceId = requireWorkspaceId(ctx);
       const compareRange = input?.compareRange ?? "week";
 
-      const now = new Date();
-      const deltaMs = compareRange === "month"
-        ? 30 * 24 * 60 * 60 * 1000
-        : 7 * 24 * 60 * 60 * 1000;
-      const periodStart = new Date(now.getTime() - deltaMs);
-      const periodLabel = compareRange === "month" ? "this month" : "this week";
+      return getCached(`dashboard_metrics_${workspaceId}_${compareRange}`, 15_000, async () => {
+        const now = new Date();
+        const deltaMs =
+          compareRange === "month" ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+        const periodStart = new Date(now.getTime() - deltaMs);
+        const periodLabel = compareRange === "month" ? "this month" : "this week";
 
-    const [
-      totalDocsResult,
-      docsThisWeekResult,
-      pendingApprovalsResult,
-      ocrQueueResult,
-      openCasesResult,
-      pendingDuplicatesResult,
-    ] = await Promise.all([
-      // Total non-deleted documents in workspace
-      // Index: documents(workspace_id, is_deleted)
-      db
-        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
-        .from(documents)
-        .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0))),
+        const [
+          totalDocsResult,
+          docsThisWeekResult,
+          pendingApprovalsResult,
+          ocrQueueResult,
+          openCasesResult,
+          pendingDuplicatesResult,
+        ] = await Promise.all([
+          // Total non-deleted documents in workspace
+          // Index: documents(workspace_id, is_deleted)
+          db
+            .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+            .from(documents)
+            .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0))),
 
-      // Documents added this period
-      // Index: documents(workspace_id, is_deleted, created_at)
-      db
-        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
-        .from(documents)
-        .where(
-          and(
-            eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 0),
-            gte(documents.createdAt, periodStart),
-          ),
-        ),
+          // Documents added this period
+          // Index: documents(workspace_id, is_deleted, created_at)
+          db
+            .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+            .from(documents)
+            .where(
+              and(
+                eq(documents.workspaceId, workspaceId),
+                eq(documents.isDeleted, 0),
+                gte(documents.createdAt, periodStart),
+              ),
+            ),
 
-      // Pending approvals for documents in this workspace
-      // Index: approvals(status) + documents(workspace_id)
-      db
-        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
-        .from(approvals)
-        .innerJoin(documents, eq(approvals.documentId, documents.id))
-        .where(
-          and(eq(documents.workspaceId, workspaceId), eq(approvals.status, "pending")),
-        ),
+          // Pending approvals for documents in this workspace
+          // Index: approvals(status) + documents(workspace_id)
+          db
+            .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+            .from(approvals)
+            .innerJoin(documents, eq(approvals.documentId, documents.id))
+            .where(and(eq(documents.workspaceId, workspaceId), eq(approvals.status, "pending"))),
 
-      // OCR queue (queued + processing)
-      // Index: ocr_jobs(status) + documents(workspace_id)
-      db
-        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
-        .from(ocrJobs)
-        .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
-        .where(
-          and(
-            eq(documents.workspaceId, workspaceId),
-            sql`${ocrJobs.status} IN ('queued', 'processing')`,
-          ),
-        ),
+          // OCR queue (queued + processing)
+          // Index: ocr_jobs(status) + documents(workspace_id)
+          db
+            .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+            .from(ocrJobs)
+            .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
+            .where(
+              and(
+                eq(documents.workspaceId, workspaceId),
+                sql`${ocrJobs.status} IN ('queued', 'processing')`,
+              ),
+            ),
 
-      // Open cases (open + investigating) scoped to workspace
-      // Index: cases(workspace_id, status)
-      db
-        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
-        .from(cases)
-        .where(
-          and(
-            eq(cases.workspaceId, workspaceId),
-            sql`${cases.status} IN ('open', 'investigating')`,
-          ),
-        ),
+          // Open cases (open + investigating) scoped to workspace
+          // Index: cases(workspace_id, status)
+          db
+            .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+            .from(cases)
+            .where(
+              and(
+                eq(cases.workspaceId, workspaceId),
+                sql`${cases.status} IN ('open', 'investigating')`,
+              ),
+            ),
 
-      // Pending duplicate detections in workspace
-      // Index: duplicate_detections(workspace_id, status)
-      db
-        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
-        .from(duplicateDetections)
-        .where(
-          and(
-            eq(duplicateDetections.workspaceId, workspaceId),
-            eq(duplicateDetections.status, "pending"),
-          ),
-        ),
-    ]);
+          // Pending duplicate detections in workspace
+          // Index: duplicate_detections(workspace_id, status)
+          db
+            .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+            .from(duplicateDetections)
+            .where(
+              and(
+                eq(duplicateDetections.workspaceId, workspaceId),
+                eq(duplicateDetections.status, "pending"),
+              ),
+            ),
+        ]);
 
-    const totalDocs = totalDocsResult[0]?.total ?? 0;
-    const docsThisWeek = docsThisWeekResult[0]?.total ?? 0;
-    const pendingApprovals = pendingApprovalsResult[0]?.total ?? 0;
-    const ocrQueue = ocrQueueResult[0]?.total ?? 0;
-    const openCases = openCasesResult[0]?.total ?? 0;
-    const pendingDuplicates = pendingDuplicatesResult[0]?.total ?? 0;
+        const totalDocs = totalDocsResult[0]?.total ?? 0;
+        const docsThisWeek = docsThisWeekResult[0]?.total ?? 0;
+        const pendingApprovals = pendingApprovalsResult[0]?.total ?? 0;
+        const ocrQueue = ocrQueueResult[0]?.total ?? 0;
+        const openCases = openCasesResult[0]?.total ?? 0;
+        const pendingDuplicates = pendingDuplicatesResult[0]?.total ?? 0;
 
-    return [
-      {
-        id: "total_documents",
-        title: "Total Documents",
-        value: totalDocs,
-        delta: `+${docsThisWeek}`,
-        deltaDirection: docsThisWeek > 0 ? "up" : ("neutral" as const),
-        context: `${docsThisWeek} added ${periodLabel}`,
-      },
-      {
-        id: "pending_approvals",
-        title: "Pending Approvals",
-        value: pendingApprovals,
-        delta: `${pendingApprovals}`,
-        deltaDirection: pendingApprovals > 0 ? "up" : ("neutral" as const),
-        context: `${pendingApprovals} awaiting review`,
-      },
-      {
-        id: "ocr_queue",
-        title: "OCR Queue",
-        value: ocrQueue,
-        delta: `${ocrQueue} pending`,
-        deltaDirection: "neutral" as const,
-        context: `${ocrQueue} items in queue`,
-      },
-      {
-        id: "open_cases",
-        title: "Open Cases",
-        value: openCases,
-        delta: `${openCases}`,
-        deltaDirection: openCases > 0 ? "up" : ("neutral" as const),
-        context: `${openCases} cases active`,
-      },
-      {
-        id: "pending_duplicates",
-        title: "Pending Duplicates",
-        value: pendingDuplicates,
-        delta: `${pendingDuplicates}`,
-        deltaDirection: pendingDuplicates > 0 ? "up" : ("neutral" as const),
-        context: `${pendingDuplicates} awaiting review`,
-      },
-    ] satisfies Array<{
-      id: string;
-      title: string;
-      value: string | number;
-      delta: string;
-      deltaDirection: "up" | "down" | "neutral";
-      context: string;
-    }>;
-  }),
+        return [
+          {
+            id: "total_documents",
+            title: "Total Documents",
+            value: totalDocs,
+            delta: `+${docsThisWeek}`,
+            deltaDirection: docsThisWeek > 0 ? "up" : ("neutral" as const),
+            context: `${docsThisWeek} added ${periodLabel}`,
+          },
+          {
+            id: "pending_approvals",
+            title: "Pending Approvals",
+            value: pendingApprovals,
+            delta: `${pendingApprovals}`,
+            deltaDirection: pendingApprovals > 0 ? "up" : ("neutral" as const),
+            context: `${pendingApprovals} awaiting review`,
+          },
+          {
+            id: "ocr_queue",
+            title: "OCR Queue",
+            value: ocrQueue,
+            delta: `${ocrQueue} pending`,
+            deltaDirection: "neutral" as const,
+            context: `${ocrQueue} items in queue`,
+          },
+          {
+            id: "open_cases",
+            title: "Open Cases",
+            value: openCases,
+            delta: `${openCases}`,
+            deltaDirection: openCases > 0 ? "up" : ("neutral" as const),
+            context: `${openCases} cases active`,
+          },
+          {
+            id: "pending_duplicates",
+            title: "Pending Duplicates",
+            value: pendingDuplicates,
+            delta: `${pendingDuplicates}`,
+            deltaDirection: pendingDuplicates > 0 ? "up" : ("neutral" as const),
+            context: `${pendingDuplicates} awaiting review`,
+          },
+        ] satisfies Array<{
+          id: string;
+          title: string;
+          value: string | number;
+          delta: string;
+          deltaDirection: "up" | "down" | "neutral";
+          context: string;
+        }>;
+      });
+    }),
 
   /** Trend data for uploads/processed chart */
   getTrends: protectedProcedure
@@ -281,7 +280,10 @@ export const dashboardRouter = router({
       .limit(20);
 
     // Map action strings to the ActivityItem action types
-    const actionTypeMap: Record<string, "upload" | "approve" | "verify" | "reject" | "comment" | "assign"> = {
+    const actionTypeMap: Record<
+      string,
+      "upload" | "approve" | "verify" | "reject" | "comment" | "assign"
+    > = {
       "document.upload": "upload",
       "document.create": "upload",
       "approval.approve": "approve",
@@ -355,7 +357,10 @@ export const dashboardRouter = router({
     };
 
     // Map ocr status to the RecentDocument ocrStatus format
-    const ocrStatusMap: Record<string, "completed" | "processing" | "queued" | "failed" | "not_required"> = {
+    const ocrStatusMap: Record<
+      string,
+      "completed" | "processing" | "queued" | "failed" | "not_required"
+    > = {
       not_required: "not_required",
       queued: "queued",
       processing: "processing",
@@ -715,9 +720,7 @@ export const dashboardRouter = router({
       })
       .from(approvals)
       .innerJoin(documents, eq(approvals.documentId, documents.id))
-      .where(
-        and(eq(documents.workspaceId, workspaceId), eq(approvals.status, "pending")),
-      )
+      .where(and(eq(documents.workspaceId, workspaceId), eq(approvals.status, "pending")))
       .orderBy(desc(approvals.createdAt))
       .limit(5);
 
@@ -728,9 +731,7 @@ export const dashboardRouter = router({
       requestedBy: r.requestedBy,
       level: r.level,
       createdAt: r.createdAt.toISOString(),
-      daysPending: Math.floor(
-        (Date.now() - r.createdAt.getTime()) / (1000 * 60 * 60 * 24),
-      ),
+      daysPending: Math.floor((Date.now() - r.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
     }));
   }),
 
@@ -764,10 +765,7 @@ export const dashboardRouter = router({
             total: sql<number>`COALESCE(${count()}, 0)`,
           })
           .from(rollingStockUnits)
-          .leftJoin(
-            sql`"bom_products" AS bp`,
-            sql`bp."id" = ${rollingStockUnits.productId}`,
-          )
+          .leftJoin(sql`"bom_products" AS bp`, sql`bp."id" = ${rollingStockUnits.productId}`)
           .where(eq(rollingStockUnits.workspaceId, workspaceId))
           .groupBy(sql`bp."product_type"`),
       ]);

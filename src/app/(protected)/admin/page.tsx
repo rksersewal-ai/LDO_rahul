@@ -3,6 +3,7 @@
 import {
   Activity,
   AlertTriangle,
+  Archive,
   Database,
   FileText,
   HardDrive,
@@ -34,6 +35,12 @@ const quickLinks = [
     desc: "Duplicate document groups",
   },
   {
+    label: "Records & Retention",
+    href: "/admin/records",
+    icon: Archive,
+    desc: "Disposition review & removed files",
+  },
+  {
     label: "Settings",
     href: "/admin/settings",
     icon: Database,
@@ -48,10 +55,9 @@ const quickLinks = [
 ];
 
 export default function AdminDashboardPage() {
-  const { data: healthData, isLoading } = trpc.admin.getHealth.useQuery(
-    undefined,
-    { staleTime: 30_000 },
-  );
+  const { data: healthData, isLoading } = trpc.admin.getHealth.useQuery(undefined, {
+    staleTime: 30_000,
+  });
 
   const metrics = healthData?.metrics ?? {
     totalUsers: 0,
@@ -82,7 +88,9 @@ export default function AdminDashboardPage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             {isLoading ? (
-              <p className="text-xs text-muted-foreground col-span-full text-center py-4">Loading...</p>
+              <p className="text-xs text-muted-foreground col-span-full text-center py-4">
+                Loading...
+              </p>
             ) : (
               services.map((service: Record<string, unknown>) => (
                 <HealthCard key={service.name as string} service={service as never} />

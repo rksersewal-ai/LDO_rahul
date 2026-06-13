@@ -1,21 +1,33 @@
 import { logError, logInfo } from "@/lib/logging/structured-logger";
-import { createOcrWorker } from "./ocr-worker";
 import { createDedupWorker } from "./dedup-worker";
+import { createOcrWorker } from "./ocr-worker";
+import { scheduleRecurringRetentionScan } from "./retention-queue";
+import { createRetentionWorker } from "./retention-worker";
 
 /**
  * Worker runner entry point.
- * Starts OCR and Dedup BullMQ workers and handles graceful shutdown.
+ * Starts OCR, Dedup and Retention BullMQ workers and handles graceful shutdown.
  * Run with: npx tsx src/workers/start-workers.ts
  */
 
 const ocrWorker = createOcrWorker();
 const dedupWorker = createDedupWorker();
+const retentionWorker = createRetentionWorker();
 
-logInfo("Workers started", { workers: ["ocr-pipeline", "dedup-scan"] });
+// Register the recurring retention scan (idempotent across restarts).
+scheduleRecurringRetentionScan().catch((error) => {
+  logError(
+    "Failed to schedule recurring retention scan",
+    {},
+    error instanceof Error ? error : new Error(String(error)),
+  );
+});
+
+logInfo("Workers started", { workers: ["ocr-pipeline", "dedup-scan", "retention-scan"] });
 
 async function shutdown() {
   logInfo("Shutting down workers...");
-  await Promise.all([ocrWorker.close(), dedupWorker.close()]);
+  await Promise.all([ocrWorker.close(), dedupWorker.close(), retentionWorker.close()]);
   process.exit(0);
 }
 

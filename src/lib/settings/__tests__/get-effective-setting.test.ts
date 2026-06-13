@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({ db: { select: vi.fn() } }));
 
-import { getEffectiveSetting, SYSTEM_DEFAULTS } from "../get-effective-setting";
+import { invalidateCache } from "@/lib/cache/query-cache";
 import { db } from "@/lib/db";
+import { getEffectiveSetting, SYSTEM_DEFAULTS } from "../get-effective-setting";
 
 function mockSelectChain(returnValue: unknown[]) {
   const chain = { from: vi.fn(), where: vi.fn(), limit: vi.fn() };
@@ -16,6 +17,9 @@ function mockSelectChain(returnValue: unknown[]) {
 describe("getEffectiveSetting", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // getEffectiveSetting is cached (L1 + Redis); clear it so each test case
+    // resolves against its own fresh db mocks rather than a cached value.
+    invalidateCache();
   });
 
   it("returns user-scope setting when it exists", async () => {
@@ -34,9 +38,7 @@ describe("getEffectiveSetting", () => {
     const userChain = mockSelectChain([]);
     const wsChain = mockSelectChain([{ value: "workspace-value" }]);
 
-    (db.select as any)
-      .mockReturnValueOnce(userChain)
-      .mockReturnValueOnce(wsChain);
+    (db.select as any).mockReturnValueOnce(userChain).mockReturnValueOnce(wsChain);
 
     const result = await getEffectiveSetting("someKey", {
       userId: "u1",

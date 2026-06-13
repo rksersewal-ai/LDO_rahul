@@ -36,6 +36,10 @@ export const ocrStatusEnum = z.enum([
 export const documentListSchema = z.object({
   limit: z.number().min(1).max(100).default(25),
   offset: z.number().min(0).default(0),
+  // Optional keyset cursor ("<createdAtISO>|<id>"). When provided with the
+  // default createdAt sort, the query uses efficient keyset pagination instead
+  // of OFFSET. Backward compatible: omit to use offset pagination.
+  cursor: z.string().optional(),
   sortBy: z
     .enum(["documentNumber", "title", "category", "status", "createdAt", "updatedAt"])
     .default("createdAt"),

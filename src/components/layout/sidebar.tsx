@@ -15,12 +15,14 @@ import {
   LayoutDashboard,
   Megaphone,
   MonitorCheck,
+  RotateCcw,
   Search,
   Settings,
   Shield,
   ShieldCheck,
   Tag,
   Train,
+  Trash2,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -28,8 +30,8 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useSidebarStore } from "@/stores/sidebar-store";
 import { useNotificationStore } from "@/stores/notification-store";
+import { useSidebarStore } from "@/stores/sidebar-store";
 
 interface NavItem {
   label: string;
@@ -59,6 +61,7 @@ const navSections: NavSection[] = [
       { label: "Cases", href: "/cases", icon: AlertTriangle },
       { label: "Cabinets", href: "/cabinets", icon: FolderOpen },
       { label: "Tags", href: "/tags", icon: Tag },
+      { label: "Recycle Bin", href: "/documents/recycle-bin", icon: Trash2 },
     ],
   },
   {
@@ -72,6 +75,7 @@ const navSections: NavSection[] = [
       { label: "System Health", href: "/admin/health", icon: MonitorCheck },
       { label: "OCR Monitor", href: "/admin/ocr", icon: Cpu },
       { label: "Audit Log", href: "/admin/audit", icon: Shield },
+      { label: "Records & Retention", href: "/admin/records", icon: RotateCcw },
       { label: "Deduplication", href: "/admin/dedup", icon: FileText },
       { label: "Settings", href: "/admin/settings", icon: Settings },
       { label: "Banners", href: "/admin/banners", icon: Megaphone },
@@ -199,9 +203,7 @@ export function Sidebar() {
                   key={item.href}
                   item={item}
                   collapsed={collapsed}
-                  active={
-                    item.href === "/" ? pathname === "/" : item.href === bestMatch
-                  }
+                  active={item.href === "/" ? pathname === "/" : item.href === bestMatch}
                 />
               ))}
             </div>

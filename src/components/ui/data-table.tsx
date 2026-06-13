@@ -69,6 +69,8 @@ export interface DataTableProps<TData, TValue> {
   onBulkAction?: (selectedIds: string[]) => void;
   /** Array of bulk actions to show when rows are selected. */
   bulkActions?: BulkAction[];
+  /** Maps a row to a stable id so selection returns domain IDs (not indices). */
+  getRowId?: (row: TData) => string;
 }
 
 export function DataTable<TData, TValue>({
@@ -84,6 +86,7 @@ export function DataTable<TData, TValue>({
   showColumnToggle = true,
   onBulkAction,
   bulkActions,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -123,6 +126,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns: allColumns,
+    ...(getRowId ? { getRowId } : {}),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
