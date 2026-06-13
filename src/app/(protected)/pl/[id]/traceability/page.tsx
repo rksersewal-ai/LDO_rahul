@@ -3,6 +3,7 @@
 import { ArrowLeft, Check, X } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
+import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,33 @@ import { trpc } from "@/lib/trpc/client";
 
 export default function PlTraceabilityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const utils = trpc.useUtils();
 
   const { data: pl } = trpc.pl.getById.useQuery({ id });
   const { data: summary, isLoading: summaryLoading } = trpc.pl.getTraceabilitySummary.useQuery({ plId: id });
   const { data: ocrHits, isLoading: ocrLoading } = trpc.pl.getOcrHits.useQuery({ plId: id });
+
+  const acceptMutation = trpc.ocr.acceptCandidate.useMutation({
+    onSuccess: () => {
+      toast.success("OCR candidate accepted");
+      utils.pl.getOcrHits.invalidate({ plId: id });
+      utils.pl.getTraceabilitySummary.invalidate({ plId: id });
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to accept candidate");
+    },
+  });
+
+  const rejectMutation = trpc.ocr.rejectCandidate.useMutation({
+    onSuccess: () => {
+      toast.success("OCR candidate rejected");
+      utils.pl.getOcrHits.invalidate({ plId: id });
+      utils.pl.getTraceabilitySummary.invalidate({ plId: id });
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to reject candidate");
+    },
+  });
 
   return (
     <PageFrame size="xl">
@@ -164,31 +188,34 @@ export default function PlTraceabilityPage({ params }: { params: Promise<{ id: s
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
-                          {/* TODO: Wire to pl.acceptOcrCandidate / pl.rejectOcrCandidate mutations once implemented */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-                            title="Accept"
-                            onClick={() => {
-                              // TODO: Replace with tRPC mutation call when OCR accept endpoint is implemented
-                              console.log("Accept OCR candidate:", hit.id);
-                            }}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            title="Reject"
-                            onClick={() => {
-                              // TODO: Replace with tRPC mutation call when OCR reject endpoint is implemented
-                              console.log("Reject OCR candidate:", hit.id);
-                            }}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
+                          {hit.status === "pending" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                title="Accept"
+                                disabled={acceptMutation.isPending || rejectMutation.isPending}
+                                onClick={() => {
+                                  acceptMutation.mutate({ candidateId: hit.id });
+                                }}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Reject"
+                                disabled={acceptMutation.isPending || rejectMutation.isPending}
+                                onClick={() => {
+                                  rejectMutation.mutate({ candidateId: hit.id });
+                                }}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
