@@ -16,9 +16,18 @@ interface LogEntry {
 
 function writeLog(entry: LogEntry): void {
   try {
-    console.error(JSON.stringify(entry));
+    const serialized = JSON.stringify(entry);
+    // Route to the appropriate console method so log aggregators and shell
+    // pipelines can filter by severity without losing structured format.
+    if (entry.level === "error") {
+      console.error(serialized);
+    } else if (entry.level === "warn") {
+      console.warn(serialized);
+    } else {
+      console.log(serialized);
+    }
   } catch {
-    // If serialization fails, output a minimal entry
+    // If serialization fails, output a minimal entry to stderr
     console.error(
       JSON.stringify({
         timestamp: new Date().toISOString(),

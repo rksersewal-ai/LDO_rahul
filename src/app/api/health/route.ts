@@ -60,13 +60,14 @@ async function checkDatabase(): Promise<ServiceCheck> {
     await db.execute(sql`SELECT 1`);
     const latencyMs = Math.round(performance.now() - start);
     return { name: "database", status: "healthy", latencyMs };
-  } catch (error) {
+  } catch {
     const latencyMs = Math.round(performance.now() - start);
     return {
       name: "database",
       status: "unhealthy",
       latencyMs,
-      message: error instanceof Error ? error.message : "Connection failed",
+      // Do not expose raw driver error messages — they may contain connection-string details
+      message: "Database connection failed",
     };
   }
 }
@@ -98,7 +99,7 @@ async function checkRedis(): Promise<ServiceCheck> {
     await redis.ping();
     const latencyMs = Math.round(performance.now() - start);
     return { name: "redis", status: "healthy", latencyMs };
-  } catch (error) {
+  } catch {
     // Discard broken client so next health check retries from scratch
     redisClient = null;
     const latencyMs = Math.round(performance.now() - start);
@@ -106,7 +107,7 @@ async function checkRedis(): Promise<ServiceCheck> {
       name: "redis",
       status: "unhealthy",
       latencyMs,
-      message: error instanceof Error ? error.message : "Connection failed",
+      message: "Redis connection failed",
     };
   }
 }
@@ -115,16 +116,18 @@ async function checkNasStorage(): Promise<ServiceCheck> {
   const start = performance.now();
   try {
     const fs = await import("node:fs/promises");
-    await fs.access(process.env.NAS_STORAGE_PATH!);
+    // Use F_OK (existence) | W_OK (write) to verify the path is writable, not just present.
+    const { constants } = await import("node:fs");
+    await fs.access(process.env.NAS_STORAGE_PATH!, constants.F_OK | constants.W_OK);
     const latencyMs = Math.round(performance.now() - start);
     return { name: "nas_storage", status: "healthy", latencyMs };
-  } catch (error) {
+  } catch {
     const latencyMs = Math.round(performance.now() - start);
     return {
       name: "nas_storage",
       status: "unhealthy",
       latencyMs,
-      message: error instanceof Error ? error.message : "Path not accessible",
+      message: "Storage path not accessible or not writable",
     };
   }
 }

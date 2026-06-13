@@ -17,6 +17,7 @@ import {
   plRelationships,
   workRecords,
 } from "@/lib/db/schema";
+import { logWarn } from "@/lib/logging/structured-logger";
 import { assertValidPl, normalizePlNumber } from "@/lib/pl/validation";
 import { sanitizeUserInput } from "@/lib/security/sanitize";
 import {
@@ -194,10 +195,10 @@ export const plRouter = router({
 
     // Business rule advisories for railway-specific fields
     if (input.itemType === "VD" && !input.uvamItemId) {
-      console.warn(`[pl.create] Advisory: VD item ${input.plNumber} created without uvamItemId`);
+      logWarn(`[pl.create] Advisory: VD item ${input.plNumber} created without uvamItemId`);
     }
     if (input.itemType === "NVD" && !input.eligibilityCriteriaText && !input.eligibilityCriteriaDocId) {
-      console.warn(`[pl.create] Advisory: NVD item ${input.plNumber} created without eligibility criteria`);
+      logWarn(`[pl.create] Advisory: NVD item ${input.plNumber} created without eligibility criteria`);
     }
 
     const [created] = await db
@@ -338,14 +339,14 @@ export const plRouter = router({
     if (effectiveItemType === "VD") {
       const effectiveUvamId = updates.uvamItemId !== undefined ? updates.uvamItemId : (oldPl as Record<string, unknown>).uvamItemId;
       if (!effectiveUvamId) {
-        console.warn(`[pl.update] Advisory: VD item ${oldPl.plNumber} updated without uvamItemId`);
+        logWarn(`[pl.update] Advisory: VD item ${oldPl.plNumber} updated without uvamItemId`);
       }
     }
     if (effectiveItemType === "NVD") {
       const effectiveEcText = updates.eligibilityCriteriaText !== undefined ? updates.eligibilityCriteriaText : (oldPl as Record<string, unknown>).eligibilityCriteriaText;
       const effectiveEcDoc = updates.eligibilityCriteriaDocId !== undefined ? updates.eligibilityCriteriaDocId : (oldPl as Record<string, unknown>).eligibilityCriteriaDocId;
       if (!effectiveEcText && !effectiveEcDoc) {
-        console.warn(`[pl.update] Advisory: NVD item ${oldPl.plNumber} updated without eligibility criteria`);
+        logWarn(`[pl.update] Advisory: NVD item ${oldPl.plNumber} updated without eligibility criteria`);
       }
     }
 

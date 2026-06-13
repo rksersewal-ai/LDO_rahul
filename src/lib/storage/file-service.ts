@@ -1,25 +1,27 @@
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
 import { dirname, join } from "node:path";
 import { getContentAddressedPath } from "./deduplication";
 
-const STORAGE_ROOT = process.env.STORAGE_PATH || "./storage";
+// Use the same env-var name as nas-storage.ts and .env.example (NAS_STORAGE_PATH)
+// for consistency across the codebase.
+const STORAGE_ROOT = process.env.NAS_STORAGE_PATH || "./storage";
 
 /**
  * Store a file using content-addressed storage.
  * Path: <STORAGE_ROOT>/originals/sha256/<first2>/<next2>/<full-hash>
  */
-export function storeFile(buffer: Buffer, hash: string): string {
+export async function storeFile(buffer: Buffer, hash: string): Promise<string> {
   const relativePath = getContentAddressedPath(hash);
   const absolutePath = join(STORAGE_ROOT, relativePath.replace("/storage/", ""));
   const dir = dirname(absolutePath);
 
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
+  await mkdir(dir, { recursive: true });
 
   // Only write if file doesn't already exist (content-addressed = idempotent)
-  if (!existsSync(absolutePath)) {
-    writeFileSync(absolutePath, buffer);
+  const exists = await fileExists(hash);
+  if (!exists) {
+    await writeFile(absolutePath, buffer);
   }
 
   return relativePath;
@@ -55,21 +57,29 @@ export function getOcrOutputPath(documentId: string): string {
 }
 
 /**
- * Delete a stored file by hash.
- * Only removes if no other documents reference the same hash.
+ * Read a stored file by hash.
  */
-export function deleteFile(hash: string): boolean {
-  const absolutePath = getFilePath(hash);
-  if (existsSync(absolutePath)) {
-    unlinkSync(absolutePath);
-    return true;
-  }
-  return false;
+export async function readStoredFile(hash: string): Promise<Buffer> {
+  return readFile(getFilePath(hash));
 }
 
 /**
  * Check if a file exists in storage by hash.
  */
-export function fileExists(hash: string): boolean {
-  return existsSync(getFilePath(hash));
+export async function fileExists(hash: string): Promise<boolean> {
+  try {
+    await access(getFilePath(hash), constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
+
+// NOTE: There is intentionally no hard-delete helper here.
+//
+// Storage is content-addressed, so a single physical file is shared by every
+// document with the same hash. Physically unlinking it would corrupt other
+// documents and violate the system's no-hard-delete policy. To remove a file
+// logically, flag its hash via `markHashRemovedIfOrphaned` in
+// `@/lib/storage/hash-removal` — the bytes always remain on disk for recovery,
+// audit, and legal holds.

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { desc } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
+import { logError } from "@/lib/logging/structured-logger";
 
 export interface AuditEntryInput {
   userId: string;
@@ -64,6 +65,6 @@ export async function createAuditEntry(db: DbOrTransaction, input: AuditEntryInp
       createdAt: now,
     });
   } catch (error) {
-    console.error("[AuditLog] Failed to create audit entry:", error);
+    logError("[AuditLog] Failed to create audit entry", { action: input.action, resourceType: input.resourceType }, error);
   }
 }

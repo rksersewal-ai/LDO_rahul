@@ -14,6 +14,7 @@ import {
   recordDeclarations,
 } from "@/lib/db/schema";
 import { sanitizeUserInput } from "@/lib/security/sanitize";
+import { markHashRemovedIfOrphaned } from "@/lib/storage/hash-removal";
 import { escapeLikePattern } from "@/lib/utils/escape-like";
 import {
   approveDocumentSchema,
@@ -181,17 +182,17 @@ export const documentsRouter = router({
       })
       .returning();
 
-    // Create PL links if provided
+    // Create PL links if provided — use a single batch insert to avoid N+1 queries
     if (input.linkedPlIds.length > 0) {
-      for (const plId of input.linkedPlIds) {
-        await db.insert(documentPlLinks).values({
+      await db.insert(documentPlLinks).values(
+        input.linkedPlIds.map((plId) => ({
           id: randomUUID(),
           documentId: id,
           plNumberId: plId,
-          linkType: "manual",
+          linkType: "manual" as const,
           linkedBy: userId,
-        });
-      }
+        })),
+      );
     }
 
     await createAuditEntry(db, {
@@ -296,10 +297,29 @@ export const documentsRouter = router({
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }
 
-    await db
-      .update(documents)
-      .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
-      .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)));
+    // Soft-delete the document and, under the no-hard-delete policy, flag its
+    // file hash as removed ONLY when no other live document still references it.
+    // The physical file on NAS is never unlinked. Both writes run in a single
+    // transaction so the document state and the hash registry stay consistent.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(documents)
+        .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
+        .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)));
+
+      if (current.fileHash) {
+        await markHashRemovedIfOrphaned(
+          {
+            fileHash: current.fileHash,
+            removedBy: userId,
+            workspaceId,
+            lastDocumentId: input.id,
+            reason: "document.delete",
+          },
+          tx,
+        );
+      }
+    });
 
     await createAuditEntry(db, {
       userId,
@@ -532,7 +552,7 @@ export const documentsRouter = router({
     .query(async ({ input, ctx }) => {
       const workspaceId = requireWorkspaceId(ctx);
 
-      // Verify document belongs to workspace
+      // Verify document belongs to workspace and is not deleted
       const [doc] = await db
         .select({ id: documents.id })
         .from(documents)
@@ -540,6 +560,7 @@ export const documentsRouter = router({
           and(
             eq(documents.id, input.documentId),
             eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
           ),
         );
 
@@ -638,12 +659,40 @@ export const documentsRouter = router({
       }
 
       case "delete": {
-        await db
-          .update(documents)
-          .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
-          .where(
-            and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
-          );
+        // Soft-delete and flag orphaned file hashes as removed (no physical
+        // deletion), atomically per the no-hard-delete policy.
+        await db.transaction(async (tx) => {
+          const targets = await tx
+            .select({ id: documents.id, fileHash: documents.fileHash })
+            .from(documents)
+            .where(
+              and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
+            );
+
+          await tx
+            .update(documents)
+            .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
+            .where(
+              and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
+            );
+
+          // Flag each distinct hash only if no live document still references it.
+          const seen = new Set<string>();
+          for (const t of targets) {
+            if (!t.fileHash || seen.has(t.fileHash)) continue;
+            seen.add(t.fileHash);
+            await markHashRemovedIfOrphaned(
+              {
+                fileHash: t.fileHash,
+                removedBy: userId,
+                workspaceId,
+                lastDocumentId: t.id,
+                reason: "document.bulkAction.delete",
+              },
+              tx,
+            );
+          }
+        });
         succeeded.push(...processableIds);
         break;
       }
