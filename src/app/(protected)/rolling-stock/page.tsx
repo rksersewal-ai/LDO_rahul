@@ -1,8 +1,9 @@
 "use client";
 
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Plus, RefreshCw, Train } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ export default function RollingStockPage() {
   const [workshopFilter, setWorkshopFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(25);
+  const virtualParentRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error, refetch } = trpc.rollingStock.list.useQuery({
     search: search || undefined,
@@ -79,6 +81,16 @@ export default function RollingStockPage() {
     homeWorkshop: workshopFilter || undefined,
     page,
     pageSize,
+  });
+
+  const items = data?.data ?? [];
+  const useVirtual = items.length > 50;
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => virtualParentRef.current,
+    estimateSize: () => 40,
+    overscan: 8,
   });
 
   return (
@@ -192,6 +204,82 @@ export default function RollingStockPage() {
             title="No rolling stock units"
             description="Add your first rolling stock unit to start tracking locomotives and coaches."
           />
+        ) : useVirtual ? (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Unit Number</TableHead>
+                  <TableHead className="text-xs">Serial Number</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Home Workshop</TableHead>
+                  <TableHead className="text-xs">Current Location</TableHead>
+                  <TableHead className="text-xs">Commissioned</TableHead>
+                </TableRow>
+              </TableHeader>
+            </Table>
+            <div
+              ref={virtualParentRef}
+              className="overflow-auto"
+              style={{ height: "500px" }}
+            >
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualRow) => {
+                  const unit = items[virtualRow.index];
+                  return (
+                    <div
+                      key={virtualRow.key}
+                      className="absolute left-0 w-full flex items-center border-b text-xs hover:bg-muted/50"
+                      style={{
+                        top: 0,
+                        height: `${virtualRow.size}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <span className="px-3 w-[16%]">
+                        <Link
+                          href={`/rolling-stock/${unit.id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {unit.unitNumber}
+                        </Link>
+                      </span>
+                      <span className="px-3 w-[16%] text-muted-foreground">
+                        {unit.serialNumber ?? "-"}
+                      </span>
+                      <span className="px-3 w-[16%]">
+                        <Badge
+                          variant="outline"
+                          className={cn("text-[10px]", getStatusBadgeClass(unit.status))}
+                        >
+                          {formatStatus(unit.status)}
+                        </Badge>
+                      </span>
+                      <span className="px-3 w-[18%]">{unit.homeWorkshop}</span>
+                      <span className="px-3 w-[18%] text-muted-foreground">
+                        {unit.currentLocation ?? "-"}
+                      </span>
+                      <span className="px-3 w-[16%] text-muted-foreground">
+                        {unit.commissioningDate
+                          ? new Date(unit.commissioningDate).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "-"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
