@@ -238,3 +238,8 @@
     @apply font-sans;
   }
 }
+
+/* Tabular nums for consistent numeric display */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               <RotateCcw className="h-3.5 w-3.5" />
               Try Again
             </Button>
-            <Button variant="default" size="sm" className="gap-1.5" render={<Link href="/dashboard" />}>
+            <Button variant="default" size="sm" className="gap-1.5" render={<Link href="/" />}>
               <Home className="h-3.5 w-3.5" />
               Back to Dashboard
             </Button>

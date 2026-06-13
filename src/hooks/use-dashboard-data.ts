@@ -22,6 +22,9 @@ export interface UseDashboardDataReturn {
   activities: ActivityItem[];
   recentDocs: RecentDocument[];
   isLoading: boolean;
+  isError: boolean;
+  error: { message: string } | null;
+  refetch: () => void;
   getDrillDown: (metricId: string) => DrillDownData | undefined;
 }
 
@@ -71,6 +74,22 @@ export function useDashboardData(): UseDashboardDataReturn {
     activityQuery.isLoading ||
     recentDocsQuery.isLoading;
 
+  const isError =
+    metricsQuery.isError ||
+    trendsQuery.isError ||
+    activityQuery.isError ||
+    recentDocsQuery.isError;
+
+  const error =
+    metricsQuery.error ?? trendsQuery.error ?? activityQuery.error ?? recentDocsQuery.error ?? null;
+
+  const refetch = () => {
+    void metricsQuery.refetch();
+    void trendsQuery.refetch();
+    void activityQuery.refetch();
+    void recentDocsQuery.refetch();
+  };
+
   return {
     metrics: (metricsQuery.data as DashboardMetric[] | undefined) ?? [],
     trendData: (trendsQuery.data as TrendDataPoint[] | undefined) ?? [],
@@ -79,6 +98,9 @@ export function useDashboardData(): UseDashboardDataReturn {
     activities: (activityQuery.data as ActivityItem[] | undefined) ?? [],
     recentDocs: (recentDocsQuery.data as RecentDocument[] | undefined) ?? [],
     isLoading,
+    isError,
+    error,
+    refetch,
     getDrillDown: (metricId: string) => drillDownData[metricId],
   };
 }
