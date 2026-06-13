@@ -25,7 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type Banner, type BannerType, MOCK_BANNERS } from "@/lib/mock-data/admin";
+import { type Banner, type BannerType } from "@/lib/mock-data/admin";
+import { trpc } from "@/lib/trpc/client";
 
 const typeConfig: Record<
   BannerType,
@@ -37,7 +38,14 @@ const typeConfig: Record<
 };
 
 export default function BannerManagementPage() {
-  const [banners, setBanners] = useState<Banner[]>([...MOCK_BANNERS]);
+  const { data: bannersData, isLoading, refetch } = trpc.admin.getBanners.useQuery(
+    undefined,
+    { staleTime: 15_000 },
+  );
+  const createBannerMutation = trpc.admin.createBanner.useMutation({ onSuccess: () => refetch() });
+  const deleteBannerMutation = trpc.admin.deleteBanner.useMutation({ onSuccess: () => refetch() });
+
+  const banners = (bannersData ?? []) as Banner[];
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newBanner, setNewBanner] = useState({
     message: "",
@@ -48,17 +56,13 @@ export default function BannerManagementPage() {
   });
 
   const handleCreate = () => {
-    const banner: Banner = {
-      id: `banner-${Date.now()}`,
+    createBannerMutation.mutate({
       message: newBanner.message,
       type: newBanner.type,
       isActive: newBanner.isActive,
       startDate: new Date(newBanner.startDate).toISOString(),
       endDate: newBanner.endDate ? new Date(newBanner.endDate).toISOString() : null,
-      createdBy: "Admin",
-      createdAt: new Date().toISOString(),
-    };
-    setBanners([banner, ...banners]);
+    });
     setDialogOpen(false);
     setNewBanner({
       message: "",
@@ -70,11 +74,13 @@ export default function BannerManagementPage() {
   };
 
   const handleDelete = (id: string) => {
-    setBanners(banners.filter((b) => b.id !== id));
+    deleteBannerMutation.mutate({ id });
   };
 
   const handleToggle = (id: string) => {
-    setBanners(banners.map((b) => (b.id === id ? { ...b, isActive: !b.isActive } : b)));
+    // Toggle is not supported in current API - would need updateBanner procedure
+    // For now this is a no-op until the backend is extended
+    void id;
   };
 
   const activeBanners = banners.filter((b) => b.isActive);

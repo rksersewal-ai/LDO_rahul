@@ -7,20 +7,33 @@ import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { MOCK_SYSTEM_HEALTH, MOCK_SYSTEM_METRICS } from "@/lib/mock-data/admin";
+import { trpc } from "@/lib/trpc/client";
 
 export default function SystemHealthPage() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const metrics = MOCK_SYSTEM_METRICS;
+
+  const { data: healthData, isLoading, refetch } = trpc.admin.getHealth.useQuery(
+    undefined,
+    { staleTime: 15_000, refetchInterval: autoRefresh ? 30_000 : false },
+  );
+
+  const metrics = healthData?.metrics ?? {
+    cpuUsage: 0,
+    memoryUsage: 0,
+    uptimeHours: 0,
+    activeSessions: 0,
+  };
+  const services = healthData?.services ?? [];
 
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       setLastRefresh(new Date());
+      refetch();
     }, 30000);
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }, [autoRefresh, refetch]);
 
   return (
     <PageFrame size="xl">
@@ -60,8 +73,8 @@ export default function SystemHealthPage() {
             Service Status
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {MOCK_SYSTEM_HEALTH.map((service) => (
-              <HealthCard key={service.name} service={service} />
+            {services.map((service: Record<string, unknown>) => (
+              <HealthCard key={service.name as string} service={service as never} />
             ))}
           </div>
         </section>
@@ -104,14 +117,14 @@ export default function SystemHealthPage() {
           </h2>
           <div className="rounded-lg border bg-card p-4">
             <div className="grid grid-cols-6 gap-4">
-              {MOCK_SYSTEM_HEALTH.map((service) => (
-                <div key={service.name} className="text-center">
+              {services.map((service: Record<string, unknown>) => (
+                <div key={service.name as string} className="text-center">
                   <p className="text-[10px] text-muted-foreground truncate mb-2">
-                    {service.name.split(" ")[0]}
+                    {(service.name as string).split(" ")[0]}
                   </p>
                   <div className="flex items-end justify-center gap-0.5 h-16">
                     {Array.from({ length: 12 }, (_, i) => {
-                      const base = service.responseTime;
+                      const base = (service.responseTime as number) ?? 50;
                       const variation = Math.sin(i * 0.8) * base * 0.3 + base;
                       const height = Math.min(100, (variation / 500) * 100);
                       const barKey = `${service.name}-min${i * 5}`;
@@ -124,7 +137,7 @@ export default function SystemHealthPage() {
                       );
                     })}
                   </div>
-                  <p className="text-[10px] font-semibold mt-1">{service.responseTime}ms</p>
+                  <p className="text-[10px] font-semibold mt-1">{(service.responseTime as number) ?? 0}ms</p>
                 </div>
               ))}
             </div>

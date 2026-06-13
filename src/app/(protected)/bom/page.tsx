@@ -11,13 +11,32 @@ import { PageFrame } from "@/components/layout/page-frame";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { type BomProductCategory, MOCK_BOM_ENTRIES, MOCK_BOM_PRODUCTS } from "@/lib/mock-data/bom";
+import { type BomProductCategory } from "@/lib/mock-data/bom";
+import { trpc } from "@/lib/trpc/client";
 
 export default function BomExplorerPage() {
   const [activeCategory, setActiveCategory] = useState<BomProductCategory | "all">("all");
 
-  const products = MOCK_BOM_PRODUCTS;
-  const entries = MOCK_BOM_ENTRIES;
+  const { data: productsData, isLoading } = trpc.bom.products.useQuery(
+    undefined,
+    { staleTime: 30_000 },
+  );
+
+  const products = (productsData ?? []).map((p: Record<string, unknown>) => ({
+    id: p.id as string,
+    name: p.name as string,
+    code: p.code as string,
+    version: (p.version as string) ?? "1.0",
+    status: (p.status as string) ?? "draft",
+    category: (p.category as BomProductCategory) ?? "locomotive",
+    lifecycle: (p.lifecycle as string) ?? "development",
+    description: (p.description as string) ?? "",
+    createdBy: (p.createdBy as string) ?? "",
+    createdAt: (p.createdAt as string) ?? "",
+    updatedAt: (p.updatedAt as string) ?? "",
+    entryCount: (p.entryCount as number) ?? 0,
+  }));
+  const entries: unknown[] = [];
 
   const categories = products.map((p) => p.category);
 
@@ -26,7 +45,7 @@ export default function BomExplorerPage() {
 
   const productsWithCounts = filteredProducts.map((p) => ({
     ...p,
-    entryCount: entries.filter((e) => e.productId === p.id).length,
+    entryCount: p.entryCount,
   }));
 
   return (
@@ -60,7 +79,7 @@ export default function BomExplorerPage() {
         />
 
         {/* Stats Strip */}
-        <BomStatsStrip products={products} entries={entries} />
+        <BomStatsStrip products={products as never} entries={entries as never} />
 
         {/* Category Filter */}
         <BomCategoryFilter
@@ -72,12 +91,12 @@ export default function BomExplorerPage() {
         {/* Product Cards Grid */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {productsWithCounts.map((product) => (
-            <BomProductCard key={product.id} product={product} entryCount={product.entryCount} />
+            <BomProductCard key={product.id} product={product as never} entryCount={product.entryCount} />
           ))}
         </div>
 
         {/* Recently Modified */}
-        <BomRecentlyModified entries={entries} products={products} />
+        <BomRecentlyModified entries={entries as never} products={products as never} />
       </div>
     </PageFrame>
   );

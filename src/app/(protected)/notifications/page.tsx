@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MOCK_WORK_RECORDS } from "@/lib/mock-data/work-records";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/stores/notification-store";
 
@@ -74,15 +74,8 @@ const statusColors: Record<string, string> = {
   SUBMITTED: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
 };
 
-function getDaysColor(daysTaken: number, targetDays: number): string {
-  if (daysTaken > targetDays) return "text-red-600 dark:text-red-400";
-  if (daysTaken > targetDays * 0.75) return "text-orange-600 dark:text-orange-400";
-  return "text-green-600 dark:text-green-400";
-}
-
 export default function NotificationsPage() {
   const { data: session } = useSession();
-  const currentUserId = session?.user?.id || "user-001";
   const { items, markRead, markAllRead, dismiss } = useNotificationStore();
   const [filter, setFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"notifications" | "pending">("notifications");
@@ -112,24 +105,26 @@ export default function NotificationsPage() {
 
   const unreadCount = items.filter((n) => !n.read).length;
 
+  const { data: workData } = trpc.work.list.useQuery(
+    { status: "OPEN", limit: 50 },
+    { staleTime: 30_000 },
+  );
+
   const pendingWorks = useMemo(() => {
-    const pending = MOCK_WORK_RECORDS.filter(
-      (r) => r.userId === currentUserId && (r.status === "OPEN" || r.status === "SUBMITTED"),
-    );
+    const records = workData?.data ?? [];
     const priorityOrder: Record<string, number> = {
-      CRITICAL: 0,
-      HIGH: 1,
-      MEDIUM: 2,
-      LOW: 3,
+      critical: 0,
+      high: 1,
+      medium: 2,
+      low: 3,
     };
-    pending.sort((a, b) => {
-      const pa = priorityOrder[a.priority] ?? 4;
-      const pb = priorityOrder[b.priority] ?? 4;
-      if (pa !== pb) return pa - pb;
-      return b.daysTaken - a.daysTaken;
+    const sorted = [...records].sort((a, b) => {
+      const pa = priorityOrder[(a.priority as string) ?? "medium"] ?? 4;
+      const pb = priorityOrder[(b.priority as string) ?? "medium"] ?? 4;
+      return pa - pb;
     });
-    return pending;
-  }, [currentUserId]);
+    return sorted;
+  }, [workData]);
 
   return (
     <PageFrame size="lg">
@@ -295,49 +290,52 @@ export default function NotificationsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pendingWorks.map((record) => (
+                    {pendingWorks.map((record: Record<string, unknown>) => (
                       <tr
-                        key={record.id}
+                        key={record.id as string}
                         className="border-b last:border-b-0 hover:bg-muted/30 transition-colors"
                         style={{ height: "38px" }}
                       >
                         <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">
-                          {record.date}
+                          {record.createdAt
+                            ? new Date(record.createdAt as string).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                              })
+                            : "-"}
                         </td>
                         <td className="px-3 py-1.5">
                           <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                            {record.workCategory}
+                            {(record.title as string)?.split(" - ")[0] ?? "-"}
                           </span>
                         </td>
                         <td
                           className="px-3 py-1.5 max-w-[280px] truncate"
-                          title={record.description}
+                          title={(record.description as string) ?? ""}
                         >
-                          {record.description}
+                          {(record.description as string) ?? "-"}
                         </td>
                         <td className="px-3 py-1.5">
                           <span
                             className={cn(
                               "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-                              priorityColors[record.priority],
+                              priorityColors[(record.priority as string)?.toUpperCase() ?? ""] ?? "",
                             )}
                           >
-                            {record.priority}
+                            {(record.priority as string) ?? "-"}
                           </span>
                         </td>
                         <td className="px-3 py-1.5 whitespace-nowrap">
-                          <span className={getDaysColor(record.daysTaken, record.targetDays)}>
-                            {record.daysTaken}/{record.targetDays}
-                          </span>
+                          <span className="text-muted-foreground">-</span>
                         </td>
                         <td className="px-3 py-1.5">
                           <span
                             className={cn(
                               "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-                              statusColors[record.status],
+                              statusColors[(record.status as string)?.toUpperCase() ?? ""] ?? "",
                             )}
                           >
-                            {record.status}
+                            {(record.status as string) ?? "-"}
                           </span>
                         </td>
                         <td className="px-3 py-1.5">

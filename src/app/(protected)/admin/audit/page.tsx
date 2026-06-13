@@ -26,9 +26,9 @@ import {
 import {
   type AuditAction,
   type AuditLogEntry,
-  MOCK_AUDIT_LOG,
   type ResourceType,
 } from "@/lib/mock-data/admin";
+import { trpc } from "@/lib/trpc/client";
 import { exportToCSV } from "@/lib/utils/export-service";
 
 const actionColors: Record<AuditAction, "default" | "secondary" | "outline" | "destructive"> = {
@@ -55,19 +55,29 @@ export default function AuditLogPage() {
   const [resourceFilter, setResourceFilter] = useState<string>("all");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const filtered = MOCK_AUDIT_LOG.filter((entry) => {
-    if (
-      search &&
-      !entry.userName.toLowerCase().includes(search.toLowerCase()) &&
-      !entry.details.toLowerCase().includes(search.toLowerCase()) &&
-      !entry.resourceTitle.toLowerCase().includes(search.toLowerCase())
-    ) {
-      return false;
-    }
-    if (actionFilter !== "all" && entry.action !== actionFilter) return false;
-    if (resourceFilter !== "all" && entry.resourceType !== resourceFilter) return false;
-    return true;
-  });
+  const { data: auditData, isLoading } = trpc.admin.getAuditLog.useQuery(
+    {
+      search: search || undefined,
+      action: actionFilter !== "all" ? actionFilter : undefined,
+      resourceType: resourceFilter !== "all" ? resourceFilter : undefined,
+      limit: 100,
+    },
+    { staleTime: 15_000 },
+  );
+
+  const filtered = (auditData?.items ?? []).map((item: Record<string, unknown>) => ({
+    id: (item.id as string) ?? "",
+    timestamp: (item.createdAt as string) ?? new Date().toISOString(),
+    userId: (item.userId as string) ?? "",
+    userName: (item.userName as string) ?? "",
+    action: ((item.action as string) ?? "CREATE") as AuditAction,
+    resourceType: ((item.entityType as string) ?? "document") as ResourceType,
+    resourceId: (item.entityId as string) ?? "",
+    resourceTitle: (item.entityTitle as string) ?? "",
+    ip: "",
+    details: (item.details as string) ?? "",
+    hashChain: (item.id as string) ?? "",
+  })) as AuditLogEntry[];
 
   const actions: AuditAction[] = [
     "LOGIN",
@@ -126,7 +136,7 @@ export default function AuditLogPage() {
                       entry.resourceId,
                       entry.ip,
                       entry.details,
-                    ]),
+                    ] as (string | number)[]),
                     "audit-log",
                   );
                   toast.success(`Exported ${filtered.length} audit log entries to CSV`);

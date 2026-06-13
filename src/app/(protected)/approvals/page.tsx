@@ -9,12 +9,37 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ApprovalType, MockApproval } from "@/lib/mock-data/approvals";
-import { MOCK_APPROVALS } from "@/lib/mock-data/approvals";
+import { trpc } from "@/lib/trpc/client";
 
 type FilterTab = "all" | ApprovalType;
 
 export default function ApprovalsPage() {
-  const [approvals, setApprovals] = useState<MockApproval[]>(MOCK_APPROVALS);
+  const { data: approvalsData, isLoading, refetch } = trpc.approvals.list.useQuery(
+    { status: "pending", limit: 100 },
+    { staleTime: 15_000 },
+  );
+
+  const approvals: MockApproval[] = (approvalsData?.items ?? []).map((item: Record<string, unknown>) => ({
+    id: item.id as string,
+    title: (item.entityType as string) ?? "Approval Request",
+    description: `Approval for ${(item.entityType as string) ?? "item"} - ${(item.entityId as string) ?? ""}`,
+    type: ((item.entityType as string) === "document" ? "document_release" : (item.entityType as string) === "bom" ? "bom_change" : "work_verification") as ApprovalType,
+    status: ((item.status as string) ?? "pending").toUpperCase() as MockApproval["status"],
+    urgency: "NORMAL" as MockApproval["urgency"],
+    requesterId: (item.requestedBy as string) ?? "",
+    requesterName: (item.requestedBy as string) ?? "Unknown",
+    approverId: "",
+    approverName: "",
+    linkedEntityId: (item.entityId as string) ?? "",
+    linkedEntityType: (item.entityType as string) ?? "",
+    linkedEntityLabel: (item.entityId as string) ?? "",
+    dueDate: (item.createdAt as string) ?? new Date().toISOString(),
+    decisionNotes: null,
+    decidedAt: null,
+    createdAt: (item.createdAt as string) ?? new Date().toISOString(),
+    updatedAt: (item.updatedAt as string) ?? new Date().toISOString(),
+  }));
+
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogAction, setDialogAction] = useState<"approve" | "reject">("approve");
@@ -24,24 +49,15 @@ export default function ApprovalsPage() {
   const filteredApprovals =
     activeTab === "all" ? pendingApprovals : pendingApprovals.filter((a) => a.type === activeTab);
 
+  const approveMutation = trpc.approvals.approveStep.useMutation({
+    onSuccess: () => refetch(),
+  });
+
   const handleApproveClick = (approval: MockApproval) => {
-    // One-click approve for non-critical items
     if (approval.urgency !== "CRITICAL") {
-      setApprovals((prev) =>
-        prev.map((a) =>
-          a.id === approval.id
-            ? {
-                ...a,
-                status: "APPROVED" as const,
-                decidedAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              }
-            : a,
-        ),
-      );
+      approveMutation.mutate({ requestId: approval.id, comments: "" });
       return;
     }
-    // For critical items, show confirmation dialog
     setSelectedApproval(approval);
     setDialogAction("approve");
     setDialogOpen(true);
@@ -55,20 +71,7 @@ export default function ApprovalsPage() {
 
   const handleConfirm = (notes: string) => {
     if (!selectedApproval) return;
-    const newStatus = dialogAction === "approve" ? "APPROVED" : "REJECTED";
-    setApprovals((prev) =>
-      prev.map((a) =>
-        a.id === selectedApproval.id
-          ? {
-              ...a,
-              status: newStatus as MockApproval["status"],
-              decisionNotes: notes || null,
-              decidedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }
-          : a,
-      ),
-    );
+    approveMutation.mutate({ requestId: selectedApproval.id, comments: notes });
     setDialogOpen(false);
     setSelectedApproval(null);
   };

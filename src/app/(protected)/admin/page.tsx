@@ -15,7 +15,7 @@ import { HealthCard } from "@/components/admin/health-card";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
-import { MOCK_SYSTEM_HEALTH, MOCK_SYSTEM_METRICS } from "@/lib/mock-data/admin";
+import { trpc } from "@/lib/trpc/client";
 
 const quickLinks = [
   { label: "Users", href: "/admin/users", icon: Users, desc: "Manage user accounts and roles" },
@@ -48,8 +48,24 @@ const quickLinks = [
 ];
 
 export default function AdminDashboardPage() {
-  const metrics = MOCK_SYSTEM_METRICS;
-  const storagePercent = Math.round((metrics.storageUsedGB / metrics.storageTotalGB) * 100);
+  const { data: healthData, isLoading } = trpc.admin.getHealth.useQuery(
+    undefined,
+    { staleTime: 30_000 },
+  );
+
+  const metrics = healthData?.metrics ?? {
+    totalUsers: 0,
+    activeSessions: 0,
+    documentsToday: 0,
+    ocrJobsToday: 0,
+    storageUsedGB: 0,
+    storageTotalGB: 1,
+    cpuUsage: 0,
+    memoryUsage: 0,
+    uptimeHours: 0,
+  };
+  const services = healthData?.services ?? [];
+  const storagePercent = Math.round((metrics.storageUsedGB / (metrics.storageTotalGB || 1)) * 100);
 
   return (
     <PageFrame size="xl">
@@ -65,9 +81,13 @@ export default function AdminDashboardPage() {
             Service Health
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-            {MOCK_SYSTEM_HEALTH.map((service) => (
-              <HealthCard key={service.name} service={service} />
-            ))}
+            {isLoading ? (
+              <p className="text-xs text-muted-foreground col-span-full text-center py-4">Loading...</p>
+            ) : (
+              services.map((service: Record<string, unknown>) => (
+                <HealthCard key={service.name as string} service={service as never} />
+              ))
+            )}
           </div>
         </section>
 

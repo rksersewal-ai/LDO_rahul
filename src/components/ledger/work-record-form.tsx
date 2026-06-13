@@ -17,14 +17,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { MOCK_USERS } from "@/lib/mock-data/users";
 import {
   getWorkTypesByCategory,
   WORK_CATEGORIES,
   WORK_TYPES,
   type WorkCategoryCode,
 } from "@/lib/mock-data/work-categories";
-import { MOCK_WORK_RECORDS } from "@/lib/mock-data/work-records";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { type CreateWorkRecordInput, createWorkRecordSchema } from "@/lib/validators/work-records";
 
@@ -111,9 +110,13 @@ export function WorkRecordForm({ onSubmit, isLoading, className }: WorkRecordFor
   }, [startDate, closingDate]);
 
   // Supervisors and admins for dropdown
+  const { data: usersData } = trpc.admin.getUsers.useQuery(
+    { isActive: true },
+    { staleTime: 60_000 },
+  );
   const supervisors = useMemo(() => {
-    return MOCK_USERS.filter((u) => u.role === "supervisor" || u.role === "admin");
-  }, []);
+    return (usersData ?? []).filter((u) => u.role === "supervisor" || u.role === "admin");
+  }, [usersData]);
 
   // Consent applicability - show for SDR category types
   const consentApplicable = useMemo(() => {
@@ -123,21 +126,25 @@ export function WorkRecordForm({ onSubmit, isLoading, className }: WorkRecordFor
   }, [selectedType]);
 
   // Duplicate detection
+  const { data: workRecordsData } = trpc.work.list.useQuery(
+    { limit: 100 },
+    { staleTime: 30_000 },
+  );
   const duplicates = useMemo(() => {
     if (!selectedTypeCode || (!eOfficeCaseNumber && !plNumber)) return [];
+    const records = workRecordsData?.data ?? [];
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    return MOCK_WORK_RECORDS.filter((record) => {
-      if (record.workTypeCode !== selectedTypeCode) return false;
+    return records.filter((record) => {
+      if (record.title && !record.title.includes(selectedTypeCode)) return false;
       const recordDate = new Date(record.createdAt);
       if (recordDate < thirtyDaysAgo) return false;
-      // Match on eOffice reference or PL number
-      if (eOfficeCaseNumber && record.referenceNumber.includes(eOfficeCaseNumber)) return true;
-      if (plNumber && record.plNumber === plNumber) return true;
+      if (eOfficeCaseNumber && record.description?.includes(eOfficeCaseNumber)) return true;
+      if (plNumber && record.title?.includes(plNumber)) return true;
       return false;
     });
-  }, [selectedTypeCode, eOfficeCaseNumber, plNumber]);
+  }, [selectedTypeCode, eOfficeCaseNumber, plNumber, workRecordsData]);
 
   // File attachment handlers
   const addFiles = useCallback((files: FileList | File[]) => {
@@ -510,8 +517,8 @@ export function WorkRecordForm({ onSubmit, isLoading, className }: WorkRecordFor
               <ul className="space-y-1 mt-1">
                 {duplicates.map((dup) => (
                   <li key={dup.id} className="text-[10px] text-amber-700 dark:text-amber-400">
-                    <span className="font-mono font-medium">{dup.workTypeCode}</span> -{" "}
-                    {dup.description.slice(0, 60)}... ({dup.date})
+                    <span className="font-mono font-medium">{dup.title}</span> -{" "}
+                    {(dup.description ?? "").slice(0, 60)}... ({new Date(dup.createdAt).toLocaleDateString("en-IN")})
                   </li>
                 ))}
               </ul>

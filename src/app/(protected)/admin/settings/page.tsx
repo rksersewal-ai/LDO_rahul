@@ -35,16 +35,12 @@ import type { Permission } from "@/lib/auth/permissions";
 import {
   type ComplianceSettings,
   type FeatureToggle,
-  MOCK_COMPLIANCE_SETTINGS,
-  MOCK_FEATURE_TOGGLES,
-  MOCK_ROLE_PERMISSIONS,
-  MOCK_SECURITY_POLICIES,
-  MOCK_SYSTEM_CONFIGURATION,
   type RolePermissionMatrix,
   type SecurityPolicies,
   type SystemConfiguration,
 } from "@/lib/mock-data/admin-settings";
 import type { UserRole } from "@/lib/mock-data/users";
+import { trpc } from "@/lib/trpc/client";
 
 type TabId =
   | "overview"
@@ -67,15 +63,57 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [features, setFeatures] = useState<FeatureToggle[]>([...MOCK_FEATURE_TOGGLES]);
-  const [security, setSecurity] = useState<SecurityPolicies>({ ...MOCK_SECURITY_POLICIES });
-  const [rolePerms, setRolePerms] = useState<RolePermissionMatrix>({ ...MOCK_ROLE_PERMISSIONS });
+
+  const { data: featuresData } = trpc.admin.getFeatureToggles.useQuery(undefined, { staleTime: 30_000 });
+  const { data: securityData } = trpc.admin.getSecurityPolicies.useQuery(undefined, { staleTime: 30_000 });
+  const { data: rolePermsData } = trpc.admin.getRolePermissions.useQuery(undefined, { staleTime: 30_000 });
+  const { data: sysConfigData } = trpc.admin.getSystemConfiguration.useQuery(undefined, { staleTime: 30_000 });
+  const { data: complianceData } = trpc.admin.getComplianceSettings.useQuery(undefined, { staleTime: 30_000 });
+
+  const [features, setFeatures] = useState<FeatureToggle[]>([]);
+  const [security, setSecurity] = useState<SecurityPolicies>({
+    password: { minLength: 8, requireUppercase: true, requireLowercase: true, requireNumbers: true, requireSpecialChars: true, expiryDays: 90, historyCount: 5 },
+    session: { maxDuration: 480, idleTimeout: 30, maxConcurrentSessions: 3, requireMfa: false },
+    lockout: { maxAttempts: 5, durationMinutes: 30, autoUnlock: true },
+    login: { allowRememberMe: true, showCaptchaAfterFailures: 3 },
+    ipRestrictions: { enabled: false, allowedRanges: [], blockedRanges: [] },
+  } as unknown as SecurityPolicies);
+  const [rolePerms, setRolePerms] = useState<RolePermissionMatrix>({} as unknown as RolePermissionMatrix);
   const [sysConfig, setSysConfig] = useState<SystemConfiguration>({
-    ...MOCK_SYSTEM_CONFIGURATION,
-  });
+    upload: { maxFileSizeMB: 100, allowedExtensions: [], maxConcurrentUploads: 5 },
+    ocr: { autoProcess: true, maxRetries: 3, timeoutMinutes: 10, batchSize: 10, ocrEngine: "tesseract" },
+    notification: { emailEnabled: true, pushEnabled: true, digestFrequency: "daily", retentionDays: 90 },
+    backup: { frequency: "daily", retentionDays: 30, autoBackup: true, lastBackup: null, compressionEnabled: true },
+  } as unknown as SystemConfiguration);
   const [compliance, setCompliance] = useState<ComplianceSettings>({
-    ...MOCK_COMPLIANCE_SETTINGS,
-  });
+    auditRetention: { retentionDays: 2555, immutable: true, hashAlgorithm: "SHA-256" },
+    dataClassification: { enabled: true, defaultLevel: "internal", levels: [] },
+    documentRetention: { defaultRetentionYears: 25, reviewCycleDays: 365, autoArchive: true },
+  } as unknown as ComplianceSettings);
+
+  // Sync from server data - use server data when available
+  const effectiveFeatures = (featuresData as FeatureToggle[] | undefined) ?? features;
+  const effectiveSecurity = (securityData as SecurityPolicies | undefined) ?? security;
+  const effectiveRolePerms = (rolePermsData as RolePermissionMatrix | undefined) ?? rolePerms;
+  const effectiveSysConfig = (sysConfigData as SystemConfiguration | undefined) ?? sysConfig;
+  const effectiveCompliance = (complianceData as ComplianceSettings | undefined) ?? compliance;
+
+  // Don't render tabs until server data is loaded to avoid accessing undefined fields
+  const isDataReady = !!featuresData && !!securityData && !!rolePermsData && !!sysConfigData && !!complianceData;
+
+  if (!isDataReady) {
+    return (
+      <PageFrame size="lg">
+        <div className="flex flex-col gap-4">
+          <PageHeader
+            title="System Settings"
+            subtitle="Comprehensive administration control center"
+          />
+          <p className="text-sm text-muted-foreground text-center py-8">Loading settings...</p>
+        </div>
+      </PageFrame>
+    );
+  }
 
   return (
     <PageFrame size="lg">
@@ -108,34 +146,34 @@ export default function SettingsPage() {
         <div className="min-h-[500px]">
           {activeTab === "overview" && (
             <OverviewTab
-              features={features}
+              features={effectiveFeatures}
               setFeatures={setFeatures}
-              security={security}
-              compliance={compliance}
-              sysConfig={sysConfig}
-              rolePerms={rolePerms}
+              security={effectiveSecurity}
+              compliance={effectiveCompliance}
+              sysConfig={effectiveSysConfig}
+              rolePerms={effectiveRolePerms}
             />
           )}
           {activeTab === "features" && (
-            <FeatureTogglesTab features={features} setFeatures={setFeatures} />
+            <FeatureTogglesTab features={effectiveFeatures} setFeatures={setFeatures} />
           )}
           {activeTab === "security" && (
-            <SecurityTab security={security} setSecurity={setSecurity} />
+            <SecurityTab security={effectiveSecurity} setSecurity={setSecurity} />
           )}
-          {activeTab === "roles" && <RolesTab rolePerms={rolePerms} setRolePerms={setRolePerms} />}
+          {activeTab === "roles" && <RolesTab rolePerms={effectiveRolePerms} setRolePerms={setRolePerms} />}
           {activeTab === "system" && (
-            <SystemTab sysConfig={sysConfig} setSysConfig={setSysConfig} />
+            <SystemTab sysConfig={effectiveSysConfig} setSysConfig={setSysConfig} />
           )}
           {activeTab === "compliance" && (
-            <ComplianceTab compliance={compliance} setCompliance={setCompliance} />
+            <ComplianceTab compliance={effectiveCompliance} setCompliance={setCompliance} />
           )}
           {activeTab === "import-export" && (
             <ImportExportTab
-              features={features}
-              security={security}
-              rolePerms={rolePerms}
-              sysConfig={sysConfig}
-              compliance={compliance}
+              features={effectiveFeatures}
+              security={effectiveSecurity}
+              rolePerms={effectiveRolePerms}
+              sysConfig={effectiveSysConfig}
+              compliance={effectiveCompliance}
               setFeatures={setFeatures}
               setSecurity={setSecurity}
               setRolePerms={setRolePerms}
@@ -1568,12 +1606,8 @@ function ImportExportTab({
   };
 
   const handleReset = () => {
-    setFeatures([...MOCK_FEATURE_TOGGLES]);
-    setSecurity({ ...MOCK_SECURITY_POLICIES });
-    setRolePerms({ ...MOCK_ROLE_PERMISSIONS });
-    setSysConfig({ ...MOCK_SYSTEM_CONFIGURATION });
-    setCompliance({ ...MOCK_COMPLIANCE_SETTINGS });
-    setShowResetConfirm(false);
+    // Reset by reloading the page to fetch fresh data from the server
+    window.location.reload();
   };
 
   return (

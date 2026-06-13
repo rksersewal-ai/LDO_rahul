@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { MOCK_USERS } from "@/lib/mock-data";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +33,20 @@ const roleColors: Record<string, string> = {
 };
 
 export default function ProfilePage() {
-  const currentUser = MOCK_USERS[0];
   const { data: session } = useSession();
   const { theme, setTheme } = useTheme();
+
+  const currentUser = {
+    name: session?.user?.name ?? "Unknown User",
+    email: session?.user?.email ?? "",
+    role: (session?.user as Record<string, unknown>)?.role as string ?? "viewer",
+    designation: (session?.user as Record<string, unknown>)?.designation as string ?? "-",
+    department: (session?.user as Record<string, unknown>)?.department as string ?? "-",
+    section: (session?.user as Record<string, unknown>)?.section as string ?? "-",
+    employeeId: (session?.user as Record<string, unknown>)?.employeeId as string ?? "-",
+    phone: (session?.user as Record<string, unknown>)?.phone as string ?? "-",
+    lastLogin: null as string | null,
+  };
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(true);
   const [defaultView, setDefaultView] = useState("dashboard");

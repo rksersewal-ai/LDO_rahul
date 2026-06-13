@@ -4,7 +4,7 @@ import { Circle, FolderClosed, FolderOpen, Link2, Weight } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import type { BomEntry } from "@/lib/mock-data/bom";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { trpc } from "@/lib/trpc/client";
 
 interface BomNodeDetailProps {
   entry: BomEntry;
@@ -44,7 +44,13 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 }
 
 export function BomNodeDetail({ entry, onLinkPl }: BomNodeDetailProps) {
-  const linkedPl = entry.plId ? MOCK_PL_NUMBERS.find((p) => p.id === entry.plId) : null;
+  const { data: plData } = trpc.pl.list.useQuery(
+    { pageSize: 100 },
+    { staleTime: 60_000 },
+  );
+
+  const plNumbers = plData?.data ?? [];
+  const linkedPl = entry.plId ? plNumbers.find((p) => p.id === entry.plId) : null;
 
   return (
     <div className="flex flex-col gap-4">
