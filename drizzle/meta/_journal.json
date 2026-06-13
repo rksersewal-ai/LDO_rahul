@@ -8,6 +8,34 @@
       "when": 1781262532207,
       "tag": "0000_material_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781262532300,
+      "tag": "0001_pl_system_phase2",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781262532400,
+      "tag": "0002_cabinets_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781262532500,
+      "tag": "0003_versioning_comments_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781262532600,
+      "tag": "0004_dedup_scan_history",
+      "breakpoints": true
     }
   ]
 }
