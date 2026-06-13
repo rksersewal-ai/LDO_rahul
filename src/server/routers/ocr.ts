@@ -211,17 +211,19 @@ export const ocrRouter = router({
           .from(users)
           .where(and(eq(users.workspaceId, workspaceId), eq(users.role, "admin")));
 
-        for (const admin of admins) {
-          await db.insert(notifications).values({
+        if (admins.length > 0) {
+          const notificationsData = admins.map((admin) => ({
             id: nanoid(),
             userId: admin.id,
-            type: "system",
+            type: "system" as const,
             title: "Unresolved PL Candidate",
             message: `OCR detected PL number ${candidate.plNumber} but it does not exist in the system.`,
             entityType: "ocr_pl_candidate",
             entityId: input.candidateId,
             workspaceId,
-          });
+          }));
+
+          await db.insert(notifications).values(notificationsData);
         }
       }
 
