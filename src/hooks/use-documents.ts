@@ -23,9 +23,34 @@ export function useDocumentUpload() {
 export function useDocumentUpdate() {
   const utils = trpc.useUtils();
   return trpc.documents.update.useMutation({
-    onSuccess: () => {
+    // Optimistically patch the detail cache so status/field edits feel instant.
+    onMutate: async (input) => {
+      await utils.documents.getById.cancel({ id: input.id });
+      const previous = utils.documents.getById.getData({ id: input.id });
+      if (previous) {
+        utils.documents.getById.setData(
+          { id: input.id },
+          {
+            ...previous,
+            ...(input.title !== undefined ? { title: input.title } : {}),
+            ...(input.status !== undefined
+              ? { status: input.status.toLowerCase() as typeof previous.status }
+              : {}),
+            ...(input.revision !== undefined ? { revision: input.revision } : {}),
+          },
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, input, ctx) => {
+      // Roll back on failure.
+      if (ctx?.previous) {
+        utils.documents.getById.setData({ id: input.id }, ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, input) => {
       utils.documents.list.invalidate();
-      utils.documents.getById.invalidate();
+      utils.documents.getById.invalidate({ id: input.id });
     },
   });
 }
@@ -35,6 +60,17 @@ export function useDocumentDelete() {
   return trpc.documents.delete.useMutation({
     onSuccess: () => {
       utils.documents.list.invalidate();
+      utils.documents.listDeleted.invalidate();
+    },
+  });
+}
+
+export function useDocumentRestore() {
+  const utils = trpc.useUtils();
+  return trpc.documents.restore.useMutation({
+    onSuccess: () => {
+      utils.documents.list.invalidate();
+      utils.documents.listDeleted.invalidate();
     },
   });
 }
@@ -42,8 +78,28 @@ export function useDocumentDelete() {
 export function useDocumentLinkPl() {
   const utils = trpc.useUtils();
   return trpc.documents.linkPL.useMutation({
-    onSuccess: () => {
-      utils.documents.getById.invalidate();
+    // Optimistically add the PL id to the detail cache's linkedPlIds.
+    onMutate: async (input) => {
+      await utils.documents.getById.cancel({ id: input.documentId });
+      const previous = utils.documents.getById.getData({ id: input.documentId });
+      if (previous && !previous.linkedPlIds.includes(input.plId)) {
+        utils.documents.getById.setData(
+          { id: input.documentId },
+          {
+            ...previous,
+            linkedPlIds: [...previous.linkedPlIds, input.plId],
+          },
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, input, ctx) => {
+      if (ctx?.previous) {
+        utils.documents.getById.setData({ id: input.documentId }, ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, input) => {
+      utils.documents.getById.invalidate({ id: input.documentId });
     },
   });
 }
@@ -51,8 +107,28 @@ export function useDocumentLinkPl() {
 export function useDocumentUnlinkPl() {
   const utils = trpc.useUtils();
   return trpc.documents.unlinkPL.useMutation({
-    onSuccess: () => {
-      utils.documents.getById.invalidate();
+    // Optimistically remove the PL id from the detail cache's linkedPlIds.
+    onMutate: async (input) => {
+      await utils.documents.getById.cancel({ id: input.documentId });
+      const previous = utils.documents.getById.getData({ id: input.documentId });
+      if (previous) {
+        utils.documents.getById.setData(
+          { id: input.documentId },
+          {
+            ...previous,
+            linkedPlIds: previous.linkedPlIds.filter((id) => id !== input.plId),
+          },
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, input, ctx) => {
+      if (ctx?.previous) {
+        utils.documents.getById.setData({ id: input.documentId }, ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, input) => {
+      utils.documents.getById.invalidate({ id: input.documentId });
     },
   });
 }

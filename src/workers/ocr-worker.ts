@@ -1,15 +1,16 @@
-import { Worker, type Job } from "bullmq";
+import { type Job, Worker } from "bullmq";
+import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import pdf from "pdf-parse";
 // @ts-expect-error - sharp types not resolved with bundler moduleResolution
 import sharp from "sharp";
-import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
 
 import { db } from "@/lib/db";
-import { documents, ocrJobs, ocrPlCandidates, notifications } from "@/lib/db/schema";
-import { extractPlCandidates, isValidModulo11 } from "@/lib/pl/validation";
+import { documents, notifications, ocrJobs, ocrPlCandidates } from "@/lib/db/schema";
 import { recognizeImage } from "@/lib/ocr/tesseract-engine";
+import { extractPlCandidates, isValidModulo11 } from "@/lib/pl/validation";
 import * as nasStorage from "@/lib/storage/nas-storage";
+import { withJobTimeout } from "./job-timeout";
 import type { OcrJobPayload } from "./ocr-queue";
 
 /**
@@ -21,10 +22,7 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
 
   try {
     // Step a: Update documents to processing
-    await db
-      .update(documents)
-      .set({ ocrStatus: "processing" })
-      .where(eq(documents.id, documentId));
+    await db.update(documents).set({ ocrStatus: "processing" }).where(eq(documents.id, documentId));
 
     // Step b: Load file from NAS storage
     let fileBuffer: Buffer;
@@ -37,10 +35,7 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
         .update(ocrJobs)
         .set({ status: "failed", errorMessage: `NAS storage unavailable: ${storageMsg}` })
         .where(eq(ocrJobs.id, job.data.jobId));
-      await db
-        .update(documents)
-        .set({ ocrStatus: "failed" })
-        .where(eq(documents.id, documentId));
+      await db.update(documents).set({ ocrStatus: "failed" }).where(eq(documents.id, documentId));
       return;
     }
 
@@ -132,10 +127,7 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
       // Step i: Generate thumbnail via NAS storage
       let thumbnailPath = nasStorage.getThumbnailPath(workspaceId ?? "default", documentId);
       try {
-        const thumbnailBuffer = await sharp(fileBuffer)
-          .resize({ width: 400 })
-          .webp()
-          .toBuffer();
+        const thumbnailBuffer = await sharp(fileBuffer).resize({ width: 400 }).webp().toBuffer();
         thumbnailPath = await nasStorage.storeThumbnail(
           thumbnailBuffer,
           workspaceId ?? "default",
@@ -188,10 +180,7 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
     // On error: update documents to failed
-    await db
-      .update(documents)
-      .set({ ocrStatus: "failed" })
-      .where(eq(documents.id, documentId));
+    await db.update(documents).set({ ocrStatus: "failed" }).where(eq(documents.id, documentId));
 
     // Update ocrJobs to failed by job ID
     await db
@@ -206,18 +195,28 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
 
 /**
  * Create and return a BullMQ Worker for the 'ocr-pipeline' queue.
+ *
+ * Concurrency and per-job timeout are configurable via env so deployments can
+ * tune throughput vs. resource use without code changes.
  */
 export function createOcrWorker(): Worker<OcrJobPayload> {
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+  const concurrency = Number(process.env.OCR_WORKER_CONCURRENCY ?? "2");
+  // OCR can be slow on large multi-page scans; default 5 min ceiling per job.
+  const jobTimeoutMs = Number(process.env.OCR_JOB_TIMEOUT_MS ?? `${5 * 60 * 1000}`);
 
-  const worker = new Worker<OcrJobPayload>("ocr-pipeline", processOcrJob, {
-    connection: {
-      host: new URL(redisUrl).hostname,
-      port: Number(new URL(redisUrl).port) || 6379,
-      maxRetriesPerRequest: null,
+  const worker = new Worker<OcrJobPayload>(
+    "ocr-pipeline",
+    (job) => withJobTimeout(processOcrJob(job), jobTimeoutMs, `OCR job ${job.id}`),
+    {
+      connection: {
+        host: new URL(redisUrl).hostname,
+        port: Number(new URL(redisUrl).port) || 6379,
+        maxRetriesPerRequest: null,
+      },
+      concurrency,
     },
-    concurrency: 2,
-  });
+  );
 
   return worker;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download, Eye, FileSearch, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Archive, Download, Eye, FileSearch, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -24,8 +24,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
+import { useDocumentBulkAction, useDocumentDelete } from "@/hooks/use-documents";
 import type { DocumentCategory, MockDocument } from "@/lib/mock-data/documents";
 import { cn } from "@/lib/utils";
+import { showBulkActionResult } from "@/lib/utils/bulk-action-result";
 import { OcrStatusBadge } from "./ocr-status-badge";
 
 function formatFileSize(bytes: number): string {
@@ -80,7 +82,9 @@ function mapDocStatus(status: string): StatusType {
   }
 }
 
-function createColumns(onAction: (action: string, doc: MockDocument) => void): ColumnDef<MockDocument, unknown>[] {
+function createColumns(
+  onAction: (action: string, doc: MockDocument) => void,
+): ColumnDef<MockDocument, unknown>[] {
   return [
     {
       accessorKey: "documentNumber",
@@ -100,7 +104,9 @@ function createColumns(onAction: (action: string, doc: MockDocument) => void): C
       accessorKey: "title",
       header: "Title",
       cell: ({ row }) => (
-        <span className="truncate text-xs font-medium max-w-[260px] block">{row.original.title}</span>
+        <span className="truncate text-xs font-medium max-w-[260px] block">
+          {row.original.title}
+        </span>
       ),
       size: 260,
     },
@@ -139,7 +145,9 @@ function createColumns(onAction: (action: string, doc: MockDocument) => void): C
     {
       accessorKey: "agency",
       header: "Owner",
-      cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.agency}</span>,
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">{row.original.agency}</span>
+      ),
       size: 70,
     },
     {
@@ -172,7 +180,9 @@ function createColumns(onAction: (action: string, doc: MockDocument) => void): C
       accessorKey: "fileSize",
       header: "Size",
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">{formatFileSize(row.original.fileSize)}</span>
+        <span className="text-xs text-muted-foreground">
+          {formatFileSize(row.original.fileSize)}
+        </span>
       ),
       size: 70,
     },
@@ -266,6 +276,11 @@ export function DocumentTable({ data, className }: DocumentTableProps) {
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<MockDocument | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  const deleteMutation = useDocumentDelete();
+  const bulkMutation = useDocumentBulkAction();
 
   function handleAction(action: string, doc: MockDocument) {
     switch (action) {
@@ -291,11 +306,44 @@ export function DocumentTable({ data, className }: DocumentTableProps) {
   }
 
   function handleDeleteConfirm() {
-    if (deleteTarget) {
-      toast.success(`Document ${deleteTarget.documentNumber} deleted`);
-      setDeleteDialogOpen(false);
-      setDeleteTarget(null);
-    }
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    deleteMutation.mutate(
+      { id: target.id },
+      {
+        onSuccess: () => toast.success(`Document ${target.documentNumber} moved to Recycle Bin`),
+        onError: (e) => toast.error(e.message),
+        onSettled: () => {
+          setDeleteDialogOpen(false);
+          setDeleteTarget(null);
+        },
+      },
+    );
+  }
+
+  function runBulkArchive(ids: string[]) {
+    bulkMutation.mutate(
+      { ids, action: "archive" },
+      {
+        onSuccess: (res) => showBulkActionResult(res, "Archive"),
+        onError: (e) => toast.error(e.message),
+      },
+    );
+  }
+
+  function confirmBulkDelete() {
+    const ids = bulkDeleteIds;
+    bulkMutation.mutate(
+      { ids, action: "delete" },
+      {
+        onSuccess: (res) => showBulkActionResult(res, "Delete"),
+        onError: (e) => toast.error(e.message),
+        onSettled: () => {
+          setBulkDeleteOpen(false);
+          setBulkDeleteIds([]);
+        },
+      },
+    );
   }
 
   const columns = createColumns(handleAction);
@@ -306,6 +354,22 @@ export function DocumentTable({ data, className }: DocumentTableProps) {
         columns={columns}
         data={data}
         enableSelection
+        getRowId={(row) => row.id}
+        bulkActions={[
+          {
+            label: "Archive",
+            icon: <Archive className="h-3 w-3" />,
+            onClick: (ids) => runBulkArchive(ids),
+          },
+          {
+            label: "Delete",
+            icon: <Trash2 className="h-3 w-3" />,
+            onClick: (ids) => {
+              setBulkDeleteIds(ids);
+              setBulkDeleteOpen(true);
+            },
+          },
+        ]}
         className={cn("[&_tbody_tr]:cursor-pointer", className)}
       />
 
@@ -315,24 +379,49 @@ export function DocumentTable({ data, className }: DocumentTableProps) {
           <DialogHeader>
             <DialogTitle>Delete Document</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {deleteTarget?.documentNumber}? This action cannot be undone.
+              Move {deleteTarget?.documentNumber} to the Recycle Bin? It can be restored later — the
+              file is never permanently deleted.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDeleteDialogOpen(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setDeleteDialogOpen(false)}>
               Cancel
             </Button>
             <Button
               size="sm"
               variant="destructive"
+              disabled={deleteMutation.isPending}
               onClick={handleDeleteConfirm}
             >
               <Trash2 className="h-3 w-3" />
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete {bulkDeleteIds.length} document(s)</DialogTitle>
+            <DialogDescription>
+              Move {bulkDeleteIds.length} selected document(s) to the Recycle Bin? They can be
+              restored later — files are never permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setBulkDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={bulkMutation.isPending}
+              onClick={confirmBulkDelete}
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete {bulkDeleteIds.length}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { requirePermission } from "@/lib/auth/permissions";
@@ -11,7 +11,14 @@ import {
   documents,
   legalHolds,
   recordDeclarations,
+  removedFileHashes,
 } from "@/lib/db/schema";
+import {
+  countActiveReferences,
+  isHashUnderLegalHold,
+  markHashRemovedIfOrphaned,
+  restoreHash,
+} from "@/lib/storage/hash-removal";
 import { protectedProcedure, router } from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId?: string | null } } }): string {
@@ -29,17 +36,13 @@ export const governanceRouter = router({
   /**
    * Get all legal holds for the caller's workspace.
    */
-  getLegalHolds: protectedProcedure
-    .query(async ({ ctx }) => {
-      const workspaceId = requireWorkspaceId(ctx);
+  getLegalHolds: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
 
-      const rows = await db
-        .select()
-        .from(legalHolds)
-        .where(eq(legalHolds.workspaceId, workspaceId));
+    const rows = await db.select().from(legalHolds).where(eq(legalHolds.workspaceId, workspaceId));
 
-      return rows;
-    }),
+    return rows;
+  }),
 
   /**
    * Create a new legal hold.
@@ -200,17 +203,16 @@ export const governanceRouter = router({
   /**
    * Get classification labels for the caller's workspace.
    */
-  getClassificationLabels: protectedProcedure
-    .query(async ({ ctx }) => {
-      const workspaceId = requireWorkspaceId(ctx);
+  getClassificationLabels: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
 
-      const rows = await db
-        .select()
-        .from(classificationLabels)
-        .where(eq(classificationLabels.workspaceId, workspaceId));
+    const rows = await db
+      .select()
+      .from(classificationLabels)
+      .where(eq(classificationLabels.workspaceId, workspaceId));
 
-      return rows;
-    }),
+    return rows;
+  }),
 
   /**
    * Set classification on a document.
@@ -404,17 +406,321 @@ export const governanceRouter = router({
     }),
 
   /**
-   * Get all record declarations for the caller's workspace.
+   * Execute the (logical) destruction of an approved record declaration.
+   *
+   * NO-HARD-DELETE POLICY: "destruction" here means logical disposition only —
+   * the document is soft-deleted, the declaration is stamped with destroyedAt,
+   * and the underlying file hash is flagged removed if no other live document
+   * references it. The physical bytes are NEVER unlinked from NAS, so the record
+   * remains fully recoverable for audit / e-discovery.
+   *
+   * Requires records.manage, prior approval, and that the document is not under
+   * an active legal hold.
    */
-  getRecordDeclarations: protectedProcedure
-    .query(async ({ ctx }) => {
+  executeDestruction: protectedProcedure
+    .input(
+      z.object({
+        recordDeclarationId: z.string(),
+        confirmationNote: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
       const workspaceId = requireWorkspaceId(ctx);
 
-      const rows = await db
+      requirePermission(ctx, "records.manage");
+
+      const [declaration] = await db
         .select()
         .from(recordDeclarations)
-        .where(eq(recordDeclarations.workspaceId, workspaceId));
+        .where(
+          and(
+            eq(recordDeclarations.id, input.recordDeclarationId),
+            eq(recordDeclarations.workspaceId, workspaceId),
+          ),
+        );
 
-      return rows;
+      if (!declaration) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Record declaration not found in workspace",
+        });
+      }
+
+      if (!declaration.destroyApprovedAt) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Destruction has not been approved. Approve destruction first.",
+        });
+      }
+
+      if (declaration.destroyedAt) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "This record has already been disposed.",
+        });
+      }
+
+      // Fetch the document so we know its file hash for the removal flag.
+      const [doc] = await db
+        .select({ id: documents.id, fileHash: documents.fileHash, title: documents.title })
+        .from(documents)
+        .where(
+          and(eq(documents.id, declaration.documentId), eq(documents.workspaceId, workspaceId)),
+        );
+
+      if (!doc) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Underlying document not found" });
+      }
+
+      // Legal hold overrides destruction.
+      if (doc.fileHash && (await isHashUnderLegalHold(doc.fileHash))) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Document is under an active legal hold and cannot be disposed.",
+        });
+      }
+
+      const destroyedAt = new Date();
+
+      await db.transaction(async (tx) => {
+        // Stamp the declaration as destroyed (logical disposition record).
+        await tx
+          .update(recordDeclarations)
+          .set({ destroyedAt })
+          .where(eq(recordDeclarations.id, input.recordDeclarationId));
+
+        // Soft-delete the document — never a physical delete.
+        await tx
+          .update(documents)
+          .set({ isDeleted: 1, deletedAt: destroyedAt, updatedAt: destroyedAt, updatedBy: userId })
+          .where(eq(documents.id, declaration.documentId));
+
+        // Flag the file hash removed only if nothing live still references it.
+        if (doc.fileHash) {
+          await markHashRemovedIfOrphaned(
+            {
+              fileHash: doc.fileHash,
+              removedBy: userId,
+              workspaceId,
+              lastDocumentId: doc.id,
+              reason: "records.executeDestruction",
+            },
+            tx,
+          );
+        }
+
+        await createAuditEntry(tx, {
+          userId,
+          userName,
+          action: "RECORD_DESTRUCTION_EXECUTED",
+          resourceType: "record_declaration",
+          resourceId: input.recordDeclarationId,
+          resourceTitle: doc.title,
+          workspaceId,
+          details: `Executed logical destruction of record ${input.recordDeclarationId} (document soft-deleted, file retained per no-hard-delete policy).${input.confirmationNote ? ` Note: ${input.confirmationNote}` : ""}`,
+        });
+      });
+
+      return { success: true, destroyedAt };
+    }),
+
+  /**
+   * Get all record declarations for the caller's workspace.
+   */
+  getRecordDeclarations: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+
+    const rows = await db
+      .select()
+      .from(recordDeclarations)
+      .where(eq(recordDeclarations.workspaceId, workspaceId));
+
+    return rows;
+  }),
+
+  /**
+   * Disposition review queue: declarations whose retention period has expired
+   * but which have not yet been destroyed. These are candidates for review and
+   * (logical) destruction — nothing is ever auto-deleted.
+   */
+  getDispositionReviewQueue: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    requirePermission(ctx, "records.manage");
+
+    const now = new Date();
+
+    const rows = await db
+      .select({
+        id: recordDeclarations.id,
+        documentId: recordDeclarations.documentId,
+        documentTitle: documents.title,
+        documentNumber: documents.documentNumber,
+        recordSeriesId: recordDeclarations.recordSeriesId,
+        retentionPeriodYears: recordDeclarations.retentionPeriodYears,
+        retentionExpiresAt: recordDeclarations.retentionExpiresAt,
+        declaredBy: recordDeclarations.declaredBy,
+        declaredAt: recordDeclarations.declaredAt,
+        destroyApprovedAt: recordDeclarations.destroyApprovedAt,
+        destroyApprovedBy: recordDeclarations.destroyApprovedBy,
+      })
+      .from(recordDeclarations)
+      .leftJoin(documents, eq(documents.id, recordDeclarations.documentId))
+      .where(
+        and(
+          eq(recordDeclarations.workspaceId, workspaceId),
+          isNull(recordDeclarations.destroyedAt),
+          lte(recordDeclarations.retentionExpiresAt, now),
+        ),
+      )
+      .orderBy(asc(recordDeclarations.retentionExpiresAt));
+
+    return rows.map((r) => ({
+      ...r,
+      retentionExpiresAt: r.retentionExpiresAt.toISOString(),
+      declaredAt: r.declaredAt.toISOString(),
+      destroyApprovedAt: r.destroyApprovedAt?.toISOString() ?? null,
+      approved: Boolean(r.destroyApprovedAt),
+    }));
+  }),
+
+  /**
+   * Summary stats for the removed-file-hash registry (no-hard-delete dashboard).
+   * Reports how many hashes are flagged removed vs restored, and the logically
+   * removed storage footprint still retained on disk.
+   */
+  getRemovedHashStats: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    requirePermission(ctx, "records.manage");
+
+    const [counts] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        removed: sql<number>`count(*) FILTER (WHERE ${removedFileHashes.restoredAt} IS NULL)::int`,
+        restored: sql<number>`count(*) FILTER (WHERE ${removedFileHashes.restoredAt} IS NOT NULL)::int`,
+      })
+      .from(removedFileHashes)
+      .where(eq(removedFileHashes.workspaceId, workspaceId));
+
+    // Retained bytes: sum the file size of one representative document per
+    // removed hash (documents may be soft-deleted, so we don't filter is_deleted).
+    const [bytes] = await db
+      .select({
+        retainedBytes: sql<number>`COALESCE(SUM(sub.file_size), 0)::bigint`,
+      })
+      .from(
+        sql`(
+          SELECT DISTINCT ON (d.file_hash) d.file_size AS file_size
+          FROM ${documents} d
+          INNER JOIN ${removedFileHashes} r ON r.file_hash = d.file_hash
+          WHERE r.workspace_id = ${workspaceId} AND r.restored_at IS NULL
+        ) AS sub`,
+      );
+
+    return {
+      total: counts?.total ?? 0,
+      removed: counts?.removed ?? 0,
+      restored: counts?.restored ?? 0,
+      retainedBytes: Number(bytes?.retainedBytes ?? 0),
+    };
+  }),
+
+  /**
+   * Paginated list of removed file hashes for the workspace, with the current
+   * count of live documents still referencing each hash (normally 0).
+   */
+  getRemovedHashes: protectedProcedure
+    .input(
+      z.object({
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(25),
+        includeRestored: z.boolean().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+      requirePermission(ctx, "records.manage");
+
+      const offset = (input.page - 1) * input.pageSize;
+      const whereClause = input.includeRestored
+        ? eq(removedFileHashes.workspaceId, workspaceId)
+        : and(eq(removedFileHashes.workspaceId, workspaceId), isNull(removedFileHashes.restoredAt));
+
+      const [rows, totalResult] = await Promise.all([
+        db
+          .select()
+          .from(removedFileHashes)
+          .where(whereClause)
+          .orderBy(desc(removedFileHashes.removedAt))
+          .limit(input.pageSize)
+          .offset(offset),
+        db.select({ total: sql<number>`count(*)::int` }).from(removedFileHashes).where(whereClause),
+      ]);
+
+      // Annotate each hash with its live reference count and legal-hold status.
+      const items = await Promise.all(
+        rows.map(async (r) => ({
+          id: r.id,
+          fileHash: r.fileHash,
+          lastDocumentId: r.lastDocumentId,
+          removedBy: r.removedBy,
+          removedAt: r.removedAt.toISOString(),
+          reason: r.reason,
+          restoredAt: r.restoredAt?.toISOString() ?? null,
+          restoredBy: r.restoredBy,
+          activeReferences: await countActiveReferences(r.fileHash),
+          underLegalHold: await isHashUnderLegalHold(r.fileHash),
+        })),
+      );
+
+      return { items, total: totalResult[0]?.total ?? 0 };
+    }),
+
+  /**
+   * Restore (un-flag) a removed file hash. Records who/when in the registry and
+   * writes an audit entry. The physical bytes were never deleted, so the content
+   * becomes immediately available again.
+   */
+  restoreRemovedHash: protectedProcedure
+    .input(z.object({ fileHash: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
+      const workspaceId = requireWorkspaceId(ctx);
+      requirePermission(ctx, "records.manage");
+
+      const [existing] = await db
+        .select({ id: removedFileHashes.id })
+        .from(removedFileHashes)
+        .where(
+          and(
+            eq(removedFileHashes.fileHash, input.fileHash),
+            eq(removedFileHashes.workspaceId, workspaceId),
+            isNull(removedFileHashes.restoredAt),
+          ),
+        )
+        .limit(1);
+
+      if (!existing) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Removed hash not found in workspace (or already restored).",
+        });
+      }
+
+      await restoreHash(input.fileHash, userId);
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "FILE_HASH_RESTORED",
+        resourceType: "removed_file_hash",
+        resourceId: input.fileHash,
+        workspaceId,
+        details: `Restored previously removed file hash ${input.fileHash}`,
+      });
+
+      return { success: true };
     }),
 });

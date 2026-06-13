@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
@@ -14,7 +14,7 @@ import {
   recordDeclarations,
 } from "@/lib/db/schema";
 import { sanitizeUserInput } from "@/lib/security/sanitize";
-import { markHashRemovedIfOrphaned } from "@/lib/storage/hash-removal";
+import { markHashRemovedIfOrphaned, restoreHash } from "@/lib/storage/hash-removal";
 import { escapeLikePattern } from "@/lib/utils/escape-like";
 import {
   approveDocumentSchema,
@@ -42,10 +42,7 @@ export const documentsRouter = router({
   list: protectedProcedure.input(documentListSchema).query(async ({ input, ctx }) => {
     const workspaceId = requireWorkspaceId(ctx);
 
-    const conditions = [
-      eq(documents.workspaceId, workspaceId),
-      eq(documents.isDeleted, 0),
-    ];
+    const conditions = [eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0)];
 
     if (input.search) {
       const escaped = escapeLikePattern(input.search);
@@ -70,12 +67,19 @@ export const documentsRouter = router({
     }
 
     if (input.status) {
-      conditions.push(eq(documents.status, input.status.toLowerCase() as typeof documents.status.enumValues[number]));
+      conditions.push(
+        eq(
+          documents.status,
+          input.status.toLowerCase() as (typeof documents.status.enumValues)[number],
+        ),
+      );
     }
 
     if (input.ocrStatus) {
       const ocrStatusLower = input.ocrStatus.toLowerCase();
-      conditions.push(eq(documents.ocrStatus, ocrStatusLower as typeof documents.ocrStatus.enumValues[number]));
+      conditions.push(
+        eq(documents.ocrStatus, ocrStatusLower as (typeof documents.ocrStatus.enumValues)[number]),
+      );
     }
 
     if (input.fileType) {
@@ -94,6 +98,24 @@ export const documentsRouter = router({
       conditions.push(lte(documents.createdAt, new Date(input.dateTo)));
     }
 
+    // Keyset pagination: only for the default createdAt sort. Decodes the
+    // cursor "<createdAtISO>|<id>" and adds a row-value comparison so the query
+    // can seek directly past the last seen row (no large OFFSET scan).
+    const useKeyset = Boolean(input.cursor) && input.sortBy === "createdAt";
+    if (useKeyset && input.cursor) {
+      const sepIdx = input.cursor.lastIndexOf("|");
+      const cursorIso = input.cursor.slice(0, sepIdx);
+      const cursorId = input.cursor.slice(sepIdx + 1);
+      const cursorDate = new Date(cursorIso);
+      if (!Number.isNaN(cursorDate.getTime()) && cursorId) {
+        conditions.push(
+          input.sortOrder === "asc"
+            ? sql`(${documents.createdAt}, ${documents.id}) > (${cursorDate}, ${cursorId})`
+            : sql`(${documents.createdAt}, ${documents.id}) < (${cursorDate}, ${cursorId})`,
+        );
+      }
+    }
+
     const whereClause = and(...conditions);
 
     const sortColumnMap: Record<string, typeof documents.createdAt | typeof documents.updatedAt> = {
@@ -107,23 +129,38 @@ export const documentsRouter = router({
 
     const sortCol = sortColumnMap[input.sortBy] ?? documents.createdAt;
     const orderFn = input.sortOrder === "asc" ? asc : desc;
+    // For createdAt sorting add id as a stable tie-breaker (required for keyset).
+    const orderBy =
+      input.sortBy === "createdAt" ? [orderFn(sortCol), orderFn(documents.id)] : [orderFn(sortCol)];
+
+    const baseQuery = db
+      .select()
+      .from(documents)
+      .where(whereClause)
+      .orderBy(...orderBy)
+      .limit(input.limit);
 
     const [data, totalResult] = await Promise.all([
-      db
-        .select()
-        .from(documents)
-        .where(whereClause)
-        .orderBy(orderFn(sortCol))
-        .limit(input.limit)
-        .offset(input.offset),
+      // Keyset mode seeks via the WHERE clause; offset mode uses OFFSET.
+      useKeyset ? baseQuery : baseQuery.offset(input.offset),
       db.select({ total: count() }).from(documents).where(whereClause),
     ]);
+
+    // Compute the next cursor when a full page was returned under createdAt sort.
+    let nextCursor: string | null = null;
+    if (input.sortBy === "createdAt" && data.length === input.limit) {
+      const last = data[data.length - 1];
+      if (last?.createdAt) {
+        nextCursor = `${last.createdAt.toISOString()}|${last.id}`;
+      }
+    }
 
     return {
       data,
       total: totalResult[0]?.total ?? 0,
       limit: input.limit,
       offset: input.offset,
+      nextCursor,
     };
   }),
 
@@ -169,7 +206,7 @@ export const documentsRouter = router({
         id,
         documentNumber: input.documentNumber,
         title: sanitizeUserInput(input.title),
-        category: input.category as typeof documents.category.enumValues[number],
+        category: input.category as (typeof documents.category.enumValues)[number],
         status: "draft",
         revision: input.revision || "A",
         revisionDate: input.revisionDate ? new Date(input.revisionDate) : null,
@@ -273,7 +310,9 @@ export const documentsRouter = router({
     const [activeDeclaration] = await db
       .select({ id: recordDeclarations.id })
       .from(recordDeclarations)
-      .where(and(eq(recordDeclarations.documentId, input.id), isNull(recordDeclarations.destroyedAt)));
+      .where(
+        and(eq(recordDeclarations.documentId, input.id), isNull(recordDeclarations.destroyedAt)),
+      );
 
     if (activeDeclaration) {
       throw new TRPCError({
@@ -333,6 +372,112 @@ export const documentsRouter = router({
 
     return { success: true };
   }),
+
+  /**
+   * List soft-deleted documents in the workspace (the Recycle Bin).
+   * Under the no-hard-delete policy nothing is ever physically removed, so these
+   * documents — and their files — remain fully restorable.
+   */
+  listDeleted: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(25),
+        offset: z.number().min(0).default(0),
+        search: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      const conditions = [eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 1)];
+      if (input.search) {
+        const escaped = escapeLikePattern(input.search);
+        conditions.push(
+          or(
+            ilike(documents.documentNumber, `%${escaped}%`),
+            ilike(documents.title, `%${escaped}%`),
+          )!,
+        );
+      }
+      const whereClause = and(...conditions);
+
+      const [data, totalResult] = await Promise.all([
+        db
+          .select({
+            id: documents.id,
+            documentNumber: documents.documentNumber,
+            title: documents.title,
+            category: documents.category,
+            fileHash: documents.fileHash,
+            deletedAt: documents.deletedAt,
+            updatedBy: documents.updatedBy,
+          })
+          .from(documents)
+          .where(whereClause)
+          .orderBy(desc(documents.deletedAt))
+          .limit(input.limit)
+          .offset(input.offset),
+        db.select({ total: count() }).from(documents).where(whereClause),
+      ]);
+
+      return {
+        data: data.map((d) => ({ ...d, deletedAt: d.deletedAt?.toISOString() ?? null })),
+        total: totalResult[0]?.total ?? 0,
+        limit: input.limit,
+        offset: input.offset,
+      };
+    }),
+
+  /**
+   * Restore a soft-deleted document. Clears isDeleted and un-flags the file hash
+   * in the removed registry (the document re-references its content). The
+   * physical file was never deleted, so restoration is always possible.
+   */
+  restore: engineerProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+      const userId = ctx.session.user?.id ?? "unknown";
+      const userName = ctx.session.user?.name ?? "Unknown User";
+
+      const [current] = await db
+        .select()
+        .from(documents)
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 1),
+          ),
+        );
+
+      if (!current) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Deleted document not found" });
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(documents)
+          .set({ isDeleted: 0, deletedAt: null, updatedAt: new Date(), updatedBy: userId })
+          .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)));
+
+        if (current.fileHash) {
+          await restoreHash(current.fileHash, userId, tx);
+        }
+      });
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "document.restore",
+        resourceType: "document",
+        resourceId: input.id,
+        resourceTitle: current.title,
+        workspaceId,
+      });
+
+      return { success: true };
+    }),
 
   linkPL: engineerProcedure.input(linkPlSchema).mutation(async ({ input, ctx }) => {
     const workspaceId = requireWorkspaceId(ctx);
@@ -619,7 +764,12 @@ export const documentsRouter = router({
       const activeDeclarations = await db
         .select({ documentId: recordDeclarations.documentId })
         .from(recordDeclarations)
-        .where(and(inArray(recordDeclarations.documentId, validIds), isNull(recordDeclarations.destroyedAt)));
+        .where(
+          and(
+            inArray(recordDeclarations.documentId, validIds),
+            isNull(recordDeclarations.destroyedAt),
+          ),
+        );
 
       const declaredDocIds = new Set(activeDeclarations.map((d) => d.documentId));
 
@@ -735,7 +885,10 @@ export const documentsRouter = router({
         await db
           .delete(documentTags)
           .where(
-            and(inArray(documentTags.documentId, processableIds), eq(documentTags.tagId, input.value)),
+            and(
+              inArray(documentTags.documentId, processableIds),
+              eq(documentTags.tagId, input.value),
+            ),
           );
         succeeded.push(...processableIds);
         break;
@@ -801,17 +954,20 @@ export const documentsRouter = router({
         }
         // Validate category against allowed enum values
         const validCategories = documentCategoryEnum.enumValues;
-        if (!validCategories.includes(input.value as typeof validCategories[number])) {
+        if (!validCategories.includes(input.value as (typeof validCategories)[number])) {
           for (const id of processableIds) {
             failed.push(id);
-            errors.push({ id, reason: `Invalid category "${input.value}". Must be one of: ${validCategories.join(", ")}` });
+            errors.push({
+              id,
+              reason: `Invalid category "${input.value}". Must be one of: ${validCategories.join(", ")}`,
+            });
           }
           break;
         }
         await db
           .update(documents)
           .set({
-            category: input.value as typeof documents.category.enumValues[number],
+            category: input.value as (typeof documents.category.enumValues)[number],
             updatedAt: new Date(),
             updatedBy: userId,
           })

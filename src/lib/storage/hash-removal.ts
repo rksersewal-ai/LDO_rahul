@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { db as defaultDb, type Database } from "@/lib/db";
-import { documents, removedFileHashes } from "@/lib/db/schema";
-import { logInfo } from "@/lib/logging/structured-logger";
+import { type Database, db as defaultDb } from "@/lib/db";
+import { documentLegalHolds, documents, legalHolds, removedFileHashes } from "@/lib/db/schema";
+import { logInfo, logWarn } from "@/lib/logging/structured-logger";
 
 /**
  * No-hard-delete policy helpers.
@@ -49,7 +49,9 @@ export async function isHashRemoved(fileHash: string, dbc: Db = defaultDb): Prom
   const [row] = await dbc
     .select({ id: removedFileHashes.id })
     .from(removedFileHashes)
-    .where(and(eq(removedFileHashes.fileHash, fileHash), sql`${removedFileHashes.restoredAt} IS NULL`))
+    .where(
+      and(eq(removedFileHashes.fileHash, fileHash), sql`${removedFileHashes.restoredAt} IS NULL`),
+    )
     .limit(1);
 
   return Boolean(row);
@@ -68,7 +70,10 @@ interface MarkHashRemovedParams {
  * Idempotent: if the hash already has an active removal record it is updated;
  * if it had been restored, the record is re-activated.
  */
-export async function markHashRemoved(params: MarkHashRemovedParams, dbc: Db = defaultDb): Promise<void> {
+export async function markHashRemoved(
+  params: MarkHashRemovedParams,
+  dbc: Db = defaultDb,
+): Promise<void> {
   const { fileHash, removedBy, workspaceId, lastDocumentId, reason } = params;
 
   await dbc
@@ -104,15 +109,46 @@ export async function markHashRemoved(params: MarkHashRemovedParams, dbc: Db = d
 }
 
 /**
+ * Returns true if ANY document sharing this file hash is under an ACTIVE legal
+ * hold. Legal holds override the no-hard-delete removal flow entirely: a held
+ * hash must never be flagged removed, even when no live document references it
+ * (a deleted-but-held document still freezes the content for e-discovery).
+ */
+export async function isHashUnderLegalHold(
+  fileHash: string,
+  dbc: Db = defaultDb,
+): Promise<boolean> {
+  const [row] = await dbc
+    .select({ holdId: documentLegalHolds.holdId })
+    .from(documentLegalHolds)
+    .innerJoin(documents, eq(documents.id, documentLegalHolds.documentId))
+    .innerJoin(legalHolds, eq(legalHolds.id, documentLegalHolds.holdId))
+    .where(and(eq(documents.fileHash, fileHash), eq(legalHolds.status, "active")))
+    .limit(1);
+
+  return Boolean(row);
+}
+
+/**
  * Flag a file hash as removed ONLY when no other live document references it.
  * This is the safe entry point for document deletion under content-addressed
- * storage: it prevents flagging a hash that is still shared by other documents.
- * Returns true if the hash was flagged, false if it is still referenced.
+ * storage: it prevents flagging a hash that is still shared by other documents,
+ * and it NEVER flags a hash that is under an active legal hold.
+ * Returns true if the hash was flagged, false otherwise.
  */
 export async function markHashRemovedIfOrphaned(
   params: MarkHashRemovedParams,
   dbc: Db = defaultDb,
 ): Promise<boolean> {
+  // Legal hold takes precedence over everything — never flag a held hash.
+  if (await isHashUnderLegalHold(params.fileHash, dbc)) {
+    logWarn("[hash-removal] Skipped removal flag: file hash is under an active legal hold", {
+      fileHash: params.fileHash,
+      lastDocumentId: params.lastDocumentId,
+    });
+    return false;
+  }
+
   const remaining = await countActiveReferences(params.fileHash, params.lastDocumentId, dbc);
   if (remaining > 0) {
     return false;
@@ -133,7 +169,9 @@ export async function restoreHash(
   await dbc
     .update(removedFileHashes)
     .set({ restoredAt: new Date(), restoredBy: restoredBy ?? null })
-    .where(and(eq(removedFileHashes.fileHash, fileHash), sql`${removedFileHashes.restoredAt} IS NULL`));
+    .where(
+      and(eq(removedFileHashes.fileHash, fileHash), sql`${removedFileHashes.restoredAt} IS NULL`),
+    );
 
   logInfo("[hash-removal] File hash restored", { fileHash, restoredBy });
 }

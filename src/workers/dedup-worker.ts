@@ -1,22 +1,24 @@
 import { randomUUID } from "node:crypto";
-import { Worker, type Job } from "bullmq";
+import { type Job, Worker } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import {
-  dedupScanHistory,
-  documents,
-  documentPlLinks,
-  duplicateDetections,
-} from "@/lib/db/schema";
+import { dedupScanHistory, documentPlLinks, documents, duplicateDetections } from "@/lib/db/schema";
 import { DEDUP_THRESHOLD, type DocInput, scoreDocumentPair } from "@/lib/dedup/scorer";
 import type { DedupJobPayload } from "./dedup-queue";
+import { withJobTimeout } from "./job-timeout";
 
 /**
  * Compute a basic (fast) dedup score using only hash, doc number, and metadata signals.
  * Skips OCR trigram and PL overlap computation for speed.
  */
-export function scoreDocumentPairBasic(docA: DocInput, docB: DocInput): { score: number; signals: { exactHash: number | null; docNumber: number | null; metadata: number | null } } {
+export function scoreDocumentPairBasic(
+  docA: DocInput,
+  docB: DocInput,
+): {
+  score: number;
+  signals: { exactHash: number | null; docNumber: number | null; metadata: number | null };
+} {
   const exactHash: number | null =
     docA.fileHash && docB.fileHash ? (docA.fileHash === docB.fileHash ? 1.0 : 0.0) : null;
 
@@ -29,7 +31,14 @@ export function scoreDocumentPairBasic(docA: DocInput, docB: DocInput): { score:
 
   // Metadata: 1.0 if all 3 match, 0.5 if 2/3 match, 0.0 otherwise
   let metadata: number | null = null;
-  if (docA.workshop || docA.section || docA.category || docB.workshop || docB.section || docB.category) {
+  if (
+    docA.workshop ||
+    docA.section ||
+    docA.category ||
+    docB.workshop ||
+    docB.section ||
+    docB.category
+  ) {
     let matchCount = 0;
     if (docA.workshop && docB.workshop && docA.workshop === docB.workshop) matchCount++;
     if (docA.section && docB.section && docA.section === docB.section) matchCount++;
@@ -39,9 +48,9 @@ export function scoreDocumentPairBasic(docA: DocInput, docB: DocInput): { score:
 
   // Weighted score with redistribution of available signals
   const signalValues: Array<{ value: number | null; weight: number }> = [
-    { value: exactHash, weight: 0.40 },
-    { value: docNumber, weight: 0.40 },
-    { value: metadata, weight: 0.20 },
+    { value: exactHash, weight: 0.4 },
+    { value: docNumber, weight: 0.4 },
+    { value: metadata, weight: 0.2 },
   ];
 
   let availableWeightSum = 0;
@@ -97,12 +106,7 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
         thumbnailPath: documents.thumbnailPath,
       })
       .from(documents)
-      .where(
-        and(
-          eq(documents.workspaceId, workspaceId),
-          eq(documents.isDeleted, 0),
-        ),
-      );
+      .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0)));
 
     // Fetch PL links for all documents
     const docIds = allDocs.map((d) => d.id);
@@ -296,18 +300,27 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
 
 /**
  * Create and return a BullMQ Worker for the 'dedup-scan' queue.
+ *
+ * Concurrency and per-job timeout are configurable via env. Dedup scans are
+ * O(n²) over a workspace and can run long, so the default ceiling is generous.
  */
 export function createDedupWorker(): Worker<DedupJobPayload> {
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+  const concurrency = Number(process.env.DEDUP_WORKER_CONCURRENCY ?? "1");
+  const jobTimeoutMs = Number(process.env.DEDUP_JOB_TIMEOUT_MS ?? `${30 * 60 * 1000}`);
 
-  const worker = new Worker<DedupJobPayload>("dedup-scan", processDedupJob, {
-    connection: {
-      host: new URL(redisUrl).hostname,
-      port: Number(new URL(redisUrl).port) || 6379,
-      maxRetriesPerRequest: null,
+  const worker = new Worker<DedupJobPayload>(
+    "dedup-scan",
+    (job) => withJobTimeout(processDedupJob(job), jobTimeoutMs, `Dedup scan job ${job.id}`),
+    {
+      connection: {
+        host: new URL(redisUrl).hostname,
+        port: Number(new URL(redisUrl).port) || 6379,
+        maxRetriesPerRequest: null,
+      },
+      concurrency,
     },
-    concurrency: 1,
-  });
+  );
 
   return worker;
 }
