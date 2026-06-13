@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { use, useState } from "react";
 import { toast } from "sonner";
 import { OcrStatusBadge } from "@/components/documents/ocr-status-badge";
@@ -124,6 +125,7 @@ function generateRevisionHistory(doc: { revision: string | null; createdAt: Date
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { data: session } = useSession();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -175,7 +177,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   const rejectMutation = trpc.documents.reject.useMutation({
     onSuccess: () => {
-      toast.success("Document rejected and returned to draft");
+      toast.success("Document rejected");
       setRejectDialogOpen(false);
       refetch();
     },
@@ -338,8 +340,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             <h2 className="text-base font-medium text-foreground">{doc.title}</h2>
             {/* FSM Transition Buttons */}
             {(() => {
-              // Use a sensible default role for client-side rendering
-              const validTransitions = getValidTransitions(doc.status ?? "draft", "engineer");
+              const userRole = (session?.user?.role as string) ?? "viewer";
+              const validTransitions = getValidTransitions(doc.status ?? "draft", userRole);
               if (validTransitions.length === 0) return null;
               return (
                 <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -352,7 +354,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                       variant="outline"
                       size="sm"
                       className="h-6 text-[10px] gap-1"
-                      disabled={transitionMutation.isPending && transitioningTo === target}
+                      disabled={transitionMutation.isPending}
                       onClick={() => {
                         setTransitioningTo(target);
                         transitionMutation.mutate({ id: doc.id, newStatus: target });

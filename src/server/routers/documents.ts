@@ -493,21 +493,20 @@ export const documentsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
       }
 
-      // Reject transitions: under_review -> rejected (the FSM handles reject as a valid target)
-      // Then from rejected, user can go back to draft. But the reject action
-      // sets status to "draft" directly (reject returns document to draft).
-      // We check if the current status allows rejection (under_review -> rejected is valid).
+      // Reject transitions: under_review -> rejected is a valid FSM transition.
+      // The rejected state is a valid enum value. From rejected, the user can
+      // separately transition back to draft via the FSM (rejected -> draft).
       if (!canTransition(current.status, "rejected", userRole)) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Invalid status transition from ${current.status} to rejected (draft)`,
+          message: `Invalid status transition from ${current.status} to rejected`,
         });
       }
 
       const [updated] = await db
         .update(documents)
         .set({
-          status: "draft",
+          status: "rejected",
           updatedBy: userId,
           updatedAt: new Date(),
         })
@@ -521,7 +520,7 @@ export const documentsRouter = router({
         resourceType: "document",
         resourceId: input.id,
         resourceTitle: updated.title,
-        details: input.reason ?? "Document rejected and returned to draft",
+        details: input.reason ?? "Document rejected",
         workspaceId,
       });
 

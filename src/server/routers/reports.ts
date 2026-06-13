@@ -12,7 +12,7 @@ import {
   plNumbers,
   workRecords,
 } from "@/lib/db/schema";
-import { protectedProcedure, router } from "@/server/trpc";
+import { engineerProcedure, router } from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | null } } }): string {
   const wsId = ctx.session?.user?.workspaceId;
@@ -91,28 +91,31 @@ async function generateSystemUsage(
   _dateFrom?: string,
   _dateTo?: string,
 ): Promise<{ headers: string[]; rows: ReportRow[] }> {
-  const dateFilters = buildDateFilters(documents.createdAt, _dateFrom, _dateTo);
+  const docDateFilters = buildDateFilters(documents.createdAt, _dateFrom, _dateTo);
   const auditDateFilters = buildDateFilters(auditLog.createdAt, _dateFrom, _dateTo);
+  const plDateFilters = buildDateFilters(plNumbers.createdAt, _dateFrom, _dateTo);
+  const bomDateFilters = buildDateFilters(bomProducts.createdAt, _dateFrom, _dateTo);
+  const workDateFilters = buildDateFilters(workRecords.createdAt, _dateFrom, _dateTo);
 
   const [docCount] = await db
     .select({ count: count() })
     .from(documents)
-    .where(and(eq(documents.workspaceId, workspaceId), ...dateFilters));
+    .where(and(eq(documents.workspaceId, workspaceId), ...docDateFilters));
 
   const [plCount] = await db
     .select({ count: count() })
     .from(plNumbers)
-    .where(eq(plNumbers.workspaceId, workspaceId));
+    .where(and(eq(plNumbers.workspaceId, workspaceId), ...plDateFilters));
 
   const [bomCount] = await db
     .select({ count: count() })
     .from(bomProducts)
-    .where(eq(bomProducts.workspaceId, workspaceId));
+    .where(and(eq(bomProducts.workspaceId, workspaceId), ...bomDateFilters));
 
   const [workCount] = await db
     .select({ count: count() })
     .from(workRecords)
-    .where(eq(workRecords.workspaceId, workspaceId));
+    .where(and(eq(workRecords.workspaceId, workspaceId), ...workDateFilters));
 
   const [auditCount] = await db
     .select({ count: count() })
@@ -245,16 +248,18 @@ async function generatePlCoverage(
   _dateFrom?: string,
   _dateTo?: string,
 ): Promise<{ headers: string[]; rows: ReportRow[] }> {
+  const dateFilters = buildDateFilters(plNumbers.createdAt, _dateFrom, _dateTo);
+
   const [totalPls] = await db
     .select({ count: count() })
     .from(plNumbers)
-    .where(eq(plNumbers.workspaceId, workspaceId));
+    .where(and(eq(plNumbers.workspaceId, workspaceId), ...dateFilters));
 
   const [linkedPls] = await db
     .select({ count: sql<number>`count(distinct ${documentPlLinks.plNumberId})` })
     .from(documentPlLinks)
     .innerJoin(plNumbers, eq(documentPlLinks.plNumberId, plNumbers.id))
-    .where(eq(plNumbers.workspaceId, workspaceId));
+    .where(and(eq(plNumbers.workspaceId, workspaceId), ...dateFilters));
 
   const total = totalPls?.count ?? 0;
   const linked = Number(linkedPls?.count ?? 0);
@@ -389,12 +394,12 @@ const REPORT_GENERATORS: Record<
 
 export const reportsRouter = router({
   /** List available report types */
-  listReportTypes: protectedProcedure.query(() => {
+  listReportTypes: engineerProcedure.query(() => {
     return [...REPORT_TYPES];
   }),
 
   /** Generate a report with real aggregation queries */
-  generateReport: protectedProcedure
+  generateReport: engineerProcedure
     .input(
       z.object({
         type: z.string(),
