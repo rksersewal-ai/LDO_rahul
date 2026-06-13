@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname, join } from "node:path";
 import { getContentAddressedPath } from "./deduplication";
@@ -57,20 +57,6 @@ export function getOcrOutputPath(documentId: string): string {
 }
 
 /**
- * Delete a stored file by hash.
- * Only removes if no other documents reference the same hash.
- */
-export async function deleteFile(hash: string): Promise<boolean> {
-  const absolutePath = getFilePath(hash);
-  try {
-    await unlink(absolutePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Read a stored file by hash.
  */
 export async function readStoredFile(hash: string): Promise<Buffer> {
@@ -88,3 +74,12 @@ export async function fileExists(hash: string): Promise<boolean> {
     return false;
   }
 }
+
+// NOTE: There is intentionally no hard-delete helper here.
+//
+// Storage is content-addressed, so a single physical file is shared by every
+// document with the same hash. Physically unlinking it would corrupt other
+// documents and violate the system's no-hard-delete policy. To remove a file
+// logically, flag its hash via `markHashRemovedIfOrphaned` in
+// `@/lib/storage/hash-removal` — the bytes always remain on disk for recovery,
+// audit, and legal holds.

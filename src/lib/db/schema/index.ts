@@ -22,6 +22,7 @@ export * from "./ocr-pl-candidates";
 export * from "./organizations";
 export * from "./pl-numbers";
 export * from "./record-declarations";
+export * from "./removed-file-hashes";
 export * from "./rolling-stock-units";
 export * from "./settings";
 export * from "./tags";

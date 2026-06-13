@@ -110,6 +110,12 @@ export async function getFile(path: string): Promise<Buffer> {
 
 /**
  * Delete a file from NAS storage.
+ *
+ * POLICY: Under the no-hard-delete policy this MUST NOT be used to remove
+ * content-addressed originals (a hash is shared by many documents). It is
+ * retained only for transient artifacts such as temp/working files and tiles.
+ * To remove a document's content logically, flag its hash via
+ * `markHashRemovedIfOrphaned` in `@/lib/storage/hash-removal` instead.
  */
 export async function deleteFile(path: string): Promise<void> {
   return withRetry(async () => {

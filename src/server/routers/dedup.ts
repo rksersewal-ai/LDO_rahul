@@ -13,6 +13,7 @@ import {
   settings,
 } from "@/lib/db/schema";
 import { DEDUP_THRESHOLD, type DocInput, scoreDocumentPair } from "@/lib/dedup/scorer";
+import { markHashRemovedIfOrphaned } from "@/lib/storage/hash-removal";
 import { addDedupJob } from "@/workers/dedup-queue";
 import { adminProcedure, protectedProcedure, router } from "@/server/trpc";
 
@@ -198,69 +199,89 @@ export const dedupRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "keepDocumentId must be one of the pair." });
       }
 
-      // 3. Create a document_relations entry (docA=kept, docB=archived)
-      const relationId = randomUUID();
-      await db.insert(documentRelations).values({
-        id: relationId,
-        documentAId: input.keepDocumentId,
-        documentBId: archivedId,
-        relationType: "duplicate_of",
-        createdBy: userId,
-      });
+      // 3-7 run in a single transaction so the relation, archival, PL-link
+      // redirect, detection status, hash flag and audit stay consistent.
+      await db.transaction(async (tx) => {
+        // 3. Create a document_relations entry (docA=kept, docB=archived)
+        const relationId = randomUUID();
+        await tx.insert(documentRelations).values({
+          id: relationId,
+          documentAId: input.keepDocumentId,
+          documentBId: archivedId,
+          relationType: "duplicate_of",
+          createdBy: userId,
+        });
 
-      // 4. Archive non-kept doc
-      await db
-        .update(documents)
-        .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date() })
-        .where(eq(documents.id, archivedId));
+        // 4. Archive non-kept doc (soft delete — physical file is retained)
+        const [archivedDoc] = await tx
+          .update(documents)
+          .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date() })
+          .where(eq(documents.id, archivedId))
+          .returning({ fileHash: documents.fileHash });
 
-      // 5. Redirect PL links from archived to kept (handle collisions)
-      // Get existing PL links on the kept document
-      const keptPlLinks = await db
-        .select({ plNumberId: documentPlLinks.plNumberId })
-        .from(documentPlLinks)
-        .where(eq(documentPlLinks.documentId, input.keepDocumentId));
-      const keptPlIds = new Set(keptPlLinks.map((l) => l.plNumberId));
+        // 5. Redirect PL links from archived to kept (handle collisions)
+        const keptPlLinks = await tx
+          .select({ plNumberId: documentPlLinks.plNumberId })
+          .from(documentPlLinks)
+          .where(eq(documentPlLinks.documentId, input.keepDocumentId));
+        const keptPlIds = new Set(keptPlLinks.map((l) => l.plNumberId));
 
-      // Delete colliding links from archived doc
-      if (keptPlIds.size > 0) {
-        await db
-          .delete(documentPlLinks)
-          .where(
-            and(
-              eq(documentPlLinks.documentId, archivedId),
-              inArray(documentPlLinks.plNumberId, [...keptPlIds]),
-            ),
+        // Delete colliding links from archived doc
+        if (keptPlIds.size > 0) {
+          await tx
+            .delete(documentPlLinks)
+            .where(
+              and(
+                eq(documentPlLinks.documentId, archivedId),
+                inArray(documentPlLinks.plNumberId, [...keptPlIds]),
+              ),
+            );
+        }
+
+        // Redirect remaining non-colliding links
+        await tx
+          .update(documentPlLinks)
+          .set({ documentId: input.keepDocumentId })
+          .where(eq(documentPlLinks.documentId, archivedId));
+
+        // 5b. No-hard-delete: flag the archived doc's file hash as removed only
+        // when no other live document still references it. The kept document
+        // commonly shares the same content, so this will usually be a no-op.
+        if (archivedDoc?.fileHash) {
+          await markHashRemovedIfOrphaned(
+            {
+              fileHash: archivedDoc.fileHash,
+              removedBy: userId,
+              workspaceId: detection.workspaceId,
+              lastDocumentId: archivedId,
+              reason: "dedup.confirmDuplicate",
+            },
+            tx,
           );
-      }
+        }
 
-      // Redirect remaining non-colliding links
-      await db
-        .update(documentPlLinks)
-        .set({ documentId: input.keepDocumentId })
-        .where(eq(documentPlLinks.documentId, archivedId));
+        // 6. Update detection status
+        await tx
+          .update(duplicateDetections)
+          .set({
+            status: "merged",
+            reviewedBy: userId,
+            reviewedAt: new Date(),
+            reviewNote: input.note ?? null,
+          })
+          .where(eq(duplicateDetections.id, input.detectionId));
 
-      // 6. Update detection status
-      await db
-        .update(duplicateDetections)
-        .set({
-          status: "merged",
-          reviewedBy: userId,
-          reviewedAt: new Date(),
-          reviewNote: input.note ?? null,
-        })
-        .where(eq(duplicateDetections.id, input.detectionId));
-
-      // 7. Audit log
-      await createAuditEntry(db, {
-        userId,
-        userName,
-        action: "DEDUP_CONFIRM",
-        resourceType: "duplicate_detection",
-        resourceId: input.detectionId,
-        resourceTitle: `Kept ${input.keepDocumentId}, archived ${archivedId}`,
-        details: `Confirmed duplicate. Kept document ${input.keepDocumentId}, archived ${archivedId}.${input.note ? ` Note: ${input.note}` : ""}`,
-        workspaceId: detection.workspaceId,
+        // 7. Audit log
+        await createAuditEntry(tx, {
+          userId,
+          userName,
+          action: "DEDUP_CONFIRM",
+          resourceType: "duplicate_detection",
+          resourceId: input.detectionId,
+          resourceTitle: `Kept ${input.keepDocumentId}, archived ${archivedId}`,
+          details: `Confirmed duplicate. Kept document ${input.keepDocumentId}, archived ${archivedId}.${input.note ? ` Note: ${input.note}` : ""}`,
+          workspaceId: detection.workspaceId,
+        });
       });
 
       return { success: true, archivedDocumentId: archivedId, keptDocumentId: input.keepDocumentId };
