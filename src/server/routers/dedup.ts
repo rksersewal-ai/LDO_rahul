@@ -1,16 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
 import {
+  dedupScanHistory,
   documentPlLinks,
   documentRelations,
   documents,
   duplicateDetections,
+  settings,
 } from "@/lib/db/schema";
 import { DEDUP_THRESHOLD, type DocInput, scoreDocumentPair } from "@/lib/dedup/scorer";
+import { addDedupJob } from "@/workers/dedup-queue";
 import { adminProcedure, protectedProcedure, router } from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId?: string | null } } }): string {
@@ -314,174 +317,140 @@ export const dedupRouter = router({
     }),
 
   /**
-   * Trigger a deduplication scan for a workspace.
-   * Fetches all non-deleted documents and scores pairs in batches.
+   * Trigger a deduplication scan for a workspace (background job via BullMQ).
    */
   triggerScan: adminProcedure
-    .input(z.object({}))
-    .mutation(async ({ ctx }) => {
+    .input(z.object({ scanType: z.enum(["basic", "advanced"]).default("basic") }))
+    .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
-      const userName = ctx.session.user?.name ?? "System";
       const workspaceId = requireWorkspaceId(ctx);
 
-      // Fetch all non-deleted documents in workspace
-      const allDocs = await db
-        .select({
-          id: documents.id,
-          documentNumber: documents.documentNumber,
-          title: documents.title,
-          fileHash: documents.fileHash,
-          ocrText: documents.ocrText,
-          workshop: documents.workshop,
-          section: documents.section,
-          category: documents.category,
-          thumbnailPath: documents.thumbnailPath,
-        })
-        .from(documents)
-        .where(
-          and(
-            eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 0),
-          ),
-        );
-
-      // Fetch PL links for all documents at once
-      const docIds = allDocs.map((d) => d.id);
-      let plLinksMap: Map<string, string[]> = new Map();
-
-      if (docIds.length > 0) {
-        // Batch fetch PL links - query in chunks to avoid overly large IN clauses
-        const PL_BATCH = 500;
-        const allPlLinks: Array<{ documentId: string; plNumberId: string }> = [];
-        for (let i = 0; i < docIds.length; i += PL_BATCH) {
-          const batch = docIds.slice(i, i + PL_BATCH);
-          const links = await db
-            .select({
-              documentId: documentPlLinks.documentId,
-              plNumberId: documentPlLinks.plNumberId,
-            })
-            .from(documentPlLinks)
-            .where(
-              sql`${documentPlLinks.documentId} IN (${sql.join(
-                batch.map((id) => sql`${id}`),
-                sql`, `,
-              )})`,
-            );
-          allPlLinks.push(...links);
-        }
-
-        plLinksMap = new Map<string, string[]>();
-        for (const link of allPlLinks) {
-          const existing = plLinksMap.get(link.documentId) ?? [];
-          existing.push(link.plNumberId);
-          plLinksMap.set(link.documentId, existing);
-        }
-      }
-
-      // Build DocInput objects
-      const docInputs: DocInput[] = allDocs.map((doc) => ({
-        id: doc.id,
-        fileHash: doc.fileHash,
-        documentNumber: doc.documentNumber,
-        title: doc.title,
-        ocrText: doc.ocrText,
-        plNumberIds: plLinksMap.get(doc.id) ?? [],
-        workshop: doc.workshop,
-        section: doc.section,
-        category: doc.category,
-        thumbnailPath: doc.thumbnailPath,
-      }));
-
-      // Process pairs in batches to avoid N^2 memory explosion
-      // We process documents in chunks of 50 and compare all pairs within/across chunks
-      const CHUNK_SIZE = 50;
-      let totalPairsScored = 0;
-      let newDetections = 0;
-
-      for (let i = 0; i < docInputs.length; i++) {
-        // For each document, compare with all subsequent documents in batches
-        const batchEnd = Math.min(i + CHUNK_SIZE, docInputs.length);
-        const insertBatch: Array<{
-          id: string;
-          workspaceId: string;
-          documentAId: string;
-          documentBId: string;
-          score: number;
-          hashMatch: boolean;
-          docNumberMatch: boolean;
-          titleSimilarity: number;
-          ocrTextSimilarity: number;
-          plOverlap: number;
-          metaMatch: boolean;
-          thumbPhashDistance: number | null;
-          status: string;
-        }> = [];
-
-        for (let j = i + 1; j < docInputs.length; j++) {
-          const docInputA = docInputs[i];
-          const docInputB = docInputs[j];
-
-          const result = scoreDocumentPair(docInputA, docInputB);
-          totalPairsScored++;
-
-          if (result.score >= DEDUP_THRESHOLD) {
-            // Ensure documentAId < documentBId for uniqueness
-            const [aId, bId] =
-              docInputA.id < docInputB.id
-                ? [docInputA.id, docInputB.id]
-                : [docInputB.id, docInputA.id];
-
-            insertBatch.push({
-              id: randomUUID(),
-              workspaceId,
-              documentAId: aId,
-              documentBId: bId,
-              score: result.score,
-              hashMatch: result.signals.exactHash === 1.0,
-              docNumberMatch: result.signals.docNumber === 1.0,
-              titleSimilarity: result.signals.titleTrigram ?? 0,
-              ocrTextSimilarity: result.signals.ocrTextTrigram ?? 0,
-              plOverlap: result.signals.plOverlap ?? 0,
-              metaMatch: result.signals.metadata === 1.0,
-              thumbPhashDistance: null,
-              status: "pending",
-            });
-          }
-
-          // Insert in sub-batches to avoid too-large queries
-          if (insertBatch.length >= 100) {
-            const batch = insertBatch.splice(0, insertBatch.length);
-            const inserted = await db
-              .insert(duplicateDetections)
-              .values(batch)
-              .onConflictDoNothing({ target: [duplicateDetections.documentAId, duplicateDetections.documentBId] })
-              .returning({ id: duplicateDetections.id });
-            newDetections += inserted.length;
-          }
-        }
-
-        // Insert remaining from this iteration
-        if (insertBatch.length > 0) {
-          const inserted = await db
-            .insert(duplicateDetections)
-            .values(insertBatch)
-            .onConflictDoNothing({ target: [duplicateDetections.documentAId, duplicateDetections.documentBId] })
-            .returning({ id: duplicateDetections.id });
-          newDetections += inserted.length;
-        }
-      }
-
-      // Audit log
-      await createAuditEntry(db, {
-        userId,
-        userName,
-        action: "DEDUP_SCAN",
-        resourceType: "workspace",
-        resourceId: workspaceId,
-        details: `Dedup scan completed. Scored ${totalPairsScored} pairs, found ${newDetections} new detections.`,
+      await addDedupJob({
         workspaceId,
+        scanType: input.scanType,
+        triggeredBy: userId,
       });
 
-      return { newDetections, totalPairsScored };
+      return { jobQueued: true, scanType: input.scanType };
+    }),
+
+  /**
+   * Get scan history for admin dashboard (most recent 20 scans).
+   */
+  getScanHistory: adminProcedure.query(async () => {
+    const history = await db
+      .select()
+      .from(dedupScanHistory)
+      .orderBy(desc(dedupScanHistory.startedAt))
+      .limit(20);
+
+    return history;
+  }),
+
+  /**
+   * Get dedup scan settings from the settings table.
+   */
+  getScanSettings: adminProcedure.query(async () => {
+    const rows = await db
+      .select({ key: settings.key, value: settings.value })
+      .from(settings)
+      .where(
+        and(
+          eq(settings.scope, "system"),
+          like(settings.key, "dedup.scan.%"),
+        ),
+      );
+
+    const settingsMap: Record<string, string> = {};
+    for (const row of rows) {
+      settingsMap[row.key] = row.value;
+    }
+
+    return {
+      schedule: settingsMap["dedup.scan.schedule"] ?? "0 2 * * *",
+      type: (settingsMap["dedup.scan.type"] as "basic" | "advanced") ?? "basic",
+      enabled: settingsMap["dedup.scan.enabled"] === "true",
+      batchSize: Number(settingsMap["dedup.scan.batchSize"]) || 500,
+    };
+  }),
+
+  /**
+   * Update dedup scan settings.
+   */
+  updateScanSettings: adminProcedure
+    .input(
+      z.object({
+        schedule: z.string().optional(),
+        type: z.enum(["basic", "advanced"]).optional(),
+        enabled: z.boolean().optional(),
+        batchSize: z.number().min(50).max(5000).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
+      const now = new Date();
+
+      const updates: Array<{ key: string; value: string; dataType: "string" | "number" | "boolean" }> = [];
+
+      if (input.schedule !== undefined) {
+        updates.push({ key: "dedup.scan.schedule", value: input.schedule, dataType: "string" });
+      }
+      if (input.type !== undefined) {
+        updates.push({ key: "dedup.scan.type", value: input.type, dataType: "string" });
+      }
+      if (input.enabled !== undefined) {
+        updates.push({ key: "dedup.scan.enabled", value: String(input.enabled), dataType: "boolean" });
+      }
+      if (input.batchSize !== undefined) {
+        updates.push({ key: "dedup.scan.batchSize", value: String(input.batchSize), dataType: "number" });
+      }
+
+      for (const update of updates) {
+        const id = randomUUID();
+        await db
+          .insert(settings)
+          .values({
+            id,
+            scope: "system",
+            scopeId: null,
+            key: update.key,
+            value: update.value,
+            dataType: update.dataType,
+            description: `Dedup scan setting: ${update.key}`,
+            isPublic: false,
+            updatedBy: userId,
+            updatedAt: now,
+          })
+          .onConflictDoNothing()
+          .then(async () => {
+            // Upsert: if conflict, update value
+            await db
+              .update(settings)
+              .set({
+                value: update.value,
+                dataType: update.dataType,
+                updatedBy: userId,
+                updatedAt: now,
+              })
+              .where(
+                and(
+                  eq(settings.scope, "system"),
+                  eq(settings.key, update.key),
+                ),
+              );
+          });
+
+        await createAuditEntry(db, {
+          userId,
+          userName,
+          action: "SETTINGS_UPDATE",
+          resourceType: "setting",
+          resourceId: update.key,
+          details: `Updated ${update.key} to ${update.value}`,
+        });
+      }
+
+      return { success: true };
     }),
 });

@@ -14,6 +14,7 @@ export * from "./document-relations";
 export * from "./document-share-links";
 export * from "./document-versions";
 export * from "./documents";
+export * from "./dedup-scan-history";
 export * from "./duplicate-detections";
 export * from "./notifications";
 export * from "./ocr-jobs";

@@ -1,7 +1,18 @@
 "use client";
 
-import { Copy, Eye, GitMerge, Loader2, Play, X } from "lucide-react";
-import { useState } from "react";
+import {
+  Calendar,
+  Clock,
+  Copy,
+  Eye,
+  GitMerge,
+  Loader2,
+  Play,
+  Save,
+  Settings,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +32,13 @@ export default function DeduplicationPage() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
+  // Scan settings state
+  const [schedule, setSchedule] = useState("0 2 * * *");
+  const [scanTypeOption, setScanTypeOption] = useState<"basic" | "advanced">("basic");
+  const [enabled, setEnabled] = useState(false);
+  const [batchSize, setBatchSize] = useState(500);
+  const [runScanType, setRunScanType] = useState<"basic" | "advanced">("basic");
+
   const pendingQuery = trpc.dedup.getPendingDuplicates.useQuery({ page, pageSize });
   const confirmMutation = trpc.dedup.confirmDuplicate.useMutation({
     onSuccess: () => pendingQuery.refetch(),
@@ -29,11 +47,30 @@ export default function DeduplicationPage() {
     onSuccess: () => pendingQuery.refetch(),
   });
   const scanMutation = trpc.dedup.triggerScan.useMutation({
-    onSuccess: () => pendingQuery.refetch(),
+    onSuccess: () => {
+      pendingQuery.refetch();
+      historyQuery.refetch();
+    },
   });
+  const historyQuery = trpc.dedup.getScanHistory.useQuery();
+  const settingsQuery = trpc.dedup.getScanSettings.useQuery();
+  const updateSettingsMutation = trpc.dedup.updateScanSettings.useMutation({
+    onSuccess: () => settingsQuery.refetch(),
+  });
+
+  // Sync settings from query
+  useEffect(() => {
+    if (settingsQuery.data) {
+      setSchedule(settingsQuery.data.schedule);
+      setScanTypeOption(settingsQuery.data.type);
+      setEnabled(settingsQuery.data.enabled);
+      setBatchSize(settingsQuery.data.batchSize);
+    }
+  }, [settingsQuery.data]);
 
   const items = pendingQuery.data?.items ?? [];
   const total = pendingQuery.data?.total ?? 0;
+  const scanHistory = historyQuery.data ?? [];
 
   const handleKeepDoc = (detectionId: string, keepDocumentId: string) => {
     confirmMutation.mutate({ detectionId, keepDocumentId });
@@ -44,7 +81,54 @@ export default function DeduplicationPage() {
   };
 
   const handleRunScan = () => {
-    scanMutation.mutate({});
+    scanMutation.mutate({ scanType: runScanType });
+  };
+
+  const handleSaveSettings = () => {
+    updateSettingsMutation.mutate({
+      schedule,
+      type: scanTypeOption,
+      enabled,
+      batchSize,
+    });
+  };
+
+  const getScheduleLabel = (cron: string) => {
+    if (cron === "0 2 * * *") return "daily";
+    if (cron === "0 2 * * 0") return "weekly";
+    if (cron === "0 2 1 * *") return "monthly";
+    return "custom";
+  };
+
+  const handleScheduleChange = (value: string) => {
+    switch (value) {
+      case "daily":
+        setSchedule("0 2 * * *");
+        break;
+      case "weekly":
+        setSchedule("0 2 * * 0");
+        break;
+      case "monthly":
+        setSchedule("0 2 1 * *");
+        break;
+      default:
+        break;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "running":
+        return <Badge variant="default" className="text-[10px]">Running</Badge>;
+      case "completed":
+        return <Badge variant="secondary" className="text-[10px]">Completed</Badge>;
+      case "failed":
+        return <Badge variant="destructive" className="text-[10px]">Failed</Badge>;
+      case "cancelled":
+        return <Badge variant="outline" className="text-[10px]">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
+    }
   };
 
   const getMatchType = (item: (typeof items)[0]) => {
@@ -65,6 +149,118 @@ export default function DeduplicationPage() {
               <Badge variant="outline" className="text-[10px] h-5">
                 {total} pending
               </Badge>
+            </div>
+          }
+        />
+
+        {/* Scan Settings Section */}
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Settings className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Scan Settings</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Schedule */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Schedule</label>
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={getScheduleLabel(schedule)}
+                onChange={(e) => handleScheduleChange(e.target.value)}
+              >
+                <option value="daily">Daily (2:00 AM)</option>
+                <option value="weekly">Weekly (Sunday 2:00 AM)</option>
+                <option value="monthly">Monthly (1st 2:00 AM)</option>
+                <option value="custom">Custom</option>
+              </select>
+              {getScheduleLabel(schedule) === "custom" && (
+                <input
+                  type="text"
+                  className="h-7 rounded-md border bg-background px-2 text-xs mt-1"
+                  placeholder="Cron expression"
+                  value={schedule}
+                  onChange={(e) => setSchedule(e.target.value)}
+                />
+              )}
+            </div>
+
+            {/* Scan Type */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Scan Type</label>
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={scanTypeOption}
+                onChange={(e) => setScanTypeOption(e.target.value as "basic" | "advanced")}
+              >
+                <option value="basic">Basic (Fast)</option>
+                <option value="advanced">Advanced (Full)</option>
+              </select>
+            </div>
+
+            {/* Batch Size */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Batch Size</label>
+              <input
+                type="number"
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                min={50}
+                max={5000}
+                value={batchSize}
+                onChange={(e) => setBatchSize(Number(e.target.value))}
+              />
+            </div>
+
+            {/* Enable/Disable */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Scheduled Scan</label>
+              <button
+                type="button"
+                className={`h-8 rounded-md border px-3 text-xs font-medium transition-colors ${
+                  enabled
+                    ? "bg-green-100 border-green-300 text-green-700 dark:bg-green-950 dark:border-green-700 dark:text-green-300"
+                    : "bg-red-50 border-red-200 text-red-600 dark:bg-red-950 dark:border-red-700 dark:text-red-300"
+                }`}
+                onClick={() => setEnabled(!enabled)}
+              >
+                {enabled ? "Enabled" : "Disabled"}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-end mt-3 pt-3 border-t">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1"
+              onClick={handleSaveSettings}
+              disabled={updateSettingsMutation.isPending}
+            >
+              {updateSettingsMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Save className="h-3 w-3" />
+              )}
+              Save Settings
+            </Button>
+          </div>
+        </div>
+
+        {/* Run Now Section */}
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Play className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Run Scan Now</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                className="h-7 rounded-md border bg-background px-2 text-xs"
+                value={runScanType}
+                onChange={(e) => setRunScanType(e.target.value as "basic" | "advanced")}
+              >
+                <option value="basic">Basic Scan</option>
+                <option value="advanced">Advanced Scan</option>
+              </select>
               <Button
                 size="sm"
                 className="h-7 text-xs gap-1"
@@ -76,19 +272,78 @@ export default function DeduplicationPage() {
                 ) : (
                   <Play className="h-3 w-3" />
                 )}
-                Run Scan
+                Run Now
               </Button>
             </div>
-          }
-        />
-
-        {scanMutation.isSuccess && (
-          <div className="rounded-lg border bg-green-50 dark:bg-green-950 p-3 text-sm">
-            Scan complete: scored {scanMutation.data.totalPairsScored} pairs, found{" "}
-            {scanMutation.data.newDetections} new detections.
           </div>
-        )}
+          {scanMutation.isSuccess && (
+            <div className="mt-3 rounded-lg border bg-green-50 dark:bg-green-950 p-3 text-sm">
+              Scan job queued successfully (type: {scanMutation.data.scanType}).
+            </div>
+          )}
+        </div>
 
+        {/* Scan History Section */}
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Scan History</h3>
+          </div>
+          {historyQuery.isLoading ? (
+            <div className="text-center py-4">
+              <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+            </div>
+          ) : scanHistory.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">
+              No scan history available.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[11px]">Status</TableHead>
+                  <TableHead className="text-[11px]">Type</TableHead>
+                  <TableHead className="text-[11px]">Pairs Scored</TableHead>
+                  <TableHead className="text-[11px]">Detections</TableHead>
+                  <TableHead className="text-[11px]">Started</TableHead>
+                  <TableHead className="text-[11px]">Completed</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scanHistory.map((scan) => (
+                  <TableRow key={scan.id}>
+                    <TableCell>{getStatusBadge(scan.status)}</TableCell>
+                    <TableCell className="text-xs">
+                      <Badge variant="outline" className="text-[10px]">
+                        {scan.scanType}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs">{scan.pairsScored.toLocaleString()}</TableCell>
+                    <TableCell className="text-xs">{scan.detectionsFound}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {scan.startedAt
+                        ? new Date(scan.startedAt).toLocaleString("en-IN", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {scan.completedAt
+                        ? new Date(scan.completedAt).toLocaleString("en-IN", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })
+                        : "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+
+        {/* Pending Detections */}
         {pendingQuery.isLoading && (
           <div className="rounded-lg border bg-card p-8 text-center">
             <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
@@ -96,7 +351,6 @@ export default function DeduplicationPage() {
           </div>
         )}
 
-        {/* Duplicate Detections */}
         <div className="flex flex-col gap-4">
           {items.map((item) => {
             const badge = getMatchType(item);
@@ -245,7 +499,7 @@ export default function DeduplicationPage() {
             <div className="rounded-lg border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">No pending duplicate detections found.</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Click &quot;Run Scan&quot; to analyze documents for duplicates.
+                Click &quot;Run Now&quot; to analyze documents for duplicates.
               </p>
             </div>
           )}
