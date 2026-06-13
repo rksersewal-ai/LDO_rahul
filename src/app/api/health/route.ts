@@ -71,21 +71,36 @@ async function checkDatabase(): Promise<ServiceCheck> {
   }
 }
 
-async function checkRedis(): Promise<ServiceCheck> {
-  const start = performance.now();
-  try {
+// Lazy singleton Redis client for health checks (avoids creating a connection per request)
+let redisClient: InstanceType<typeof import("ioredis").default> | null = null;
+
+async function getRedisClient() {
+  if (!redisClient) {
     const Redis = (await import("ioredis")).default;
-    const redis = new Redis(process.env.REDIS_URL!, {
+    redisClient = new Redis(process.env.REDIS_URL!, {
       connectTimeout: 5000,
       maxRetriesPerRequest: 1,
       lazyConnect: true,
     });
-    await redis.connect();
+    redisClient.on("error", () => {
+      // On connection error, discard the client so the next call creates a fresh one
+      redisClient = null;
+    });
+    await redisClient.connect();
+  }
+  return redisClient;
+}
+
+async function checkRedis(): Promise<ServiceCheck> {
+  const start = performance.now();
+  try {
+    const redis = await getRedisClient();
     await redis.ping();
     const latencyMs = Math.round(performance.now() - start);
-    await redis.quit();
     return { name: "redis", status: "healthy", latencyMs };
   } catch (error) {
+    // Discard broken client so next health check retries from scratch
+    redisClient = null;
     const latencyMs = Math.round(performance.now() - start);
     return {
       name: "redis",

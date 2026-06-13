@@ -154,6 +154,7 @@ export const workRouter = router({
         workOrderNumber,
         title: `${input.workCategory} - ${input.workTypeCode}`,
         description: input.description ? sanitizeUserInput(input.description) : input.description,
+        section: input.workCategory,
         priority: input.priority?.toLowerCase() ?? "medium",
         status: "open",
         createdBy: userId,
