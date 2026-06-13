@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
-export const runtime = "nodejs";
-
-export default auth((req) => {
+export default async function proxy(req: NextRequest) {
+  // Wrap with NextAuth to get session (async)
+  const session = await auth();
+  
   const { nextUrl } = req;
-  const isAuthenticated = !!req.auth;
+  const isAuthenticated = !!session;
 
   // Allow public paths
   const isLoginPage = nextUrl.pathname === "/login";
@@ -46,7 +47,7 @@ export default auth((req) => {
   }
 
   // Force password change redirect
-  const forcePasswordChange = (req.auth?.user as Record<string, unknown>)?.forcePasswordChange;
+  const forcePasswordChange = session?.user?.forcePasswordChange;
   if (
     forcePasswordChange &&
     nextUrl.pathname !== "/change-password" &&
@@ -56,8 +57,4 @@ export default auth((req) => {
   }
 
   return NextResponse.next();
-});
-
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public/).*)"],
-};
+}
