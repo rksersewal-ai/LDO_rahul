@@ -83,12 +83,17 @@ export const dashboardRouter = router({
           ),
         ),
 
-      // Open cases (open + investigating)
-      // Index: cases(status)
+      // Open cases (open + investigating) scoped to workspace
+      // Index: cases(workspace_id, status)
       db
         .select({ total: sql<number>`COALESCE(${count()}, 0)` })
         .from(cases)
-        .where(sql`${cases.status} IN ('open', 'investigating')`),
+        .where(
+          and(
+            eq(cases.workspaceId, workspaceId),
+            sql`${cases.status} IN ('open', 'investigating')`,
+          ),
+        ),
 
       // Pending duplicate detections in workspace
       // Index: duplicate_detections(workspace_id, status)

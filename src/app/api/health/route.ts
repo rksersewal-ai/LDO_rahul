@@ -1,0 +1,130 @@
+import { type NextRequest, NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+interface ServiceCheck {
+  name: string;
+  status: "healthy" | "degraded" | "unhealthy";
+  latencyMs: number;
+  message?: string;
+}
+
+export async function GET(_request: NextRequest) {
+  const services: ServiceCheck[] = [];
+  let overallStatus: "healthy" | "degraded" | "unhealthy" = "healthy";
+
+  // Check Database
+  const dbCheck = await checkDatabase();
+  services.push(dbCheck);
+  if (dbCheck.status === "unhealthy") {
+    overallStatus = "unhealthy";
+  } else if (dbCheck.status === "degraded" && overallStatus === "healthy") {
+    overallStatus = "degraded";
+  }
+
+  // Check Redis (optional)
+  if (process.env.REDIS_URL) {
+    const redisCheck = await checkRedis();
+    services.push(redisCheck);
+    if (redisCheck.status === "unhealthy" && overallStatus !== "unhealthy") {
+      overallStatus = "degraded";
+    }
+  }
+
+  // Check NAS Storage (optional)
+  if (process.env.NAS_STORAGE_PATH) {
+    const nasCheck = await checkNasStorage();
+    services.push(nasCheck);
+    if (nasCheck.status === "unhealthy" && overallStatus !== "unhealthy") {
+      overallStatus = "degraded";
+    }
+  }
+
+  const response = {
+    status: overallStatus,
+    timestamp: new Date().toISOString(),
+    services,
+  };
+
+  const httpStatus = overallStatus === "unhealthy" ? 503 : 200;
+  return NextResponse.json(response, { status: httpStatus });
+}
+
+async function checkDatabase(): Promise<ServiceCheck> {
+  const start = performance.now();
+  try {
+    // Use the app's shared database pool to avoid creating a new connection per request
+    await db.execute(sql`SELECT 1`);
+    const latencyMs = Math.round(performance.now() - start);
+    return { name: "database", status: "healthy", latencyMs };
+  } catch (error) {
+    const latencyMs = Math.round(performance.now() - start);
+    return {
+      name: "database",
+      status: "unhealthy",
+      latencyMs,
+      message: error instanceof Error ? error.message : "Connection failed",
+    };
+  }
+}
+
+// Lazy singleton Redis client for health checks (avoids creating a connection per request)
+let redisClient: InstanceType<typeof import("ioredis").default> | null = null;
+
+async function getRedisClient() {
+  if (!redisClient) {
+    const Redis = (await import("ioredis")).default;
+    redisClient = new Redis(process.env.REDIS_URL!, {
+      connectTimeout: 5000,
+      maxRetriesPerRequest: 1,
+      lazyConnect: true,
+    });
+    redisClient.on("error", () => {
+      // On connection error, discard the client so the next call creates a fresh one
+      redisClient = null;
+    });
+    await redisClient.connect();
+  }
+  return redisClient;
+}
+
+async function checkRedis(): Promise<ServiceCheck> {
+  const start = performance.now();
+  try {
+    const redis = await getRedisClient();
+    await redis.ping();
+    const latencyMs = Math.round(performance.now() - start);
+    return { name: "redis", status: "healthy", latencyMs };
+  } catch (error) {
+    // Discard broken client so next health check retries from scratch
+    redisClient = null;
+    const latencyMs = Math.round(performance.now() - start);
+    return {
+      name: "redis",
+      status: "unhealthy",
+      latencyMs,
+      message: error instanceof Error ? error.message : "Connection failed",
+    };
+  }
+}
+
+async function checkNasStorage(): Promise<ServiceCheck> {
+  const start = performance.now();
+  try {
+    const fs = await import("node:fs/promises");
+    await fs.access(process.env.NAS_STORAGE_PATH!);
+    const latencyMs = Math.round(performance.now() - start);
+    return { name: "nas_storage", status: "healthy", latencyMs };
+  } catch (error) {
+    const latencyMs = Math.round(performance.now() - start);
+    return {
+      name: "nas_storage",
+      status: "unhealthy",
+      latencyMs,
+      message: error instanceof Error ? error.message : "Path not accessible",
+    };
+  }
+}

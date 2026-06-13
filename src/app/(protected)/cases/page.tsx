@@ -35,9 +35,8 @@ import {
   type CaseSeverity,
   type CaseStatus,
   type CaseType,
-  MOCK_CASES,
-  type MockCase,
 } from "@/lib/mock-data/cases";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import type { createCaseSchema } from "@/lib/validators/cases";
 
@@ -68,11 +67,30 @@ const typeLabels: Record<CaseType, string> = {
 };
 
 export default function CasesPage() {
-  const [cases, setCases] = useState<MockCase[]>(MOCK_CASES);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const { data: casesData, isLoading, refetch } = trpc.cases.list.useQuery(
+    {
+      status: statusFilter !== "all" ? statusFilter as "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "ESCALATED" : undefined,
+      severity: severityFilter !== "all" ? severityFilter as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" : undefined,
+      type: typeFilter !== "all" ? typeFilter as "failure_investigation" | "discrepancy" | "vendor_issue" | "design_deviation" | "safety_concern" : undefined,
+      limit: 100,
+    },
+    { staleTime: 15_000 },
+  );
+
+  const createCase = trpc.cases.create.useMutation({
+    onSuccess: () => {
+      refetch();
+      setDialogOpen(false);
+    },
+  });
+
+  const cases = casesData?.items ?? [];
+  const totalCases = casesData?.total ?? 0;
 
   const handleStatusFilter = (value: string | null) => {
     setStatusFilter(value ?? "all");
@@ -84,38 +102,10 @@ export default function CasesPage() {
     setTypeFilter(value ?? "all");
   };
 
-  const filteredCases = cases.filter((c) => {
-    if (statusFilter !== "all" && c.status !== statusFilter) return false;
-    if (severityFilter !== "all" && c.severity !== severityFilter) return false;
-    if (typeFilter !== "all" && c.type !== typeFilter) return false;
-    return true;
-  });
+  const filteredCases = cases;
 
   const handleCreateCase = (data: z.infer<typeof createCaseSchema>) => {
-    const caseNumber = `CASE-2026-${String(cases.length + 1).padStart(3, "0")}`;
-    const newCase: MockCase = {
-      id: `case-${String(cases.length + 1).padStart(3, "0")}`,
-      caseNumber,
-      title: data.title,
-      description: data.description,
-      type: data.type,
-      status: "OPEN",
-      severity: data.severity,
-      assigneeId: data.assigneeId,
-      assigneeName: "Assigned User",
-      reporterId: "u-001-admin",
-      reporterName: "Current User",
-      plNumber: data.plNumber || null,
-      vendorName: data.vendorName || null,
-      tenderNumber: data.tenderNumber || null,
-      linkedDocumentIds: [],
-      resolution: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      closedAt: null,
-    };
-    setCases((prev) => [newCase, ...prev]);
-    setDialogOpen(false);
+    createCase.mutate(data);
   };
 
   return (
@@ -218,7 +208,7 @@ export default function CasesPage() {
           </Select>
 
           <span className="text-xs text-muted-foreground ml-auto">
-            {filteredCases.length} of {cases.length} cases
+            {isLoading ? "Loading..." : `${filteredCases.length} of ${totalCases} cases`}
           </span>
         </div>
 
@@ -238,49 +228,61 @@ export default function CasesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCases.map((c) => {
-                const statusInfo = statusMap[c.status];
-                return (
-                  <TableRow key={c.id}>
-                    <TableCell className="text-xs font-mono">{c.caseNumber}</TableCell>
-                    <TableCell className="text-xs font-medium max-w-[250px] truncate">
-                      {c.title}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px]">
-                        {typeLabels[c.type]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={statusInfo.status} label={statusInfo.label} />
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
-                          severityColors[c.severity],
-                        )}
-                      >
-                        {c.severity}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs">{c.assigneeName}</TableCell>
-                    <TableCell className="text-xs font-mono">{c.plNumber || "-"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {new Date(c.createdAt).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                      })}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {filteredCases.length === 0 && (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
+                    Loading cases...
+                  </TableCell>
+                </TableRow>
+              ) : filteredCases.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
                     No cases match the current filters
                   </TableCell>
                 </TableRow>
+              ) : (
+                filteredCases.map((c: Record<string, unknown>) => {
+                  const status = (c.status as string) ?? "OPEN";
+                  const statusInfo = statusMap[status as CaseStatus] ?? { status: "pending" as const, label: status };
+                  const severity = (c.severity as string) ?? "MEDIUM";
+                  const caseType = (c.type as string) ?? "failure_investigation";
+                  return (
+                    <TableRow key={c.id as string}>
+                      <TableCell className="text-xs font-mono">{(c.caseNumber as string) ?? "-"}</TableCell>
+                      <TableCell className="text-xs font-medium max-w-[250px] truncate">
+                        {(c.title as string) ?? "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px]">
+                          {typeLabels[caseType as CaseType] ?? caseType}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={statusInfo.status} label={statusInfo.label} />
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+                            severityColors[severity as CaseSeverity] ?? "",
+                          )}
+                        >
+                          {severity}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs">{(c.assigneeName as string) ?? "-"}</TableCell>
+                      <TableCell className="text-xs font-mono">{(c.plNumber as string) || "-"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {c.createdAt
+                          ? new Date(c.createdAt as string).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                            })
+                          : "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

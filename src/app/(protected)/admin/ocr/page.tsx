@@ -22,7 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MOCK_OCR_QUEUE, type OcrJobStatus, type OcrQueueJob } from "@/lib/mock-data/admin";
+import { type OcrJobStatus, type OcrQueueJob } from "@/lib/mock-data/admin";
+import { trpc } from "@/lib/trpc/client";
 
 const statusBadge: Record<
   OcrJobStatus,
@@ -36,50 +37,40 @@ const statusBadge: Record<
 };
 
 export default function OcrMonitorPage() {
-  const [jobs, setJobs] = useState<OcrQueueJob[]>([...MOCK_OCR_QUEUE]);
+  const { data: ocrData, isLoading, refetch } = trpc.admin.getOcrQueue.useQuery(
+    undefined,
+    { staleTime: 15_000, refetchInterval: 30_000 },
+  );
+  const retryMutation = trpc.admin.retryOcrJob.useMutation({ onSuccess: () => refetch() });
+  const cancelMutation = trpc.admin.cancelOcrJob.useMutation({ onSuccess: () => refetch() });
+
+  const jobs = (ocrData?.jobs ?? []) as unknown as OcrQueueJob[];
   const [filter, setFilter] = useState<string>("all");
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
   useEffect(() => {
     const interval = setInterval(() => {
       setLastRefresh(new Date());
+      refetch();
     }, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refetch]);
 
   const filtered = filter === "all" ? jobs : jobs.filter((j) => j.status === filter);
 
-  const summary = {
-    queued: jobs.filter((j) => j.status === "queued").length,
-    processing: jobs.filter((j) => j.status === "processing").length,
-    completed: jobs.filter((j) => j.status === "completed").length,
-    failed: jobs.filter((j) => j.status === "failed").length,
+  const summary = ocrData?.summary ?? {
+    queued: 0,
+    processing: 0,
+    completed: 0,
+    failed: 0,
   };
 
   const handleRetry = (id: string) => {
-    setJobs(
-      jobs.map((j) =>
-        j.id === id
-          ? {
-              ...j,
-              status: "queued" as OcrJobStatus,
-              error: null,
-              pagesProcessed: 0,
-              retryCount: j.retryCount + 1,
-            }
-          : j,
-      ),
-    );
+    retryMutation.mutate({ id });
   };
 
   const handleCancel = (id: string) => {
-    setJobs(
-      jobs.map((j) =>
-        j.id === id
-          ? { ...j, status: "cancelled" as OcrJobStatus, error: "Cancelled by admin" }
-          : j,
-      ),
-    );
+    cancelMutation.mutate({ id });
   };
 
   return (

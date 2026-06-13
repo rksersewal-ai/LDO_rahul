@@ -1,7 +1,9 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { auth } from "@/lib/auth";
 import { isRoleAtLeast } from "@/lib/auth/permissions";
+import { logError } from "@/lib/logging/structured-logger";
 import type { UserRole } from "@/lib/types/auth";
+import { checkRateLimit } from "@/server/middleware/rate-limit";
 
 export async function createContext(req?: Request) {
   const session = await auth();
@@ -18,7 +20,7 @@ export async function createContext(req?: Request) {
 export type Context = Awaited<ReturnType<typeof createContext>>;
 
 const t = initTRPC.context<Context>().create({
-  errorFormatter({ shape, error }) {
+  errorFormatter({ shape, error, path }) {
     const userFriendlyMessages: Record<string, string> = {
       INTERNAL_SERVER_ERROR: "An unexpected error occurred. Please try again.",
       TIMEOUT: "Request timed out. Please try again.",
@@ -29,6 +31,14 @@ const t = initTRPC.context<Context>().create({
       FORBIDDEN: "You do not have permission to perform this action.",
       PRECONDITION_FAILED: "A required condition was not met.",
     };
+
+    // Log INTERNAL_SERVER_ERROR to structured logger
+    if (error.code === "INTERNAL_SERVER_ERROR") {
+      logError("Internal server error in tRPC procedure", {
+        path,
+        code: error.code,
+      }, error.cause instanceof Error ? error.cause : error);
+    }
 
     // Preserve custom messages from TRPCError; only use generic fallback
     // when the message is the default code-based message (e.g. "BAD_REQUEST")
@@ -75,9 +85,17 @@ const enforcePasswordChange = t.middleware(async ({ ctx, next, path }) => {
 });
 
 /**
+ * Rate limit middleware (per-user, 100 requests per 60-second sliding window).
+ */
+const rateLimit = t.middleware(async ({ ctx, next }) => {
+  checkRateLimit(ctx.session?.user?.id);
+  return next({ ctx });
+});
+
+/**
  * Requires authentication - any logged-in user.
  */
-export const protectedProcedure = t.procedure.use(enforcePasswordChange).use(async ({ ctx, next }) => {
+export const protectedProcedure = t.procedure.use(enforcePasswordChange).use(rateLimit).use(async ({ ctx, next }) => {
   if (!ctx.session?.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
   }

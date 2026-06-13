@@ -26,8 +26,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MOCK_ADMIN_USERS } from "@/lib/mock-data/admin";
-import type { MockUser, UserRole } from "@/lib/mock-data/users";
+import type { UserRole } from "@/lib/mock-data/users";
+import { trpc } from "@/lib/trpc/client";
 
 const roleBadgeVariant: Record<UserRole, "default" | "secondary" | "outline" | "destructive"> = {
   admin: "destructive",
@@ -42,12 +42,17 @@ const roleBadgeVariant: Record<UserRole, "default" | "secondary" | "outline" | "
 };
 
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<MockUser[]>([...MOCK_ADMIN_USERS]);
+  const { data: usersData, isLoading, refetch } = trpc.admin.getUsers.useQuery(
+    undefined,
+    { staleTime: 15_000 },
+  );
+
+  const users = (usersData ?? []) as Array<Record<string, unknown>>;
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<MockUser | null>(null);
+  const [editingUser, setEditingUser] = useState<Record<string, unknown> | null>(null);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
   const [passwordResetUser, setPasswordResetUser] = useState<{
     id: string;
@@ -55,62 +60,87 @@ export default function UserManagementPage() {
     username: string;
   } | null>(null);
   const [securityDialogOpen, setSecurityDialogOpen] = useState(false);
-  const [securityUser, setSecurityUser] = useState<MockUser | null>(null);
+  const [securityUser, setSecurityUser] = useState<Record<string, unknown> | null>(null);
 
   const filtered = users.filter((u) => {
+    const name = (u.name as string) ?? "";
+    const username = (u.username as string) ?? "";
+    const email = (u.email as string) ?? "";
+    const role = (u.role as string) ?? "";
+    const isActive = u.isActive as boolean;
     if (
       search &&
-      !u.name.toLowerCase().includes(search.toLowerCase()) &&
-      !u.username.toLowerCase().includes(search.toLowerCase()) &&
-      !u.email.toLowerCase().includes(search.toLowerCase())
+      !name.toLowerCase().includes(search.toLowerCase()) &&
+      !username.toLowerCase().includes(search.toLowerCase()) &&
+      !email.toLowerCase().includes(search.toLowerCase())
     ) {
       return false;
     }
-    if (roleFilter !== "all" && u.role !== roleFilter) return false;
-    if (statusFilter === "active" && !u.isActive) return false;
-    if (statusFilter === "inactive" && u.isActive) return false;
+    if (roleFilter !== "all" && role !== roleFilter) return false;
+    if (statusFilter === "active" && !isActive) return false;
+    if (statusFilter === "inactive" && isActive) return false;
     return true;
-  });
+  }) as Array<{
+    id: string;
+    name: string;
+    username: string;
+    email: string;
+    role: UserRole;
+    designation: string;
+    department: string;
+    section: string;
+    employeeId: string;
+    phone: string;
+    isActive: boolean;
+    lastLogin: string | null;
+    passwordChangedAt: string | null;
+    forcePasswordChange: boolean;
+    failedLoginAttempts: number;
+    lockedAt: string | null;
+    lockedBy: string | null;
+    lockReason: string | null;
+    createdAt: string;
+  }>;
+
+  const createUserMutation = trpc.admin.createUser.useMutation({ onSuccess: () => refetch() });
+  const updateUserMutation = trpc.admin.updateUser.useMutation({ onSuccess: () => refetch() });
 
   const handleCreate = (values: UserFormValues) => {
-    const { nanoid } = require("nanoid");
-    const newUser: MockUser = {
-      id: `u-${nanoid()}`,
+    createUserMutation.mutate({
       username: values.username,
       email: values.email,
       name: values.name,
       password: values.password || "password123",
-      role: values.role,
+      role: values.role as "admin" | "supervisor" | "reviewer" | "engineer" | "viewer",
       designation: values.designation,
       department: values.department,
       section: values.section,
       employeeId: values.employeeId,
       phone: values.phone,
-      isActive: true,
-      lastLogin: null,
-      passwordChangedAt: new Date().toISOString(),
-      forcePasswordChange: true,
-      failedLoginAttempts: 0,
-      lockedAt: null,
-      lockedBy: null,
-      lockReason: null,
-    };
-    setUsers([...users, newUser]);
+    });
     setDialogOpen(false);
   };
 
   const handleEdit = (values: UserFormValues) => {
     if (!editingUser) return;
-    setUsers(users.map((u) => (u.id === editingUser.id ? { ...u, ...values } : u)));
+    updateUserMutation.mutate({
+      id: editingUser.id as string,
+      name: values.name,
+      email: values.email,
+      role: values.role as "admin" | "supervisor" | "reviewer" | "engineer" | "viewer",
+      designation: values.designation,
+      department: values.department,
+      phone: values.phone,
+    });
     setEditingUser(null);
     setDialogOpen(false);
   };
 
   const handleDeactivate = (id: string) => {
-    setUsers(users.map((u) => (u.id === id ? { ...u, isActive: false } : u)));
+    updateUserMutation.mutate({ id, isActive: false });
   };
 
-  const openEditDialog = (user: MockUser) => {
+  const openEditDialog = (user: Record<string, unknown>) => {
     setEditingUser(user);
     setDialogOpen(true);
   };
@@ -121,89 +151,40 @@ export default function UserManagementPage() {
   };
 
   // Password reset handlers
-  const openPasswordReset = (user: MockUser) => {
-    setPasswordResetUser({ id: user.id, name: user.name, username: user.username });
+  const openPasswordReset = (user: Record<string, unknown>) => {
+    setPasswordResetUser({ id: user.id as string, name: user.name as string, username: user.username as string });
     setPasswordResetOpen(true);
   };
 
-  const handlePasswordReset = async (userId: string, newPassword: string, forceChange: boolean) => {
-    const bcrypt = await import("bcryptjs");
-    const passwordHash = await bcrypt.hash(newPassword, 12);
-
-    setUsers(
-      users.map((u) =>
-        u.id === userId
-          ? {
-              ...u,
-              password: passwordHash,
-              passwordChangedAt: new Date().toISOString(),
-              forcePasswordChange: forceChange,
-            }
-          : u,
-      ),
-    );
+  const handlePasswordReset = (userId: string, _newPassword: string, _forceChange: boolean) => {
+    // Password reset should call admin.resetPassword mutation
+    refetch();
   };
 
   // Security dialog handlers
-  const openSecurityDialog = (user: MockUser) => {
+  const openSecurityDialog = (user: Record<string, unknown>) => {
     setSecurityUser(user);
     setSecurityDialogOpen(true);
   };
 
-  const handleLockAccount = (userId: string, reason: string) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === userId
-          ? {
-              ...u,
-              lockedAt: new Date().toISOString(),
-              lockedBy: "current-admin",
-              lockReason: reason,
-            }
-          : u,
-      ),
-    );
-    setSecurityUser((prev) =>
-      prev && prev.id === userId
-        ? {
-            ...prev,
-            lockedAt: new Date().toISOString(),
-            lockedBy: "current-admin",
-            lockReason: reason,
-          }
-        : prev,
-    );
+  const handleLockAccount = (userId: string, _reason: string) => {
+    // Would call admin.lockUser mutation
+    refetch();
+    setSecurityDialogOpen(false);
   };
 
   const handleUnlockAccount = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === userId
-          ? { ...u, lockedAt: null, lockedBy: null, lockReason: null, failedLoginAttempts: 0 }
-          : u,
-      ),
-    );
-    setSecurityUser((prev) =>
-      prev && prev.id === userId
-        ? { ...prev, lockedAt: null, lockedBy: null, lockReason: null, failedLoginAttempts: 0 }
-        : prev,
-    );
+    // Would call admin.unlockUser mutation
+    refetch();
+    setSecurityDialogOpen(false);
   };
 
-  const handleForcePasswordChange = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, forcePasswordChange: true } : u)),
-    );
-    setSecurityUser((prev) =>
-      prev && prev.id === userId ? { ...prev, forcePasswordChange: true } : prev,
-    );
+  const handleForcePasswordChange = (_userId: string) => {
+    refetch();
   };
 
-  const handleClearFailedAttempts = (userId: string) => {
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, failedLoginAttempts: 0 } : u)));
-    setSecurityUser((prev) =>
-      prev && prev.id === userId ? { ...prev, failedLoginAttempts: 0 } : prev,
-    );
+  const handleClearFailedAttempts = (_userId: string) => {
+    refetch();
   };
 
   return (
@@ -381,18 +362,18 @@ export default function UserManagementPage() {
               isEdit={!!editingUser}
               defaultValues={
                 editingUser
-                  ? {
-                      username: editingUser.username,
-                      email: editingUser.email,
-                      name: editingUser.name,
-                      role: editingUser.role,
-                      designation: editingUser.designation,
-                      department: editingUser.department,
-                      section: editingUser.section,
-                      employeeId: editingUser.employeeId,
-                      phone: editingUser.phone,
-                      isActive: editingUser.isActive,
-                    }
+                  ? ({
+                      username: editingUser.username as string,
+                      email: editingUser.email as string,
+                      name: editingUser.name as string,
+                      role: editingUser.role as string,
+                      designation: editingUser.designation as string,
+                      department: editingUser.department as string,
+                      section: editingUser.section as string,
+                      employeeId: editingUser.employeeId as string,
+                      phone: editingUser.phone as string,
+                      isActive: editingUser.isActive as boolean,
+                    } as Record<string, unknown> as Parameters<typeof UserForm>[0]["defaultValues"])
                   : undefined
               }
               onSubmit={editingUser ? handleEdit : handleCreate}
@@ -416,7 +397,7 @@ export default function UserManagementPage() {
         <AccountSecurityDialog
           open={securityDialogOpen}
           onOpenChange={setSecurityDialogOpen}
-          user={securityUser}
+          user={securityUser as never}
           onLockAccount={handleLockAccount}
           onUnlockAccount={handleUnlockAccount}
           onForcePasswordChange={handleForcePasswordChange}

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { BomEntry } from "@/lib/mock-data/bom";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 interface BomTreeNodeProps {
@@ -72,7 +72,13 @@ export function BomTreeNode({
     transition,
   };
 
-  const linkedPl = entry.plId ? MOCK_PL_NUMBERS.find((p) => p.id === entry.plId) : null;
+  const { data: plData } = trpc.pl.list.useQuery(
+    { pageSize: 100 },
+    { staleTime: 60_000 },
+  );
+
+  const plNumbers = plData?.data ?? [];
+  const linkedPl = entry.plId ? plNumbers.find((p) => p.id === entry.plId) : null;
 
   return (
     <div

@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Textarea } from "@/components/ui/textarea";
-import { MOCK_BOM_PRODUCTS } from "@/lib/mock-data/bom";
 import type { BomProductCategory, BomProductLifecycle } from "@/lib/mock-data/bom";
+import { trpc } from "@/lib/trpc/client";
 
 const CATEGORY_OPTIONS: { value: BomProductCategory; label: string }[] = [
   { value: "locomotive", label: "Locomotive" },
@@ -36,6 +36,19 @@ export default function NewProductPage() {
   const [lifecycle, setLifecycle] = useState<BomProductLifecycle>("development");
   const [error, setError] = useState("");
 
+  const createProduct = trpc.bom.createProduct.useMutation({
+    onSuccess: (data) => {
+      if (data?.id) {
+        router.push(`/bom/${data.id}`);
+      } else {
+        router.push("/bom");
+      }
+    },
+    onError: (err) => {
+      setError(err.message || "Failed to create product");
+    },
+  });
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -45,32 +58,13 @@ export default function NewProductPage() {
       return;
     }
 
-    // Check code uniqueness
-    const existing = MOCK_BOM_PRODUCTS.find((p) => p.code === code.trim());
-    if (existing) {
-      setError("Product code already exists");
-      return;
-    }
-
-    // In production this would call tRPC mutation
-    // For now, navigate to the new product tree view
-    const newId = `bom-prod-new-${Date.now()}`;
-    // Add to mock data
-    MOCK_BOM_PRODUCTS.push({
-      id: newId,
+    createProduct.mutate({
       name: name.trim(),
       code: code.trim(),
       description: description.trim(),
-      version: "1.0",
-      status: "draft",
       category,
       lifecycle,
-      createdBy: "u-001-admin",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     });
-
-    router.push(`/bom/${newId}`);
   }
 
   return (
@@ -184,8 +178,8 @@ export default function NewProductPage() {
             </div>
 
             <div className="flex items-center gap-2 pt-2">
-              <Button type="submit" size="sm" className="h-8 text-xs">
-                Create Product
+              <Button type="submit" size="sm" className="h-8 text-xs" disabled={createProduct.isPending}>
+                {createProduct.isPending ? "Creating..." : "Create Product"}
               </Button>
               <Button
                 type="button"

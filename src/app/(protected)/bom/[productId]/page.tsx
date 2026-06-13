@@ -21,8 +21,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
-import { type BomEntry, MOCK_BOM_ENTRIES, MOCK_BOM_PRODUCTS } from "@/lib/mock-data/bom";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { type BomEntry } from "@/lib/mock-data/bom";
+import { trpc } from "@/lib/trpc/client";
 import { exportToExcel } from "@/lib/utils/export-service";
 
 function mapProductStatus(status: string): StatusType {
@@ -40,11 +40,30 @@ function mapProductStatus(status: string): StatusType {
 
 export default function ProductBomPage({ params }: { params: Promise<{ productId: string }> }) {
   const { productId } = use(params);
-  const product = MOCK_BOM_PRODUCTS.find((p) => p.id === productId);
 
-  const [entries, setEntries] = useState<BomEntry[]>(() =>
-    MOCK_BOM_ENTRIES.filter((e) => e.productId === productId),
+  const { data: productData, isLoading: productLoading } = trpc.bom.getProduct.useQuery(
+    { productId },
+    { staleTime: 30_000 },
   );
+
+  const { data: plData } = trpc.pl.list.useQuery(
+    { pageSize: 100 },
+    { staleTime: 60_000 },
+  );
+
+  const plNumbers = plData?.data ?? [];
+  const product = productData?.product ?? null;
+  const serverEntries = (productData?.entries ?? []) as unknown as BomEntry[];
+
+  const [entries, setEntries] = useState<BomEntry[]>([]);
+  const [entriesInitialized, setEntriesInitialized] = useState(false);
+
+  // Initialize entries from server data
+  if (serverEntries.length > 0 && !entriesInitialized) {
+    setEntries(serverEntries);
+    setEntriesInitialized(true);
+  }
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addParentId, setAddParentId] = useState<string | null>(null);
@@ -165,11 +184,21 @@ export default function ProductBomPage({ params }: { params: Promise<{ productId
 
   const plResults =
     plSearch.length >= 2
-      ? MOCK_PL_NUMBERS.filter(
+      ? plNumbers.filter(
           (p) =>
             p.plNumber.includes(plSearch) || p.name.toLowerCase().includes(plSearch.toLowerCase()),
         ).slice(0, 8)
       : [];
+
+  if (productLoading) {
+    return (
+      <PageFrame>
+        <div className="flex flex-col items-center justify-center gap-4 py-20">
+          <p className="text-sm text-muted-foreground">Loading product...</p>
+        </div>
+      </PageFrame>
+    );
+  }
 
   if (!product) {
     return (
@@ -205,7 +234,7 @@ export default function ProductBomPage({ params }: { params: Promise<{ productId
             <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
               v{product.version}
             </Badge>
-            <StatusBadge status={mapProductStatus(product.status)} label={product.status} />
+            <StatusBadge status={mapProductStatus(product.approvalStatus)} label={product.approvalStatus} />
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button

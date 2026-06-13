@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { BomEntry, BomEntryType } from "@/lib/mock-data/bom";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { trpc } from "@/lib/trpc/client";
 
 interface AddEntryDialogProps {
   open: boolean;
@@ -43,15 +43,25 @@ export function AddEntryDialog({ open, onOpenChange, parentEntry, onSubmit }: Ad
   const [drawingRef, setDrawingRef] = useState("");
   const [showPlResults, setShowPlResults] = useState(false);
 
+  const { data: plData } = trpc.pl.list.useQuery(
+    { pageSize: 100 },
+    { staleTime: 60_000 },
+  );
+
+  const plNumbers = plData?.data ?? [];
+
   const plResults =
     plSearch.length >= 2
-      ? MOCK_PL_NUMBERS.filter(
-          (p) =>
-            p.plNumber.includes(plSearch) || p.name.toLowerCase().includes(plSearch.toLowerCase()),
-        ).slice(0, 5)
+      ? plNumbers
+          .filter(
+            (p) =>
+              p.plNumber.includes(plSearch) ||
+              p.name.toLowerCase().includes(plSearch.toLowerCase()),
+          )
+          .slice(0, 5)
       : [];
 
-  const selectedPl = selectedPlId ? MOCK_PL_NUMBERS.find((p) => p.id === selectedPlId) : null;
+  const selectedPl = selectedPlId ? plNumbers.find((p) => p.id === selectedPlId) : null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

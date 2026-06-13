@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown, Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import {
   Command,
@@ -11,7 +11,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 interface PLNumberSelectProps {
@@ -29,7 +29,14 @@ export function PLNumberSelect({
 }: PLNumberSelectProps) {
   const [open, setOpen] = useState(false);
 
-  const selectedItem = MOCK_PL_NUMBERS.find((pl) => pl.plNumber === value);
+  const { data: plData, isLoading } = trpc.pl.list.useQuery(
+    { pageSize: 100 },
+    { staleTime: 60_000 },
+  );
+
+  const plNumbers = plData?.data ?? [];
+
+  const selectedItem = plNumbers.find((pl) => pl.plNumber === value);
 
   const handleSelect = useCallback(
     (plNumber: string) => {
@@ -59,24 +66,32 @@ export function PLNumberSelect({
         <Command>
           <CommandInput placeholder="Type to filter PL numbers..." />
           <CommandList>
-            <CommandEmpty>No PL number found.</CommandEmpty>
-            <CommandGroup>
-              {MOCK_PL_NUMBERS.map((pl) => (
-                <CommandItem
-                  key={pl.id}
-                  value={`${pl.plNumber} ${pl.name}`}
-                  onSelect={() => handleSelect(pl.plNumber)}
-                  data-checked={value === pl.plNumber}
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-medium font-mono">{pl.plNumber}</span>
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[250px]">
-                      {pl.name}
-                    </span>
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <CommandEmpty>No PL number found.</CommandEmpty>
+                <CommandGroup>
+                  {plNumbers.map((pl) => (
+                    <CommandItem
+                      key={pl.id}
+                      value={`${pl.plNumber} ${pl.name}`}
+                      onSelect={() => handleSelect(pl.plNumber)}
+                      data-checked={value === pl.plNumber}
+                    >
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-medium font-mono">{pl.plNumber}</span>
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[250px]">
+                          {pl.name}
+                        </span>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

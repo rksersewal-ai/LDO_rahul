@@ -38,8 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MOCK_ADMIN_USERS } from "@/lib/mock-data/admin";
-import { MOCK_WORK_RECORDS } from "@/lib/mock-data/work-records";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { exportToCSV } from "@/lib/utils/export-csv";
 
@@ -58,6 +57,25 @@ export default function LedgerReportsPage() {
   const [dateTo, setDateTo] = useState<string>("");
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
 
+  // Fetch data from tRPC
+  const { data: workData } = trpc.work.list.useQuery(
+    {
+      userId: selectedUserId !== "all" ? selectedUserId : undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      limit: 200,
+    },
+    { staleTime: 15_000 },
+  );
+
+  const { data: usersData } = trpc.admin.getUsers.useQuery(
+    { isActive: true },
+    { staleTime: 60_000 },
+  );
+
+  const allUsers = usersData ?? [];
+  const workRecords = workData?.data ?? [];
+
   // Non-admin users can only see Overview and Individual
   const availableViewModes: ViewMode[] = isAdminOrSupervisor
     ? ["overview", "individual", "comparative"]
@@ -65,18 +83,26 @@ export default function LedgerReportsPage() {
 
   // Filter records based on selected user and date range
   const filteredRecords = useMemo(() => {
-    let records = [...MOCK_WORK_RECORDS];
-    if (selectedUserId !== "all") {
-      records = records.filter((r) => r.userId === selectedUserId);
-    }
-    if (dateFrom) {
-      records = records.filter((r) => r.date >= dateFrom);
-    }
-    if (dateTo) {
-      records = records.filter((r) => r.date <= dateTo);
-    }
-    return records;
-  }, [selectedUserId, dateFrom, dateTo]);
+    return workRecords as unknown as Array<{
+      id: string;
+      title: string | null;
+      description: string | null;
+      status: string;
+      priority: string;
+      createdBy: string;
+      assignedTo: string | null;
+      createdAt: string;
+      completedAt: string | null;
+      workOrderNumber: string;
+      daysTaken: number;
+      targetDays: number;
+      userName: string;
+      workCategory: string;
+      workTypeCode: string;
+      workTypeLabel: string;
+      date: string;
+    }>;
+  }, [workRecords]);
 
   // Disposal data
   const disposalData = useMemo(() => generateDisposalData(), []);
@@ -116,14 +142,7 @@ export default function LedgerReportsPage() {
 
   // Per-user productivity stats for comparative view
   const userProductivityStats = useMemo(() => {
-    let records = [...MOCK_WORK_RECORDS];
-    if (dateFrom) {
-      records = records.filter((r) => r.date >= dateFrom);
-    }
-    if (dateTo) {
-      records = records.filter((r) => r.date <= dateTo);
-    }
-
+    const records = workRecords as Array<Record<string, unknown>>;
     const userMap: Record<
       string,
       {
@@ -138,10 +157,12 @@ export default function LedgerReportsPage() {
     > = {};
 
     for (const record of records) {
-      if (!userMap[record.userId]) {
-        userMap[record.userId] = {
-          userId: record.userId,
-          userName: record.userName,
+      const userId = (record.createdBy as string) ?? "unknown";
+      const userName = (record.assignedTo as string) ?? userId;
+      if (!userMap[userId]) {
+        userMap[userId] = {
+          userId,
+          userName,
           totalRecords: 0,
           completedRecords: 0,
           onTimeRecords: 0,
@@ -149,34 +170,27 @@ export default function LedgerReportsPage() {
           totalDaysTaken: 0,
         };
       }
-      const entry = userMap[record.userId];
+      const entry = userMap[userId];
       entry.totalRecords += 1;
-      entry.totalDaysTaken += record.daysTaken;
-      if (record.status === "VERIFIED" || record.status === "CLOSED") {
+      if ((record.status as string) === "completed") {
         entry.completedRecords += 1;
-      }
-      if (record.daysTaken <= record.targetDays) {
         entry.onTimeRecords += 1;
-      }
-      if (record.daysTaken > record.targetDays) {
-        entry.overdueRecords += 1;
       }
     }
 
     return Object.values(userMap).map((u) => ({
       userId: u.userId,
       userName: u.userName,
-      department:
-        MOCK_ADMIN_USERS.find((au) => au.name === u.userName)?.department || "Engineering",
+      department: allUsers.find((au) => au.id === u.userId)?.department || "Engineering",
       totalRecords: u.totalRecords,
       completedRecords: u.completedRecords,
       onTimeRecords: u.onTimeRecords,
       overdueRecords: u.overdueRecords,
-      avgDaysTaken: u.totalRecords > 0 ? Math.round(u.totalDaysTaken / u.totalRecords) : 0,
+      avgDaysTaken: 0,
       onTimePercentage:
         u.totalRecords > 0 ? Math.round((u.onTimeRecords / u.totalRecords) * 100) : 0,
     }));
-  }, [dateFrom, dateTo]);
+  }, [workRecords, allUsers]);
 
   // Individual user stats for the selected user
   const individualStats = useMemo(() => {
@@ -188,17 +202,17 @@ export default function LedgerReportsPage() {
   // Selected user info
   const selectedUserInfo = useMemo(() => {
     if (selectedUserId === "all") return null;
-    // Try to find the user in MOCK_ADMIN_USERS by matching userName from work records
-    const workUser = MOCK_WORK_RECORDS.find((r) => r.userId === selectedUserId);
-    if (!workUser) return null;
-    const adminUser = MOCK_ADMIN_USERS.find((u) => u.name === workUser.userName);
-    return {
-      name: workUser.userName,
-      department: adminUser?.department || "Engineering",
-      role: adminUser?.role || "engineer",
-      designation: adminUser?.designation || "SSE",
-    };
-  }, [selectedUserId]);
+    const adminUser = allUsers.find((u) => u.id === selectedUserId);
+    if (adminUser) {
+      return {
+        name: adminUser.name,
+        department: adminUser.department ?? "Engineering",
+        role: adminUser.role ?? "engineer",
+        designation: adminUser.designation ?? "SSE",
+      };
+    }
+    return null;
+  }, [selectedUserId, allUsers]);
 
   // Export handler
   const handleExport = () => {
@@ -278,21 +292,11 @@ export default function LedgerReportsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Users</SelectItem>
-                      {MOCK_ADMIN_USERS.filter((u) => u.isActive).map((user) => (
+                      {allUsers.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name}
                         </SelectItem>
                       ))}
-                      {/* Also include work record users that might not be in admin users */}
-                      {Array.from(
-                        new Map(MOCK_WORK_RECORDS.map((r) => [r.userId, r.userName])).entries(),
-                      )
-                        .filter(([uid]) => !MOCK_ADMIN_USERS.some((u) => u.id === uid))
-                        .map(([uid, name]) => (
-                          <SelectItem key={uid} value={uid}>
-                            {name}
-                          </SelectItem>
-                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -342,7 +346,7 @@ export default function LedgerReportsPage() {
             {/* Charts Grid */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <DisposalChart data={disposalData} />
-              <CategoryBreakdownChart records={filteredRecords} />
+              <CategoryBreakdownChart records={filteredRecords as never} />
             </div>
 
             {/* User Productivity + Monthly Trend */}

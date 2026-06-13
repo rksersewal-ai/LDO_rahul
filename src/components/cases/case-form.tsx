@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { MOCK_USERS } from "@/lib/mock-data/users";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { createCaseSchema } from "@/lib/validators/cases";
 
@@ -42,8 +43,6 @@ const severityOptions = [
   { value: "CRITICAL", label: "Critical", className: "text-red-600" },
 ];
 
-const assignableUsers = MOCK_USERS.filter((u) => u.role !== "viewer");
-
 interface CaseFormProps {
   onSubmit: (data: CaseFormValues) => void;
   onCancel: () => void;
@@ -52,6 +51,13 @@ interface CaseFormProps {
 }
 
 export function CaseForm({ onSubmit, onCancel, loading, defaultValues }: CaseFormProps) {
+  const { data: usersData, isLoading: usersLoading } = trpc.admin.getUsers.useQuery(
+    { isActive: true },
+    { staleTime: 60_000 },
+  );
+
+  const assignableUsers = (usersData ?? []).filter((u) => u.role !== "viewer");
+
   const form = useForm<CaseFormValues>({
     resolver: zodResolver(createCaseSchema),
     defaultValues: {
@@ -167,15 +173,21 @@ export function CaseForm({ onSubmit, onCancel, loading, defaultValues }: CaseFor
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger className="text-xs h-8">
-                    <SelectValue placeholder="Select assignee" />
+                    <SelectValue placeholder={usersLoading ? "Loading..." : "Select assignee"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {assignableUsers.map((u) => (
-                    <SelectItem key={u.id} value={u.id} className="text-xs">
-                      {u.name} ({u.designation})
-                    </SelectItem>
-                  ))}
+                  {usersLoading ? (
+                    <div className="flex items-center justify-center py-2">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    </div>
+                  ) : (
+                    assignableUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id} className="text-xs">
+                        {u.name} ({u.designation})
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               <FormMessage className="text-[10px]" />

@@ -19,29 +19,32 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
-import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
 import {
   getAssertionsForDocument,
   getEntitiesForDocument,
   groupAssertionsByField,
   groupEntitiesByType,
 } from "@/lib/mock-data/ocr-intelligence";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
+import { trpc } from "@/lib/trpc/client";
 
 function mapDocStatus(status: string): StatusType {
-  switch (status) {
+  const upper = status.toUpperCase();
+  switch (upper) {
     case "ACTIVE":
-      return "done";
     case "APPROVED":
       return "done";
     case "DRAFT":
+    case "PENDING_REVIEW":
       return "pending";
     case "UNDER_REVIEW":
       return "in_process";
+    case "REJECTED":
     case "OBSOLETE":
+    case "SUPERSEDED":
       return "failed";
     default:
       return "pending";
@@ -80,10 +83,10 @@ function humanizeToken(value: string): string {
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
-function formatDateTime(value: string | null | undefined): string {
+function formatDateTime(value: string | Date | null | undefined): string {
   if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -104,21 +107,26 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
   const [minimized, setMinimized] = useState(false);
   const [isReindexing, setIsReindexing] = useState(false);
 
-  const doc = MOCK_DOCUMENTS.find((d) => d.id === id);
+  // Fetch document
+  const {
+    data: doc,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = trpc.documents.getById.useQuery({ id });
 
-  // OCR intelligence data
+  // Fetch linked PLs
+  const { data: linkedPls } = trpc.documents.getLinkedPls.useQuery(
+    { documentId: id },
+    { enabled: !!doc },
+  );
+
+  // OCR intelligence data (still from local utilities for structural analysis)
   const assertions = useMemo(() => (doc ? getAssertionsForDocument(doc.id) : []), [doc]);
   const entities = useMemo(() => (doc ? getEntitiesForDocument(doc.id) : []), [doc]);
   const assertionGroups = useMemo(() => groupAssertionsByField(assertions), [assertions]);
   const entityGroups = useMemo(() => groupEntitiesByType(entities), [entities]);
-
-  // Linked PL data
-  const linkedPls = useMemo(() => {
-    if (!doc?.linkedPlIds?.length) return [];
-    return doc.linkedPlIds
-      .map((plId) => MOCK_PL_NUMBERS.find((pl) => pl.id === plId))
-      .filter(Boolean);
-  }, [doc]);
 
   const navigateBack = useCallback(() => {
     router.back();
@@ -167,6 +175,29 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closePreview, openFullDocument, openInNewTab]);
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-8 shadow-sm">
+          <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading preview...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div className="rounded-xl border border-border bg-card p-8 shadow-sm max-w-md">
+          <QueryErrorState error={error} retry={() => refetch()} />
+        </div>
+      </div>
+    );
+  }
+
   if (!doc) {
     return (
       <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -181,10 +212,12 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
     );
   }
 
-  const FileIcon = getFileIcon(doc.fileType);
+  const docStatus = doc.status?.toUpperCase() ?? "DRAFT";
+  const fileType = doc.mimeType?.split("/").pop() ?? "pdf";
+  const FileIcon = getFileIcon(fileType);
   const fileUrl = doc.filePath || null;
-  const embedable = canEmbedFile(doc.fileType, fileUrl);
-  const isImage = isImageType(doc.fileType);
+  const embedable = canEmbedFile(fileType, fileUrl);
+  const isImage = isImageType(fileType);
 
   // Minimized state - bottom-right floating card
   if (minimized) {
@@ -233,23 +266,18 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                   Floating preview
                 </Badge>
                 <Badge variant="outline" className="text-[10px] font-medium uppercase">
-                  {doc.fileType}
+                  {fileType}
                 </Badge>
                 <StatusBadge
-                  status={mapDocStatus(doc.status)}
-                  label={doc.status.replace("_", " ")}
+                  status={mapDocStatus(docStatus)}
+                  label={docStatus.replace("_", " ")}
                 />
-                {doc.isDuplicate && (
-                  <Badge variant="destructive" className="text-[10px] font-medium">
-                    Duplicate
-                  </Badge>
-                )}
               </div>
               {/* Title */}
               <h1 className="truncate text-xl font-semibold text-foreground">{doc.title}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                {doc.documentNumber} &middot; Rev {doc.revision} &middot;{" "}
-                {formatFileSize(doc.fileSize)}
+                {doc.documentNumber} &middot; Rev {doc.revision ?? "A"} &middot;{" "}
+                {formatFileSize(doc.fileSize ?? 0)}
               </p>
               {/* Keyboard hints */}
               <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
@@ -344,26 +372,26 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs text-muted-foreground">Status</span>
                       <StatusBadge
-                        status={mapDocStatus(doc.status)}
-                        label={doc.status.replace("_", " ")}
+                        status={mapDocStatus(docStatus)}
+                        label={docStatus.replace("_", " ")}
                       />
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs text-muted-foreground">Revision</span>
-                      <span className="font-mono text-xs text-foreground">{doc.revision}</span>
+                      <span className="font-mono text-xs text-foreground">{doc.revision ?? "A"}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs text-muted-foreground">Linked PL</span>
                       <span className="text-xs text-foreground">
-                        {doc.linkedPlIds.length > 0
-                          ? `${doc.linkedPlIds.length} linked`
+                        {(linkedPls?.length ?? 0) > 0
+                          ? `${linkedPls!.length} linked`
                           : "Unlinked"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs text-muted-foreground">File</span>
                       <span className="text-xs text-foreground">
-                        {doc.fileType.toUpperCase()} &middot; {formatFileSize(doc.fileSize)}
+                        {fileType.toUpperCase()} &middot; {formatFileSize(doc.fileSize ?? 0)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
@@ -453,7 +481,6 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                         disabled={isReindexing}
                         onClick={() => {
                           setIsReindexing(true);
-                          // In production: trpc.ocr.retrigger.mutate({ documentId: id })
                           setTimeout(() => {
                             setIsReindexing(false);
                             toast.success("OCR reindex queued successfully");
@@ -483,9 +510,9 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs text-muted-foreground">Duplicate state</span>
                       <span
-                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${duplicateBadgeClass(doc.isDuplicate)}`}
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${duplicateBadgeClass(false)}`}
                       >
-                        {doc.isDuplicate ? "DUPLICATE" : "UNIQUE"}
+                        UNIQUE
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
@@ -510,7 +537,7 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                 </div>
 
                 {/* Linked PL Navigation */}
-                {linkedPls.length > 0 && (
+                {linkedPls && linkedPls.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Boxes className="h-4 w-4 text-foreground" />
@@ -519,24 +546,22 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                       </p>
                     </div>
                     <div className="space-y-2">
-                      {linkedPls.map((pl) =>
-                        pl ? (
-                          <div
-                            key={pl.id}
-                            className="rounded-lg border border-border bg-background p-3"
-                          >
-                            <p className="font-mono text-xs font-semibold text-foreground">
-                              {pl.plNumber}
-                            </p>
-                            <p className="mt-1 text-xs text-muted-foreground">{pl.name}</p>
-                            <Link href={`/pl/${pl.id}`}>
-                              <Button size="sm" variant="secondary" className="mt-2 w-full">
-                                Open linked PL
-                              </Button>
-                            </Link>
-                          </div>
-                        ) : null,
-                      )}
+                      {linkedPls.map((pl) => (
+                        <div
+                          key={pl.id}
+                          className="rounded-lg border border-border bg-background p-3"
+                        >
+                          <p className="font-mono text-xs font-semibold text-foreground">
+                            {pl.plNumber}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">{pl.name}</p>
+                          <Link href={`/pl/${pl.id}`}>
+                            <Button size="sm" variant="secondary" className="mt-2 w-full">
+                              Open linked PL
+                            </Button>
+                          </Link>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

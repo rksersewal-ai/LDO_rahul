@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
-import { WorkKpiBadge } from "@/components/ledger/work-kpi-badge";
 import { WorkRecordDetail } from "@/components/ledger/work-record-detail";
 import { WorkRecordForm } from "@/components/ledger/work-record-form";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
@@ -45,7 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { WORK_CATEGORIES } from "@/lib/mock-data/work-categories";
-import { MOCK_WORK_RECORDS, type MockWorkRecord } from "@/lib/mock-data/work-records";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 const statusColors: Record<string, string> = {
@@ -67,41 +66,49 @@ export default function WorkLedgerPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [selectedRecord, setSelectedRecord] = useState<MockWorkRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
+  const { data: workData, isLoading, refetch, isRefetching } = trpc.work.list.useQuery(
+    {
+      search: search || undefined,
+      status: statusFilter !== "all" ? statusFilter as "OPEN" | "CLOSED" | "SUBMITTED" | "VERIFIED" : undefined,
+      priority: priorityFilter !== "all" ? priorityFilter as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" : undefined,
+      limit: 200,
+    },
+    { staleTime: 15_000 },
+  );
+
+  const { data: kpiData } = trpc.work.getKPIs.useQuery({}, { staleTime: 30_000 });
+
+  const records = workData?.data ?? [];
+  const totalRecords = workData?.total ?? 0;
+
   const filteredRecords = useMemo(() => {
-    return MOCK_WORK_RECORDS.filter((record) => {
-      if (
-        search &&
-        !record.description.toLowerCase().includes(search.toLowerCase()) &&
-        !record.referenceNumber.toLowerCase().includes(search.toLowerCase()) &&
-        !record.workTypeCode.toLowerCase().includes(search.toLowerCase()) &&
-        !record.workTypeLabel.toLowerCase().includes(search.toLowerCase())
-      ) {
-        return false;
-      }
-      if (categoryFilter !== "all" && record.workCategory !== categoryFilter) return false;
-      if (statusFilter !== "all" && record.status !== statusFilter) return false;
-      if (priorityFilter !== "all" && record.priority !== priorityFilter) return false;
-      return true;
+    if (categoryFilter === "all") return records;
+    // Filter by section field which maps to work category in the DB
+    return records.filter((r: Record<string, unknown>) => {
+      const section = (r.section as string) ?? "";
+      return section.toUpperCase() === categoryFilter.toUpperCase()
+        || section.toUpperCase().startsWith(categoryFilter.toUpperCase());
     });
-  }, [search, categoryFilter, statusFilter, priorityFilter]);
+  }, [records, categoryFilter]);
 
-  // KPI calculations
+  // KPI calculations from real data
   const kpis = useMemo(() => {
-    const total = MOCK_WORK_RECORDS.length;
-    const onTime = MOCK_WORK_RECORDS.filter((r) => r.daysTaken <= r.targetDays).length;
-    const atRisk = MOCK_WORK_RECORDS.filter(
-      (r) => r.daysTaken > r.targetDays * 0.75 && r.daysTaken <= r.targetDays,
-    ).length;
-    const overdue = MOCK_WORK_RECORDS.filter((r) => r.daysTaken > r.targetDays).length;
-    const onTimePercent = total > 0 ? Math.round((onTime / total) * 100) : 0;
-    return { total, onTime, atRisk, overdue, onTimePercent };
-  }, []);
+    return {
+      total: kpiData?.total ?? 0,
+      onTime: kpiData?.completed ?? 0,
+      atRisk: kpiData?.onHold ?? 0,
+      overdue: kpiData?.open ?? 0,
+      onTimePercent: kpiData?.total
+        ? Math.round(((kpiData?.completed ?? 0) / kpiData.total) * 100)
+        : 0,
+    };
+  }, [kpiData]);
 
-  function handleRecordClick(record: MockWorkRecord) {
+  function handleRecordClick(record: Record<string, unknown>) {
     setSelectedRecord(record);
     setDetailOpen(true);
   }
@@ -118,9 +125,10 @@ export default function WorkLedgerPage() {
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs gap-1"
-                onClick={() => window.location.reload()}
+                onClick={() => refetch()}
+                disabled={isRefetching}
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className={cn("h-3 w-3", isRefetching && "animate-spin")} />
                 Refresh
               </Button>
               <ExportDropdown
@@ -135,15 +143,15 @@ export default function WorkLedgerPage() {
                   "Days/Target",
                   "Priority",
                 ]}
-                rows={filteredRecords.map((r) => [
-                  r.date,
-                  r.workCategory,
-                  r.workTypeCode,
-                  r.description,
-                  r.plNumber || "-",
-                  r.status,
-                  `${r.daysTaken}/${r.targetDays}`,
-                  r.priority,
+                rows={filteredRecords.map((r: Record<string, unknown>) => [
+                  r.createdAt ? new Date(r.createdAt as string).toLocaleDateString("en-IN") : "-",
+                  (r.title as string) ?? "-",
+                  (r.workOrderNumber as string) ?? "-",
+                  (r.description as string) ?? "-",
+                  "-",
+                  (r.status as string) ?? "-",
+                  "-",
+                  (r.priority as string) ?? "-",
                 ])}
                 filenamePrefix="work-ledger"
               />
@@ -280,7 +288,7 @@ export default function WorkLedgerPage() {
         {/* Results info */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            Showing {filteredRecords.length} of {MOCK_WORK_RECORDS.length} records
+            {isLoading ? "Loading..." : `Showing ${filteredRecords.length} of ${totalRecords} records`}
           </p>
         </div>
 
@@ -290,54 +298,65 @@ export default function WorkLedgerPage() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-[10px] w-[90px]">Date</TableHead>
-                <TableHead className="text-[10px] w-[80px]">Category</TableHead>
-                <TableHead className="text-[10px] w-[80px]">Type Code</TableHead>
+                <TableHead className="text-[10px] w-[100px]">Work Order</TableHead>
+                <TableHead className="text-[10px]">Title</TableHead>
                 <TableHead className="text-[10px]">Description</TableHead>
-                <TableHead className="text-[10px] w-[90px]">PL Number</TableHead>
                 <TableHead className="text-[10px] w-[80px]">Status</TableHead>
-                <TableHead className="text-[10px] w-[85px]">Days/Target</TableHead>
                 <TableHead className="text-[10px] w-[70px]">Priority</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRecords.map((record) => (
-                <TableRow
-                  key={record.id}
-                  className="cursor-pointer"
-                  onClick={() => handleRecordClick(record)}
-                >
-                  <TableCell className="text-xs font-mono">{record.date}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-[10px] font-medium">
-                      {record.workCategory}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs font-mono">{record.workTypeCode}</TableCell>
-                  <TableCell className="text-xs max-w-[250px] truncate" title={record.description}>
-                    {record.description}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono">{record.plNumber || "-"}</TableCell>
-                  <TableCell>
-                    <Badge className={cn("text-[10px]", statusColors[record.status])}>
-                      {record.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <WorkKpiBadge daysTaken={record.daysTaken} targetDays={record.targetDays} />
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={cn("text-[10px]", priorityColors[record.priority])}>
-                      {record.priority}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredRecords.length === 0 && (
+              {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-xs text-muted-foreground">
-                    No work records found matching the filters.
+                  <TableCell colSpan={6} className="h-24 text-center text-xs text-muted-foreground">
+                    Loading work records...
                   </TableCell>
                 </TableRow>
+              ) : (
+                <>
+                  {filteredRecords.map((record: Record<string, unknown>) => (
+                    <TableRow
+                      key={record.id as string}
+                      className="cursor-pointer"
+                      onClick={() => handleRecordClick(record)}
+                    >
+                      <TableCell className="text-xs font-mono">
+                        {record.createdAt
+                          ? new Date(record.createdAt as string).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                            })
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {(record.workOrderNumber as string) ?? "-"}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[200px] truncate" title={record.title as string}>
+                        {(record.title as string) ?? "-"}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[250px] truncate" title={record.description as string}>
+                        {(record.description as string) ?? "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={cn("text-[10px]", statusColors[(record.status as string)?.toUpperCase() ?? ""] ?? "")}>
+                          {(record.status as string) ?? "-"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={cn("text-[10px]", priorityColors[(record.priority as string)?.toUpperCase() ?? ""] ?? "")}>
+                          {(record.priority as string) ?? "-"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredRecords.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center text-xs text-muted-foreground">
+                        No work records found matching the filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               )}
             </TableBody>
           </Table>
@@ -346,7 +365,7 @@ export default function WorkLedgerPage() {
 
       {/* Detail Sheet */}
       <WorkRecordDetail
-        record={selectedRecord}
+        record={selectedRecord as never}
         open={detailOpen}
         onOpenChange={setDetailOpen}
         isSupervisor={true}

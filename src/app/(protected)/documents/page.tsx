@@ -17,20 +17,22 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { useSavedFilters } from "@/hooks/use-saved-filters";
-import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
+import { trpc } from "@/lib/trpc/client";
+import type { MockDocument } from "@/lib/mock-data/documents";
+import { cn } from "@/lib/utils";
 
 const VIEW_MODE_KEY = "doc-hub-view-mode";
 
 export default function DocumentHubPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const bulkUploadEnabled = useFeatureFlag("bulk_upload");
-  const [loadError, setLoadError] = useState<Error | null>(null);
 
   // Hydration-safe: read localStorage only on client after first render
   useEffect(() => {
     const stored = localStorage.getItem(VIEW_MODE_KEY);
     if (stored === "grid" || stored === "list") setViewMode(stored);
   }, []);
+
   const [filters, setFilters] = useState<DocumentFilterState>({
     search: "",
     category: "",
@@ -48,6 +50,67 @@ export default function DocumentHubPage() {
   } = useSavedFilters("documents");
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== "");
+
+  // Build query input from filters
+  const queryInput = useMemo(() => {
+    const input: Record<string, unknown> = {
+      limit: 100,
+      offset: 0,
+      sortBy: "createdAt" as const,
+      sortOrder: "desc" as const,
+    };
+    if (filters.search) input.search = filters.search;
+    if (filters.category) input.category = filters.category;
+    if (filters.status) input.status = filters.status;
+    if (filters.ocrStatus) input.ocrStatus = filters.ocrStatus;
+    if (filters.fileType) input.fileType = filters.fileType;
+    if (filters.dateFrom) input.dateFrom = filters.dateFrom;
+    if (filters.dateTo) input.dateTo = filters.dateTo;
+    return input;
+  }, [filters]);
+
+  const {
+    data: queryResult,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+  } = trpc.documents.list.useQuery(queryInput as Parameters<typeof trpc.documents.list.useQuery>[0]);
+
+  const filteredData = useMemo(() => {
+    if (!queryResult?.data) return [] as MockDocument[];
+    // Map DB schema fields to match what DocumentTable/DocumentGrid expect
+    return queryResult.data.map((doc) => ({
+      id: doc.id,
+      documentNumber: doc.documentNumber,
+      title: doc.title,
+      category: doc.category?.toUpperCase() ?? "OTHER",
+      status: doc.status?.toUpperCase() ?? "DRAFT",
+      revision: doc.revision ?? "A",
+      revisionDate: doc.revisionDate ? new Date(doc.revisionDate).toISOString().split("T")[0] : null,
+      agency: doc.workshop ?? "CLW",
+      fileType: doc.mimeType?.split("/").pop() ?? "pdf",
+      fileSize: doc.fileSize ?? 0,
+      fileHash: doc.fileHash ?? null,
+      filePath: doc.filePath ?? null,
+      pages: doc.pageCount ?? 1,
+      ownerId: doc.createdBy ?? "unknown",
+      uploadedBy: doc.createdBy ?? "unknown",
+      ocrStatus: doc.ocrStatus?.toUpperCase() ?? "NOT_REQUIRED",
+      ocrConfidence: doc.ocrConfidence ?? null,
+      ocrText: doc.ocrText ?? null,
+      tags: doc.tags ? doc.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [],
+      isLatest: true,
+      isDuplicate: false,
+      linkedPlIds: [] as string[],
+      createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
+      originalFilename: doc.originalFilename ?? null,
+    })) as unknown as MockDocument[];
+  }, [queryResult]);
+
+  const totalDocuments = queryResult?.total ?? 0;
 
   const handleSaveCurrentFilter = () => {
     if (!hasActiveFilters) return;
@@ -67,25 +130,6 @@ export default function DocumentHubPage() {
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
-
-  // Apply filters to mock data client-side for now
-  const filteredData = MOCK_DOCUMENTS.filter((doc) => {
-    if (
-      filters.search &&
-      !doc.documentNumber.toLowerCase().includes(filters.search.toLowerCase()) &&
-      !doc.title.toLowerCase().includes(filters.search.toLowerCase()) &&
-      !doc.tags.some((t) => t.toLowerCase().includes(filters.search.toLowerCase()))
-    ) {
-      return false;
-    }
-    if (filters.category && doc.category !== filters.category) return false;
-    if (filters.status && doc.status !== filters.status) return false;
-    if (filters.ocrStatus && doc.ocrStatus !== filters.ocrStatus) return false;
-    if (filters.fileType && doc.fileType !== filters.fileType) return false;
-    if (filters.dateFrom && doc.updatedAt < filters.dateFrom) return false;
-    if (filters.dateTo && doc.updatedAt > filters.dateTo) return false;
-    return true;
-  });
 
   const exportHeaders = [
     "Document Number",
@@ -127,9 +171,10 @@ export default function DocumentHubPage() {
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs gap-1"
-                onClick={() => window.location.reload()}
+                onClick={() => refetch()}
+                disabled={isRefetching}
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className={cn("h-3 w-3", isRefetching && "animate-spin")} />
                 Refresh
               </Button>
               <ExportDropdown
@@ -202,69 +247,86 @@ export default function DocumentHubPage() {
         {/* Results info + View Toggle */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            Showing {filteredData.length} of {MOCK_DOCUMENTS.length} documents
+            {isLoading
+              ? "Loading documents..."
+              : `Showing ${filteredData.length} of ${totalDocuments} documents`}
           </p>
           <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </div>
 
+        {/* Loading state */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-2">
+              <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading documents...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error state */}
+        {isError && !isLoading && (
+          <QueryErrorState error={error} retry={() => refetch()} />
+        )}
+
         {/* Data Table or Grid */}
-        {loadError ? (
-          <QueryErrorState error={loadError} retry={() => setLoadError(null)} />
-        ) : filteredData.length === 0 ? (
-          <EmptyStateFallback
-            title="No documents found"
-            description={
-              hasActiveFilters
-                ? "No documents match your current filters. Try adjusting your search criteria."
-                : "No documents have been uploaded yet. Upload your first document to get started."
-            }
-            actionLabel={hasActiveFilters ? "Clear Filters" : undefined}
-            onAction={
-              hasActiveFilters
-                ? () =>
-                    setFilters({
-                      search: "",
-                      category: "",
-                      status: "",
-                      ocrStatus: "",
-                      fileType: "",
-                      dateFrom: "",
-                      dateTo: "",
-                    })
-                : undefined
-            }
-          />
-        ) : viewMode === "list" ? (
-          filteredData.length > 50 ? (
-            <VirtualDocumentList
-              items={filteredData}
-              renderRow={(item, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-4 px-4 py-2 border-b text-sm hover:bg-muted/50"
-                >
-                  <span className="w-32 font-mono text-xs truncate">
-                    {(item as (typeof filteredData)[0]).documentNumber}
-                  </span>
-                  <span className="flex-1 truncate">
-                    {(item as (typeof filteredData)[0]).title}
-                  </span>
-                  <span className="w-24 text-xs text-muted-foreground">
-                    {(item as (typeof filteredData)[0]).category}
-                  </span>
-                  <span className="w-20 text-xs">
-                    {(item as (typeof filteredData)[0]).status}
-                  </span>
-                </div>
-              )}
-              rowHeight={48}
-              containerHeight={600}
+        {!isLoading && !isError && (
+          filteredData.length === 0 ? (
+            <EmptyStateFallback
+              title="No documents found"
+              description={
+                hasActiveFilters
+                  ? "No documents match your current filters. Try adjusting your search criteria."
+                  : "No documents have been uploaded yet. Upload your first document to get started."
+              }
+              actionLabel={hasActiveFilters ? "Clear Filters" : undefined}
+              onAction={
+                hasActiveFilters
+                  ? () =>
+                      setFilters({
+                        search: "",
+                        category: "",
+                        status: "",
+                        ocrStatus: "",
+                        fileType: "",
+                        dateFrom: "",
+                        dateTo: "",
+                      })
+                  : undefined
+              }
             />
+          ) : viewMode === "list" ? (
+            filteredData.length > 50 ? (
+              <VirtualDocumentList
+                items={filteredData}
+                renderRow={(item, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-4 px-4 py-2 border-b text-sm hover:bg-muted/50"
+                  >
+                    <span className="w-32 font-mono text-xs truncate">
+                      {(item as (typeof filteredData)[0]).documentNumber}
+                    </span>
+                    <span className="flex-1 truncate">
+                      {(item as (typeof filteredData)[0]).title}
+                    </span>
+                    <span className="w-24 text-xs text-muted-foreground">
+                      {(item as (typeof filteredData)[0]).category}
+                    </span>
+                    <span className="w-20 text-xs">
+                      {(item as (typeof filteredData)[0]).status}
+                    </span>
+                  </div>
+                )}
+                rowHeight={48}
+                containerHeight={600}
+              />
+            ) : (
+              <DocumentTable data={filteredData} />
+            )
           ) : (
-            <DocumentTable data={filteredData} />
+            <DocumentGrid data={filteredData} />
           )
-        ) : (
-          <DocumentGrid data={filteredData} />
         )}
       </div>
     </PageFrame>

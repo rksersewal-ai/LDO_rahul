@@ -18,6 +18,7 @@ import {
   workRecords,
 } from "@/lib/db/schema";
 import { assertValidPl, normalizePlNumber } from "@/lib/pl/validation";
+import { sanitizeUserInput } from "@/lib/security/sanitize";
 import {
   createPlSchema,
   plAliasSchema,
@@ -204,8 +205,8 @@ export const plRouter = router({
       .values({
         id,
         plNumber: input.plNumber,
-        name: input.name,
-        description: input.description,
+        name: sanitizeUserInput(input.name),
+        description: input.description ? sanitizeUserInput(input.description) : input.description,
         category: input.category,
         status: input.status,
         safetyCritical: input.safetyCritical,
@@ -306,8 +307,8 @@ export const plRouter = router({
     const { id, ...updates } = input;
     const setValues: Record<string, unknown> = { updatedAt: new Date(), updatedBy: userId };
 
-    if (updates.name !== undefined) setValues.name = updates.name;
-    if (updates.description !== undefined) setValues.description = updates.description;
+    if (updates.name !== undefined) setValues.name = sanitizeUserInput(updates.name);
+    if (updates.description !== undefined) setValues.description = updates.description ? sanitizeUserInput(updates.description) : updates.description;
     if (updates.category !== undefined) setValues.category = updates.category;
     if (updates.status !== undefined) setValues.status = updates.status;
     if (updates.safetyCritical !== undefined) setValues.safetyCritical = updates.safetyCritical;
