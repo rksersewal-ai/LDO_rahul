@@ -22,7 +22,7 @@ import {
   Columns3,
   Rows3,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -91,34 +91,36 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [density, setDensity] = useState<"dense" | "normal">("normal");
 
-  const allColumns: ColumnDef<TData, TValue>[] = enableSelection
-    ? [
-        {
-          id: "select",
-          header: ({ table }) => (
-            <Checkbox
-              checked={table.getIsAllPageRowsSelected()}
-              indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
-              onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-              aria-label="Select all"
-              className="translate-y-[2px]"
-            />
-          ),
-          cell: ({ row }) => (
-            <Checkbox
-              checked={row.getIsSelected()}
-              onCheckedChange={(value) => row.toggleSelected(!!value)}
-              aria-label="Select row"
-              className="translate-y-[2px]"
-            />
-          ),
-          enableSorting: false,
-          enableHiding: false,
-          size: 32,
-        } as ColumnDef<TData, TValue>,
-        ...columns,
-      ]
-    : columns;
+  const allColumns: ColumnDef<TData, TValue>[] = useMemo(() => {
+    return enableSelection
+      ? [
+          {
+            id: "select",
+            header: ({ table }) => (
+              <Checkbox
+                checked={table.getIsAllPageRowsSelected()}
+                indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
+                onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                aria-label="Select all"
+                className="translate-y-[2px]"
+              />
+            ),
+            cell: ({ row }) => (
+              <Checkbox
+                checked={row.getIsSelected()}
+                onCheckedChange={(value) => row.toggleSelected(!!value)}
+                aria-label="Select row"
+                className="translate-y-[2px]"
+              />
+            ),
+            enableSorting: false,
+            enableHiding: false,
+            size: 32,
+          } as ColumnDef<TData, TValue>,
+          ...columns,
+        ]
+      : columns;
+  }, [enableSelection, columns]);
 
   const table = useReactTable({
     data,
