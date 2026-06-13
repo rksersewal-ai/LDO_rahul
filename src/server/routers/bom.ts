@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import * as XLSX from "xlsx";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
+import { detectCycle } from "@/lib/bom/cycle-detection";
 import { db } from "@/lib/db";
 import { auditLog, bomEntries, bomProducts, plNumbers } from "@/lib/db/schema";
 import {
@@ -155,6 +156,23 @@ export const bomRouter = router({
     // Check product not locked
     if (product.lockedAt !== null) {
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: "BOM_LOCKED" });
+    }
+
+    // Validate parentId exists in the same product
+    if (input.parentId) {
+      const [parentEntry] = await db
+        .select({ id: bomEntries.id })
+        .from(bomEntries)
+        .where(
+          and(
+            eq(bomEntries.id, input.parentId),
+            eq(bomEntries.bomProductId, input.productId),
+          ),
+        );
+
+      if (!parentEntry) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Parent entry not found in this product" });
+      }
     }
 
     // Compute next position among siblings
@@ -404,6 +422,15 @@ export const bomRouter = router({
     // Check not locked
     if (product.lockedAt !== null) {
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: "BOM_LOCKED" });
+    }
+
+    // Cycle detection: prevent moving an entry under one of its own descendants
+    const hasCycle = await detectCycle(entry.bomProductId, input.newParentId, input.entryId, db);
+    if (hasCycle) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "BOM_CYCLE_DETECTED: Adding this entry would create a circular reference",
+      });
     }
 
     // Update entry parent and position
