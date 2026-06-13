@@ -9,6 +9,7 @@ import { readFile } from "node:fs/promises";
 import { db } from "@/lib/db";
 import { documents, ocrJobs, ocrPlCandidates, notifications } from "@/lib/db/schema";
 import { extractPlCandidates, isValidModulo11 } from "@/lib/pl/validation";
+import { recognizeImage } from "@/lib/ocr/tesseract-engine";
 import type { OcrJobPayload } from "./ocr-queue";
 
 /**
@@ -40,24 +41,36 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
       pageCount = data.numpages;
 
       if (extractedText.length <= 100) {
-        // Degraded - no text layer
-        confidence = 0.3;
+        // Image-only PDF - use tesseract for OCR
+        const ocrResult = await recognizeImage(fileBuffer, mimeType);
+        if (ocrResult.text.length > 0) {
+          extractedText = ocrResult.text;
+          confidence = ocrResult.confidence;
+        } else {
+          // Tesseract returned empty - degraded fallback
+          confidence = 0.3;
+        }
       }
     } else if (mimeType.startsWith("image/")) {
-      // Use sharp to get metadata (no tesseract available)
-      await sharp(fileBuffer).metadata();
-      extractedText = "";
-      confidence = 0.3;
+      // Use tesseract for image OCR
+      const ocrResult = await recognizeImage(fileBuffer, mimeType);
+      if (ocrResult.text.length > 0) {
+        extractedText = ocrResult.text;
+        confidence = ocrResult.confidence;
+      } else {
+        // Tesseract returned empty - degraded fallback
+        extractedText = "";
+        confidence = 0.3;
+      }
     }
 
-    // Step e: Compute confidence based on text length
+    // Step e: Compute confidence based on text length (only if not already set by tesseract)
     if (extractedText.length > 500) {
-      confidence = 0.95;
+      confidence = Math.max(confidence, 0.95);
     } else if (extractedText.length > 100) {
-      confidence = 0.8;
-    } else {
-      confidence = 0.3;
+      confidence = Math.max(confidence, 0.8);
     }
+    // If extractedText <= 100, keep existing confidence (0.3 for degraded or tesseract value)
 
     // Step f: Extract PL candidates
     const plCandidates = extractPlCandidates(extractedText);
