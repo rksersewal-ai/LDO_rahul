@@ -38,14 +38,16 @@ export const dashboardRouter = router({
       pendingDuplicatesResult,
     ] = await Promise.all([
       // Total non-deleted documents in workspace
+      // Index: documents(workspace_id, is_deleted)
       db
-        .select({ total: count() })
+        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
         .from(documents)
         .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0))),
 
       // Documents added this week
+      // Index: documents(workspace_id, is_deleted, created_at)
       db
-        .select({ total: count() })
+        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
         .from(documents)
         .where(
           and(
@@ -56,8 +58,9 @@ export const dashboardRouter = router({
         ),
 
       // Pending approvals for documents in this workspace
+      // Index: approvals(status) + documents(workspace_id)
       db
-        .select({ total: count() })
+        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
         .from(approvals)
         .innerJoin(documents, eq(approvals.documentId, documents.id))
         .where(
@@ -65,8 +68,9 @@ export const dashboardRouter = router({
         ),
 
       // OCR queue (queued + processing)
+      // Index: ocr_jobs(status) + documents(workspace_id)
       db
-        .select({ total: count() })
+        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
         .from(ocrJobs)
         .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
         .where(
@@ -77,14 +81,16 @@ export const dashboardRouter = router({
         ),
 
       // Open cases (open + investigating)
+      // Index: cases(status)
       db
-        .select({ total: count() })
+        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
         .from(cases)
         .where(sql`${cases.status} IN ('open', 'investigating')`),
 
       // Pending duplicate detections in workspace
+      // Index: duplicate_detections(workspace_id, status)
       db
-        .select({ total: count() })
+        .select({ total: sql<number>`COALESCE(${count()}, 0)` })
         .from(duplicateDetections)
         .where(
           and(
@@ -177,6 +183,8 @@ export const dashboardRouter = router({
       }
 
       // Count uploads per day
+      // Index: documents(workspace_id, is_deleted, created_at)
+      // LIMIT 365 prevents unbounded result sets for large date ranges
       const uploadsPerDay = await db
         .select({
           date: sql<string>`to_char(${documents.createdAt}::date, 'Mon DD')`,
@@ -191,9 +199,12 @@ export const dashboardRouter = router({
           ),
         )
         .groupBy(sql`${documents.createdAt}::date`)
-        .orderBy(sql`${documents.createdAt}::date`);
+        .orderBy(sql`${documents.createdAt}::date`)
+        .limit(365);
 
       // Count completed OCR jobs per day
+      // Index: ocr_jobs(status, completed_at) + documents(workspace_id)
+      // LIMIT 365 prevents unbounded result sets
       const processedPerDay = await db
         .select({
           date: sql<string>`to_char(${ocrJobs.completedAt}::date, 'Mon DD')`,
@@ -209,17 +220,18 @@ export const dashboardRouter = router({
           ),
         )
         .groupBy(sql`${ocrJobs.completedAt}::date`)
-        .orderBy(sql`${ocrJobs.completedAt}::date`);
+        .orderBy(sql`${ocrJobs.completedAt}::date`)
+        .limit(365);
 
-      // Merge into a single array keyed by date
+      // Merge into a single array keyed by date (null-safe with COALESCE pattern)
       const processedMap = new Map<string, number>();
       for (const row of processedPerDay) {
-        processedMap.set(row.date, row.processed);
+        processedMap.set(row.date, row.processed ?? 0);
       }
 
       const trendData = uploadsPerDay.map((row) => ({
         date: row.date,
-        uploads: row.uploads,
+        uploads: row.uploads ?? 0,
         processed: processedMap.get(row.date) ?? 0,
       }));
 
@@ -230,6 +242,9 @@ export const dashboardRouter = router({
   getRecentActivity: protectedProcedure.query(async ({ ctx }) => {
     const workspaceId = requireWorkspaceId(ctx);
 
+    // Recent audit log entries for the workspace
+    // Index: audit_log(workspace_id, created_at DESC)
+    // LIMIT 20 bounds the result set for performance
     const entries = await db
       .select({
         id: auditLog.id,
@@ -288,6 +303,9 @@ export const dashboardRouter = router({
   getRecentDocuments: protectedProcedure.query(async ({ ctx }) => {
     const workspaceId = requireWorkspaceId(ctx);
 
+    // Recent documents for the workspace, newest first
+    // Index: documents(workspace_id, is_deleted, created_at DESC)
+    // LIMIT 10 keeps the response payload small and prevents unbounded scans
     const docs = await db
       .select({
         id: documents.id,

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { type DocumentFilterState, DocumentFilters } from "@/components/documents/document-filters";
 import { DocumentGrid } from "@/components/documents/document-grid";
 import { DocumentTable } from "@/components/documents/document-table";
+import { VirtualDocumentList } from "@/components/documents/virtual-document-list";
 import { type ViewMode, ViewToggle } from "@/components/documents/view-toggle";
 import { PageFrame } from "@/components/layout/page-frame";
 import { EmptyStateFallback } from "@/components/shared/empty-state-fallback";
@@ -230,7 +231,34 @@ export default function DocumentHubPage() {
             }
           />
         ) : viewMode === "list" ? (
-          <DocumentTable data={filteredData} />
+          filteredData.length > 50 ? (
+            <VirtualDocumentList
+              items={filteredData}
+              renderRow={(item, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-4 px-4 py-2 border-b text-sm hover:bg-muted/50"
+                >
+                  <span className="w-32 font-mono text-xs truncate">
+                    {(item as (typeof filteredData)[0]).documentNumber}
+                  </span>
+                  <span className="flex-1 truncate">
+                    {(item as (typeof filteredData)[0]).title}
+                  </span>
+                  <span className="w-24 text-xs text-muted-foreground">
+                    {(item as (typeof filteredData)[0]).category}
+                  </span>
+                  <span className="w-20 text-xs">
+                    {(item as (typeof filteredData)[0]).status}
+                  </span>
+                </div>
+              )}
+              rowHeight={48}
+              containerHeight={600}
+            />
+          ) : (
+            <DocumentTable data={filteredData} />
+          )
         ) : (
           <DocumentGrid data={filteredData} />
         )}
