@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getCached } from "@/lib/cache/query-cache";
 import { db } from "@/lib/db";
@@ -432,6 +432,294 @@ export const dashboardRouter = router({
         safetyCriticalCount: safetyResult[0]?.total ?? 0,
       };
     });
+  }),
+
+  /** Drill-down data for KPI metric cards - returns paginated rows */
+  getDrillDownData: protectedProcedure
+    .input(
+      z.object({
+        metricId: z.string(),
+        limit: z.number().min(1).max(100).default(25),
+        offset: z.number().min(0).default(0),
+        search: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+      const { metricId, limit, offset, search } = input;
+
+      switch (metricId) {
+        case "total_documents": {
+          const searchFilter = search
+            ? or(
+                ilike(documents.documentNumber, `%${search}%`),
+                ilike(documents.title, `%${search}%`),
+              )
+            : undefined;
+
+          const baseWhere = and(
+            eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
+            searchFilter,
+          );
+
+          const [rows, totalResult] = await Promise.all([
+            db
+              .select({
+                id: documents.id,
+                documentNumber: documents.documentNumber,
+                title: documents.title,
+                category: documents.category,
+                status: documents.status,
+                createdAt: documents.createdAt,
+              })
+              .from(documents)
+              .where(baseWhere)
+              .orderBy(desc(documents.createdAt))
+              .limit(limit)
+              .offset(offset),
+            db
+              .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+              .from(documents)
+              .where(baseWhere),
+          ]);
+
+          return {
+            items: rows.map((r) => ({
+              id: r.id,
+              documentNumber: r.documentNumber,
+              title: r.title,
+              category: r.category,
+              status: r.status,
+              createdAt: r.createdAt.toISOString(),
+            })),
+            total: totalResult[0]?.total ?? 0,
+          };
+        }
+
+        case "pending_approvals": {
+          const searchFilter = search
+            ? or(
+                ilike(documents.documentNumber, `%${search}%`),
+                ilike(documents.title, `%${search}%`),
+              )
+            : undefined;
+
+          const baseWhere = and(
+            eq(documents.workspaceId, workspaceId),
+            eq(approvals.status, "pending"),
+            searchFilter,
+          );
+
+          const [rows, totalResult] = await Promise.all([
+            db
+              .select({
+                id: approvals.id,
+                documentNumber: documents.documentNumber,
+                title: documents.title,
+                requestedBy: approvals.requestedBy,
+                level: approvals.level,
+                createdAt: approvals.createdAt,
+              })
+              .from(approvals)
+              .innerJoin(documents, eq(approvals.documentId, documents.id))
+              .where(baseWhere)
+              .orderBy(desc(approvals.createdAt))
+              .limit(limit)
+              .offset(offset),
+            db
+              .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+              .from(approvals)
+              .innerJoin(documents, eq(approvals.documentId, documents.id))
+              .where(baseWhere),
+          ]);
+
+          return {
+            items: rows.map((r) => ({
+              id: r.id,
+              documentNumber: r.documentNumber,
+              title: r.title,
+              requestedBy: r.requestedBy,
+              level: r.level,
+              createdAt: r.createdAt.toISOString(),
+            })),
+            total: totalResult[0]?.total ?? 0,
+          };
+        }
+
+        case "ocr_queue": {
+          const searchFilter = search
+            ? ilike(documents.documentNumber, `%${search}%`)
+            : undefined;
+
+          const baseWhere = and(
+            eq(documents.workspaceId, workspaceId),
+            sql`${ocrJobs.status} IN ('queued', 'processing')`,
+            searchFilter,
+          );
+
+          const [rows, totalResult] = await Promise.all([
+            db
+              .select({
+                id: ocrJobs.id,
+                documentNumber: documents.documentNumber,
+                status: ocrJobs.status,
+                engine: ocrJobs.engine,
+                createdAt: ocrJobs.createdAt,
+              })
+              .from(ocrJobs)
+              .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
+              .where(baseWhere)
+              .orderBy(desc(ocrJobs.createdAt))
+              .limit(limit)
+              .offset(offset),
+            db
+              .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+              .from(ocrJobs)
+              .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
+              .where(baseWhere),
+          ]);
+
+          return {
+            items: rows.map((r) => ({
+              id: r.id,
+              documentNumber: r.documentNumber,
+              status: r.status,
+              engine: r.engine ?? "tesseract",
+              createdAt: r.createdAt.toISOString(),
+            })),
+            total: totalResult[0]?.total ?? 0,
+          };
+        }
+
+        case "open_cases": {
+          const searchFilter = search
+            ? or(
+                ilike(cases.caseNumber, `%${search}%`),
+                ilike(cases.title, `%${search}%`),
+              )
+            : undefined;
+
+          const baseWhere = and(
+            eq(cases.workspaceId, workspaceId),
+            sql`${cases.status} IN ('open', 'investigating')`,
+            searchFilter,
+          );
+
+          const [rows, totalResult] = await Promise.all([
+            db
+              .select({
+                id: cases.id,
+                caseNumber: cases.caseNumber,
+                title: cases.title,
+                priority: cases.priority,
+                status: cases.status,
+                createdAt: cases.createdAt,
+              })
+              .from(cases)
+              .where(baseWhere)
+              .orderBy(desc(cases.createdAt))
+              .limit(limit)
+              .offset(offset),
+            db
+              .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+              .from(cases)
+              .where(baseWhere),
+          ]);
+
+          return {
+            items: rows.map((r) => ({
+              id: r.id,
+              caseNumber: r.caseNumber,
+              title: r.title,
+              priority: r.priority,
+              status: r.status,
+              createdAt: r.createdAt.toISOString(),
+            })),
+            total: totalResult[0]?.total ?? 0,
+          };
+        }
+
+        case "pending_duplicates": {
+          const searchFilter = search
+            ? ilike(documents.documentNumber, `%${search}%`)
+            : undefined;
+
+          const baseWhere = and(
+            eq(duplicateDetections.workspaceId, workspaceId),
+            eq(duplicateDetections.status, "pending"),
+            searchFilter,
+          );
+
+          const [rows, totalResult] = await Promise.all([
+            db
+              .select({
+                id: duplicateDetections.id,
+                documentNumber: documents.documentNumber,
+                score: duplicateDetections.score,
+                detectedAt: duplicateDetections.detectedAt,
+              })
+              .from(duplicateDetections)
+              .innerJoin(documents, eq(duplicateDetections.documentAId, documents.id))
+              .where(baseWhere)
+              .orderBy(desc(duplicateDetections.detectedAt))
+              .limit(limit)
+              .offset(offset),
+            db
+              .select({ total: sql<number>`COALESCE(${count()}, 0)` })
+              .from(duplicateDetections)
+              .innerJoin(documents, eq(duplicateDetections.documentAId, documents.id))
+              .where(baseWhere),
+          ]);
+
+          return {
+            items: rows.map((r) => ({
+              id: r.id,
+              documentNumber: r.documentNumber,
+              matchScore: Math.round((r.score ?? 0) * 100),
+              detectedAt: r.detectedAt.toISOString(),
+            })),
+            total: totalResult[0]?.total ?? 0,
+          };
+        }
+
+        default:
+          return { items: [], total: 0 };
+      }
+    }),
+
+  /** Pending approvals summary (top 5) for dashboard widget */
+  getPendingApprovals: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+
+    const rows = await db
+      .select({
+        id: approvals.id,
+        documentNumber: documents.documentNumber,
+        title: documents.title,
+        requestedBy: approvals.requestedBy,
+        level: approvals.level,
+        createdAt: approvals.createdAt,
+      })
+      .from(approvals)
+      .innerJoin(documents, eq(approvals.documentId, documents.id))
+      .where(
+        and(eq(documents.workspaceId, workspaceId), eq(approvals.status, "pending")),
+      )
+      .orderBy(desc(approvals.createdAt))
+      .limit(5);
+
+    return rows.map((r) => ({
+      id: r.id,
+      documentNumber: r.documentNumber,
+      title: r.title,
+      requestedBy: r.requestedBy,
+      level: r.level,
+      createdAt: r.createdAt.toISOString(),
+      daysPending: Math.floor(
+        (Date.now() - r.createdAt.getTime()) / (1000 * 60 * 60 * 24),
+      ),
+    }));
   }),
 
   /** Rolling Stock Summary: total units, by-status, by-product-type */

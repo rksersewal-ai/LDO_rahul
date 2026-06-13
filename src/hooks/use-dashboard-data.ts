@@ -4,11 +4,9 @@ import { useState } from "react";
 import type {
   ActivityItem,
   DashboardMetric,
-  DrillDownData,
   RecentDocument,
   TrendDataPoint,
 } from "@/lib/mock-data/dashboard";
-import { drillDownData } from "@/lib/mock-data/dashboard";
 import { trpc } from "@/lib/trpc/client";
 import { getQueryConfig } from "@/lib/trpc/query-config";
 
@@ -25,7 +23,7 @@ export interface UseDashboardDataReturn {
   isError: boolean;
   error: { message: string } | null;
   refetch: () => void;
-  getDrillDown: (metricId: string) => DrillDownData | undefined;
+  dataUpdatedAt: number | undefined;
 }
 
 export function useDashboardData(): UseDashboardDataReturn {
@@ -101,6 +99,6 @@ export function useDashboardData(): UseDashboardDataReturn {
     isError,
     error,
     refetch,
-    getDrillDown: (metricId: string) => drillDownData[metricId],
+    dataUpdatedAt: metricsQuery.dataUpdatedAt,
   };
 }
