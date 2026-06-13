@@ -1,6 +1,10 @@
+import { randomUUID } from "node:crypto";
+import { TRPCError } from "@trpc/server";
+import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { MOCK_CASES, type MockCase } from "@/lib/mock-data/cases";
-import { MOCK_USERS } from "@/lib/mock-data/users";
+import { createAuditEntry } from "@/lib/audit/create-entry";
+import { db } from "@/lib/db";
+import { cases } from "@/lib/db/schema";
 import {
   assignCaseSchema,
   caseListSchema,
@@ -10,140 +14,346 @@ import {
 } from "@/lib/validators/cases";
 import { engineerProcedure, protectedProcedure, router } from "@/server/trpc";
 
-// In-memory store for mutations
-const cases: MockCase[] = [...MOCK_CASES];
-let caseCounter = MOCK_CASES.length;
+function requireWorkspaceId(ctx: { session: { user: { workspaceId: string | null } } }): string {
+  const wsId = ctx.session.user.workspaceId;
+  if (!wsId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No workspace assigned. Contact an administrator.",
+    });
+  }
+  return wsId;
+}
+
+/** Map frontend status values (UPPER_CASE) to DB enum values (lowercase) */
+function mapStatusToDb(status: string): "open" | "investigating" | "resolved" | "closed" | "escalated" {
+  const statusMap: Record<string, "open" | "investigating" | "resolved" | "closed" | "escalated"> = {
+    OPEN: "open",
+    IN_PROGRESS: "investigating",
+    RESOLVED: "resolved",
+    CLOSED: "closed",
+    ESCALATED: "escalated",
+  };
+  return statusMap[status] ?? "open";
+}
+
+/** Map DB status values back to frontend status values */
+function mapStatusFromDb(status: string): string {
+  const statusMap: Record<string, string> = {
+    open: "OPEN",
+    investigating: "IN_PROGRESS",
+    resolved: "RESOLVED",
+    closed: "CLOSED",
+    escalated: "ESCALATED",
+  };
+  return statusMap[status] ?? "OPEN";
+}
+
+/** Map frontend severity to DB priority */
+function mapSeverityToDbPriority(severity: string): "low" | "medium" | "high" | "critical" {
+  const severityMap: Record<string, "low" | "medium" | "high" | "critical"> = {
+    LOW: "low",
+    MEDIUM: "medium",
+    HIGH: "high",
+    CRITICAL: "critical",
+  };
+  return severityMap[severity] ?? "medium";
+}
+
+/** Map DB row to the frontend-expected shape */
+function mapCaseToFrontend(row: typeof cases.$inferSelect) {
+  return {
+    id: row.id,
+    caseNumber: row.caseNumber,
+    title: row.title,
+    description: row.description ?? "",
+    type: row.type ?? "failure_investigation",
+    status: mapStatusFromDb(row.status),
+    severity: (row.severity ?? row.priority ?? "MEDIUM").toUpperCase(),
+    assigneeId: row.assignedTo ?? null,
+    assigneeName: row.assigneeName ?? null,
+    reporterId: row.reporterId ?? row.createdBy ?? null,
+    reporterName: row.reporterName ?? null,
+    plNumber: row.relatedPlId ?? null,
+    vendorName: row.vendorName ?? null,
+    tenderNumber: row.tenderNumber ?? null,
+    linkedDocumentIds: row.linkedDocumentIds ? JSON.parse(row.linkedDocumentIds) : [],
+    resolution: row.resolution ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    closedAt: row.closedAt?.toISOString() ?? null,
+  };
+}
 
 export const casesRouter = router({
-  list: protectedProcedure.input(caseListSchema).query(({ input }) => {
-    let filtered = [...cases];
+  list: protectedProcedure.input(caseListSchema).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx as never);
+
+    const conditions = [eq(cases.workspaceId, workspaceId)];
 
     if (input.status) {
-      filtered = filtered.filter((c) => c.status === input.status);
+      const dbStatus = mapStatusToDb(input.status);
+      conditions.push(eq(cases.status, dbStatus));
     }
+
     if (input.severity) {
-      filtered = filtered.filter((c) => c.severity === input.severity);
+      conditions.push(eq(cases.severity, input.severity));
     }
+
     if (input.type) {
-      filtered = filtered.filter((c) => c.type === input.type);
+      conditions.push(eq(cases.type, input.type));
     }
+
     if (input.assigneeId) {
-      filtered = filtered.filter((c) => c.assigneeId === input.assigneeId);
+      conditions.push(eq(cases.assignedTo, input.assigneeId));
     }
+
     if (input.search) {
-      const search = input.search.toLowerCase();
-      filtered = filtered.filter(
-        (c) =>
-          c.title.toLowerCase().includes(search) ||
-          c.caseNumber.toLowerCase().includes(search) ||
-          c.description.toLowerCase().includes(search),
+      conditions.push(
+        or(
+          ilike(cases.title, `%${input.search}%`),
+          ilike(cases.caseNumber, `%${input.search}%`),
+          ilike(cases.description, `%${input.search}%`),
+        )!,
       );
     }
 
-    // Sort
-    filtered.sort((a, b) => {
-      const field = input.sortBy;
-      const aVal = a[field] ?? "";
-      const bVal = b[field] ?? "";
-      const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-      return input.sortOrder === "asc" ? cmp : -cmp;
+    const whereClause = and(...conditions);
+
+    // Sort column mapping
+    const sortColumnMap: Record<string, typeof cases.createdAt> = {
+      createdAt: cases.createdAt,
+      updatedAt: cases.updatedAt as never,
+      severity: cases.severity as never,
+      caseNumber: cases.caseNumber as never,
+    };
+
+    const sortCol = sortColumnMap[input.sortBy] ?? cases.createdAt;
+    const orderFn = input.sortOrder === "asc" ? asc : desc;
+
+    const [data, totalResult] = await Promise.all([
+      db
+        .select()
+        .from(cases)
+        .where(whereClause)
+        .orderBy(orderFn(sortCol))
+        .limit(input.limit)
+        .offset(input.offset),
+      db
+        .select({ total: count() })
+        .from(cases)
+        .where(whereClause),
+    ]);
+
+    const items = data.map(mapCaseToFrontend);
+
+    return { items, total: totalResult[0]?.total ?? 0 };
+  }),
+
+  getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx as never);
+
+    const [row] = await db
+      .select()
+      .from(cases)
+      .where(and(eq(cases.id, input.id), eq(cases.workspaceId, workspaceId)));
+
+    if (!row) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Case not found" });
+    }
+
+    return mapCaseToFrontend(row);
+  }),
+
+  create: engineerProcedure.input(createCaseSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx as never);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
+    const id = randomUUID();
+    const caseNumber = `CASE-${Date.now().toString(36).toUpperCase()}-${id.slice(0, 4).toUpperCase()}`;
+
+    const [created] = await db
+      .insert(cases)
+      .values({
+        id,
+        workspaceId,
+        caseNumber,
+        title: input.title,
+        description: input.description,
+        status: "open",
+        priority: mapSeverityToDbPriority(input.severity),
+        type: input.type,
+        severity: input.severity,
+        assignedTo: input.assigneeId,
+        assigneeName: null,
+        reporterId: userId,
+        reporterName: userName,
+        vendorName: input.vendorName || null,
+        tenderNumber: input.tenderNumber || null,
+        relatedPlId: input.plNumber || null,
+        linkedDocumentIds: "[]",
+        createdBy: userId,
+        updatedBy: userId,
+      })
+      .returning();
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "case.created",
+      resourceType: "case",
+      resourceId: id,
+      resourceTitle: input.title,
+      details: `Created case ${caseNumber}: ${input.title}`,
+      workspaceId,
     });
 
-    const total = filtered.length;
-    const items = filtered.slice(input.offset, input.offset + input.limit);
-
-    return { items, total };
+    return mapCaseToFrontend(created);
   }),
 
-  getById: protectedProcedure.input(z.object({ id: z.string() })).query(({ input }) => {
-    const caseItem = cases.find((c) => c.id === input.id);
-    if (!caseItem) {
-      throw new Error("Case not found");
-    }
-    return caseItem;
-  }),
+  update: engineerProcedure.input(updateCaseSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx as never);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
 
-  create: engineerProcedure.input(createCaseSchema).mutation(({ input, ctx }) => {
-    caseCounter++;
-    const caseNumber = `CASE-2026-${String(caseCounter).padStart(3, "0")}`;
-    const assignee = MOCK_USERS.find((u) => u.id === input.assigneeId);
+    // Verify case exists in workspace
+    const [existing] = await db
+      .select()
+      .from(cases)
+      .where(and(eq(cases.id, input.id), eq(cases.workspaceId, workspaceId)));
 
-    const newCase: MockCase = {
-      id: `case-${String(caseCounter).padStart(3, "0")}`,
-      caseNumber,
-      title: input.title,
-      description: input.description,
-      type: input.type,
-      status: "OPEN",
-      severity: input.severity,
-      assigneeId: input.assigneeId,
-      assigneeName: assignee?.name || "Unknown",
-      reporterId: ctx.session.user?.id || "unknown",
-      reporterName: ctx.session.user?.name || "Unknown",
-      plNumber: input.plNumber || null,
-      vendorName: input.vendorName || null,
-      tenderNumber: input.tenderNumber || null,
-      linkedDocumentIds: [],
-      resolution: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      closedAt: null,
-    };
-
-    cases.unshift(newCase);
-    return newCase;
-  }),
-
-  update: engineerProcedure.input(updateCaseSchema).mutation(({ input }) => {
-    const idx = cases.findIndex((c) => c.id === input.id);
-    if (idx === -1) {
-      throw new Error("Case not found");
+    if (!existing) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Case not found" });
     }
 
-    const { id, ...updates } = input;
-    const cleanUpdates: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) {
-        cleanUpdates[key] = value === "" ? null : value;
+    const updateValues: Record<string, unknown> = { updatedBy: userId, updatedAt: new Date() };
+
+    if (input.title !== undefined) updateValues.title = input.title;
+    if (input.description !== undefined) updateValues.description = input.description;
+    if (input.type !== undefined) updateValues.type = input.type;
+    if (input.severity !== undefined) {
+      updateValues.severity = input.severity;
+      updateValues.priority = mapSeverityToDbPriority(input.severity);
+    }
+    if (input.status !== undefined) {
+      updateValues.status = mapStatusToDb(input.status);
+      if (input.status === "RESOLVED") {
+        updateValues.resolvedAt = new Date();
+      }
+      if (input.status === "CLOSED") {
+        updateValues.closedAt = new Date();
       }
     }
+    if (input.plNumber !== undefined) updateValues.relatedPlId = input.plNumber || null;
+    if (input.vendorName !== undefined) updateValues.vendorName = input.vendorName || null;
+    if (input.tenderNumber !== undefined) updateValues.tenderNumber = input.tenderNumber || null;
+    if (input.assigneeId !== undefined) updateValues.assignedTo = input.assigneeId;
+    if (input.resolution !== undefined) updateValues.resolution = input.resolution;
 
-    cases[idx] = {
-      ...cases[idx],
-      ...cleanUpdates,
-      updatedAt: new Date().toISOString(),
-    } as MockCase;
+    const [updated] = await db
+      .update(cases)
+      .set(updateValues)
+      .where(and(eq(cases.id, input.id), eq(cases.workspaceId, workspaceId)))
+      .returning();
 
-    return cases[idx];
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "case.updated",
+      resourceType: "case",
+      resourceId: input.id,
+      resourceTitle: updated.title,
+      details: `Updated case ${updated.caseNumber}`,
+      oldValue: JSON.stringify({ status: existing.status, priority: existing.priority }),
+      newValue: JSON.stringify(updateValues),
+      workspaceId,
+    });
+
+    return mapCaseToFrontend(updated);
   }),
 
-  close: engineerProcedure.input(closeCaseSchema).mutation(({ input }) => {
-    const idx = cases.findIndex((c) => c.id === input.id);
-    if (idx === -1) {
-      throw new Error("Case not found");
+  assign: engineerProcedure.input(assignCaseSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx as never);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
+    // Verify case exists in workspace
+    const [existing] = await db
+      .select()
+      .from(cases)
+      .where(and(eq(cases.id, input.id), eq(cases.workspaceId, workspaceId)));
+
+    if (!existing) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Case not found" });
     }
-    cases[idx] = {
-      ...cases[idx],
-      status: "CLOSED",
-      resolution: input.resolution,
-      closedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    return cases[idx];
+
+    const [updated] = await db
+      .update(cases)
+      .set({
+        assignedTo: input.assigneeId,
+        updatedBy: userId,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(cases.id, input.id), eq(cases.workspaceId, workspaceId)))
+      .returning();
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "case.assigned",
+      resourceType: "case",
+      resourceId: input.id,
+      resourceTitle: updated.title,
+      details: `Assigned case ${updated.caseNumber} to ${input.assigneeId}`,
+      oldValue: existing.assignedTo ?? undefined,
+      newValue: input.assigneeId,
+      workspaceId,
+    });
+
+    return mapCaseToFrontend(updated);
   }),
 
-  assign: engineerProcedure.input(assignCaseSchema).mutation(({ input }) => {
-    const idx = cases.findIndex((c) => c.id === input.id);
-    if (idx === -1) {
-      throw new Error("Case not found");
+  close: engineerProcedure.input(closeCaseSchema).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx as never);
+    const userId = ctx.session.user?.id ?? "unknown";
+    const userName = ctx.session.user?.name ?? "Unknown User";
+
+    // Verify case exists in workspace
+    const [existing] = await db
+      .select()
+      .from(cases)
+      .where(and(eq(cases.id, input.id), eq(cases.workspaceId, workspaceId)));
+
+    if (!existing) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Case not found" });
     }
-    const assignee = MOCK_USERS.find((u) => u.id === input.assigneeId);
-    cases[idx] = {
-      ...cases[idx],
-      assigneeId: input.assigneeId,
-      assigneeName: assignee?.name || "Unknown",
-      updatedAt: new Date().toISOString(),
-    };
-    return cases[idx];
+
+    const [updated] = await db
+      .update(cases)
+      .set({
+        status: "closed",
+        resolution: input.resolution,
+        closedAt: new Date(),
+        updatedBy: userId,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(cases.id, input.id), eq(cases.workspaceId, workspaceId)))
+      .returning();
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "case.closed",
+      resourceType: "case",
+      resourceId: input.id,
+      resourceTitle: updated.title,
+      details: `Closed case ${updated.caseNumber} with resolution`,
+      oldValue: existing.status,
+      newValue: "closed",
+      workspaceId,
+    });
+
+    return mapCaseToFrontend(updated);
   }),
 });
