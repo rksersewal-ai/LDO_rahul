@@ -1,0 +1,348 @@
+import { TRPCError } from "@trpc/server";
+import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import {
+  approvals,
+  auditLog,
+  cases,
+  documents,
+  duplicateDetections,
+  ocrJobs,
+  users,
+} from "@/lib/db/schema";
+import { protectedProcedure, router } from "@/server/trpc";
+
+function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | null } } }): string {
+  const wsId = ctx.session?.user?.workspaceId;
+  if (!wsId) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No workspace assigned" });
+  }
+  return wsId;
+}
+
+export const dashboardRouter = router({
+  /** KPI metrics for dashboard cards */
+  getMetrics: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalDocsResult,
+      docsThisWeekResult,
+      pendingApprovalsResult,
+      ocrQueueResult,
+      openCasesResult,
+      pendingDuplicatesResult,
+    ] = await Promise.all([
+      // Total non-deleted documents in workspace
+      db
+        .select({ total: count() })
+        .from(documents)
+        .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0))),
+
+      // Documents added this week
+      db
+        .select({ total: count() })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
+            gte(documents.createdAt, weekAgo),
+          ),
+        ),
+
+      // Pending approvals for documents in this workspace
+      db
+        .select({ total: count() })
+        .from(approvals)
+        .innerJoin(documents, eq(approvals.documentId, documents.id))
+        .where(
+          and(eq(documents.workspaceId, workspaceId), eq(approvals.status, "pending")),
+        ),
+
+      // OCR queue (queued + processing)
+      db
+        .select({ total: count() })
+        .from(ocrJobs)
+        .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
+        .where(
+          and(
+            eq(documents.workspaceId, workspaceId),
+            sql`${ocrJobs.status} IN ('queued', 'processing')`,
+          ),
+        ),
+
+      // Open cases (open + investigating)
+      db
+        .select({ total: count() })
+        .from(cases)
+        .where(sql`${cases.status} IN ('open', 'investigating')`),
+
+      // Pending duplicate detections in workspace
+      db
+        .select({ total: count() })
+        .from(duplicateDetections)
+        .where(
+          and(
+            eq(duplicateDetections.workspaceId, workspaceId),
+            eq(duplicateDetections.status, "pending"),
+          ),
+        ),
+    ]);
+
+    const totalDocs = totalDocsResult[0]?.total ?? 0;
+    const docsThisWeek = docsThisWeekResult[0]?.total ?? 0;
+    const pendingApprovals = pendingApprovalsResult[0]?.total ?? 0;
+    const ocrQueue = ocrQueueResult[0]?.total ?? 0;
+    const openCases = openCasesResult[0]?.total ?? 0;
+    const pendingDuplicates = pendingDuplicatesResult[0]?.total ?? 0;
+
+    return [
+      {
+        id: "total_documents",
+        title: "Total Documents",
+        value: totalDocs,
+        delta: `+${docsThisWeek}`,
+        deltaDirection: docsThisWeek > 0 ? "up" : ("neutral" as const),
+        context: `${docsThisWeek} added this week`,
+      },
+      {
+        id: "pending_approvals",
+        title: "Pending Approvals",
+        value: pendingApprovals,
+        delta: `${pendingApprovals}`,
+        deltaDirection: pendingApprovals > 0 ? "up" : ("neutral" as const),
+        context: `${pendingApprovals} awaiting review`,
+      },
+      {
+        id: "ocr_queue",
+        title: "OCR Queue",
+        value: ocrQueue,
+        delta: `${ocrQueue} pending`,
+        deltaDirection: "neutral" as const,
+        context: `${ocrQueue} items in queue`,
+      },
+      {
+        id: "open_cases",
+        title: "Open Cases",
+        value: openCases,
+        delta: `${openCases}`,
+        deltaDirection: openCases > 0 ? "up" : ("neutral" as const),
+        context: `${openCases} cases active`,
+      },
+      {
+        id: "pending_duplicates",
+        title: "Pending Duplicates",
+        value: pendingDuplicates,
+        delta: `${pendingDuplicates}`,
+        deltaDirection: pendingDuplicates > 0 ? "up" : ("neutral" as const),
+        context: `${pendingDuplicates} awaiting review`,
+      },
+    ] satisfies Array<{
+      id: string;
+      title: string;
+      value: string | number;
+      delta: string;
+      deltaDirection: "up" | "down" | "neutral";
+      context: string;
+    }>;
+  }),
+
+  /** Trend data for uploads/processed chart */
+  getTrends: protectedProcedure
+    .input(z.object({ range: z.enum(["7D", "30D", "3M", "YTD"]) }))
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+
+      const now = new Date();
+      let startDate: Date;
+
+      switch (input.range) {
+        case "7D":
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "30D":
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case "3M":
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        case "YTD":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+      }
+
+      // Count uploads per day
+      const uploadsPerDay = await db
+        .select({
+          date: sql<string>`to_char(${documents.createdAt}::date, 'Mon DD')`,
+          uploads: count(),
+        })
+        .from(documents)
+        .where(
+          and(
+            eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
+            gte(documents.createdAt, startDate),
+          ),
+        )
+        .groupBy(sql`${documents.createdAt}::date`)
+        .orderBy(sql`${documents.createdAt}::date`);
+
+      // Count completed OCR jobs per day
+      const processedPerDay = await db
+        .select({
+          date: sql<string>`to_char(${ocrJobs.completedAt}::date, 'Mon DD')`,
+          processed: count(),
+        })
+        .from(ocrJobs)
+        .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
+        .where(
+          and(
+            eq(documents.workspaceId, workspaceId),
+            eq(ocrJobs.status, "completed"),
+            gte(ocrJobs.completedAt, startDate),
+          ),
+        )
+        .groupBy(sql`${ocrJobs.completedAt}::date`)
+        .orderBy(sql`${ocrJobs.completedAt}::date`);
+
+      // Merge into a single array keyed by date
+      const processedMap = new Map<string, number>();
+      for (const row of processedPerDay) {
+        processedMap.set(row.date, row.processed);
+      }
+
+      const trendData = uploadsPerDay.map((row) => ({
+        date: row.date,
+        uploads: row.uploads,
+        processed: processedMap.get(row.date) ?? 0,
+      }));
+
+      return trendData;
+    }),
+
+  /** Recent activity from audit log */
+  getRecentActivity: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+
+    const entries = await db
+      .select({
+        id: auditLog.id,
+        action: auditLog.action,
+        entityType: auditLog.entityType,
+        entityId: auditLog.entityId,
+        userName: auditLog.userName,
+        details: auditLog.details,
+        createdAt: auditLog.createdAt,
+      })
+      .from(auditLog)
+      .where(eq(auditLog.workspaceId, workspaceId))
+      .orderBy(desc(auditLog.createdAt))
+      .limit(20);
+
+    // Map action strings to the ActivityItem action types
+    const actionTypeMap: Record<string, "upload" | "approve" | "verify" | "reject" | "comment" | "assign"> = {
+      "document.upload": "upload",
+      "document.create": "upload",
+      "approval.approve": "approve",
+      "approval.reject": "reject",
+      "ocr.verify": "verify",
+      "ocr.accept_candidate": "verify",
+      "case.assign": "assign",
+      "document.comment": "comment",
+    };
+
+    const entityTypeMap: Record<string, "document" | "case" | "work_record"> = {
+      document: "document",
+      case: "case",
+      work_record: "work_record",
+      ocr_pl_candidate: "document",
+      approval: "document",
+    };
+
+    return entries.map((entry) => ({
+      id: entry.id,
+      action: actionTypeMap[entry.action] ?? "upload",
+      description: entry.details ?? `${entry.action} on ${entry.entityType}`,
+      user: entry.userName ?? "Unknown",
+      timestamp: entry.createdAt.toISOString(),
+      entityId: entry.entityId,
+      entityType: entityTypeMap[entry.entityType] ?? "document",
+    })) satisfies Array<{
+      id: string;
+      action: "upload" | "approve" | "verify" | "reject" | "comment" | "assign";
+      description: string;
+      user: string;
+      timestamp: string;
+      entityId: string;
+      entityType: "document" | "case" | "work_record";
+    }>;
+  }),
+
+  /** Recent documents for the workspace */
+  getRecentDocuments: protectedProcedure.query(async ({ ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+
+    const docs = await db
+      .select({
+        id: documents.id,
+        documentNumber: documents.documentNumber,
+        title: documents.title,
+        category: documents.category,
+        status: documents.status,
+        ocrStatus: documents.ocrStatus,
+        createdAt: documents.createdAt,
+        ownerName: users.name,
+      })
+      .from(documents)
+      .leftJoin(users, eq(documents.createdBy, users.id))
+      .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0)))
+      .orderBy(desc(documents.createdAt))
+      .limit(10);
+
+    // Map document status to the StatusType expected by the UI
+    const statusMap: Record<string, string> = {
+      draft: "pending",
+      pending_review: "pending",
+      under_review: "in_process",
+      approved: "done",
+      rejected: "failed",
+      superseded: "done",
+      archived: "done",
+    };
+
+    // Map ocr status to the RecentDocument ocrStatus format
+    const ocrStatusMap: Record<string, "completed" | "processing" | "queued" | "failed" | "not_required"> = {
+      not_required: "not_required",
+      queued: "queued",
+      processing: "processing",
+      completed: "completed",
+      failed: "failed",
+    };
+
+    return docs.map((doc) => ({
+      id: doc.id,
+      documentNumber: doc.documentNumber,
+      title: doc.title,
+      category: doc.category,
+      status: statusMap[doc.status] ?? "pending",
+      owner: doc.ownerName ?? "Unknown",
+      date: doc.createdAt.toISOString().split("T")[0],
+      ocrStatus: ocrStatusMap[doc.ocrStatus] ?? "not_required",
+    })) satisfies Array<{
+      id: string;
+      documentNumber: string;
+      title: string;
+      category: string;
+      status: string;
+      owner: string;
+      date: string;
+      ocrStatus: "completed" | "processing" | "queued" | "failed" | "not_required";
+    }>;
+  }),
+});
