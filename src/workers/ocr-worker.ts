@@ -1,15 +1,41 @@
 import { Worker, type Job } from "bullmq";
 import pdf from "pdf-parse";
-// @ts-expect-error - sharp types not resolved with bundler moduleResolution
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 
 import { db } from "@/lib/db";
 import { documents, ocrJobs, ocrPlCandidates, notifications } from "@/lib/db/schema";
 import { extractPlCandidates, isValidModulo11 } from "@/lib/pl/validation";
 import type { OcrJobPayload } from "./ocr-queue";
+
+const execFileAsync = promisify(execFile);
+
+async function extractImageText(fileBuffer: Buffer, mimeType: string): Promise<string> {
+  const metadata = await sharp(fileBuffer).metadata();
+  const extension = metadata.format ?? mimeType.split("/")[1] ?? "png";
+  const tempDir = await mkdtemp(join(tmpdir(), "ldo-ocr-"));
+  const inputPath = join(tempDir, `input.${extension}`);
+  const outputBasePath = join(tempDir, "output");
+
+  try {
+    await writeFile(inputPath, fileBuffer);
+    await execFileAsync("tesseract", [inputPath, outputBasePath, "--dpi", "300"]);
+    return await readFile(`${outputBasePath}.txt`, "utf8");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown OCR error";
+    console.warn(`Image OCR skipped: ${message}`);
+    return "";
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
 
 /**
  * Process a single OCR job: extract text, identify PL candidates,
@@ -44,10 +70,8 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
         confidence = 0.3;
       }
     } else if (mimeType.startsWith("image/")) {
-      // Use sharp to get metadata (no tesseract available)
-      await sharp(fileBuffer).metadata();
-      extractedText = "";
-      confidence = 0.3;
+      extractedText = await extractImageText(fileBuffer, mimeType);
+      confidence = extractedText.length > 0 ? 0.7 : 0.3;
     }
 
     // Step e: Compute confidence based on text length

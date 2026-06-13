@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
 const MAX_FAILED_ATTEMPTS = 5;
+const LOCK_DURATION_MS = 30 * 60 * 1000;
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -30,9 +31,24 @@ export const authConfig: NextAuthConfig = {
 
         if (!user?.isActive) return null;
 
-        // Check if account is locked
+        let failedLoginAttempts = user.failedLoginAttempts;
+
+        // Check if account is locked, and automatically unlock after the lock window.
         if (user.lockedAt) {
-          return null;
+          const lockExpiresAt = user.lockedAt.getTime() + LOCK_DURATION_MS;
+          if (Date.now() < lockExpiresAt) {
+            return null;
+          }
+
+          await db
+            .update(users)
+            .set({
+              failedLoginAttempts: 0,
+              lockedAt: null,
+              lockReason: null,
+            })
+            .where(eq(users.id, user.id));
+          failedLoginAttempts = 0;
         }
 
         // Verify password with bcrypt
@@ -40,7 +56,7 @@ export const authConfig: NextAuthConfig = {
 
         if (!isValid) {
           // Increment failed attempts
-          const newAttempts = user.failedLoginAttempts + 1;
+          const newAttempts = failedLoginAttempts + 1;
           const updateData: Record<string, unknown> = {
             failedLoginAttempts: newAttempts,
           };

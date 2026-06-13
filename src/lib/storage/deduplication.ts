@@ -38,12 +38,12 @@ export function computeThreePointHash(buffer: Buffer): string {
 
 /**
  * Content-addressed storage path from a hash.
- * Format: /storage/originals/sha256/<first2>/<next2>/<full-hash>
+ * Format: originals/sha256/<first2>/<next2>/<full-hash>
  */
 export function getContentAddressedPath(hash: string): string {
   const dir1 = hash.substring(0, 2);
   const dir2 = hash.substring(2, 4);
-  return `/storage/originals/sha256/${dir1}/${dir2}/${hash}`;
+  return `originals/sha256/${dir1}/${dir2}/${hash}`;
 }
 
 export interface DeduplicationResult {

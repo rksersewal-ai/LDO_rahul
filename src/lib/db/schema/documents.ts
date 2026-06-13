@@ -73,7 +73,7 @@ export const documents = pgTable(
     updatedBy: text("updated_by"),
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
-    workspaceId: text("workspace_id"),
+    workspaceId: text("workspace_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -85,5 +85,6 @@ export const documents = pgTable(
     index("idx_documents_three_point_hash").on(table.threePointHash),
     index("idx_documents_created_at").on(table.createdAt),
     index("idx_documents_ocr_status").on(table.ocrStatus),
+    index("idx_documents_workspace_id").on(table.workspaceId),
   ],
 );

@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { hasPermission, type Permission } from "@/lib/auth/permissions";
-import type { UserRole } from "@/lib/mock-data/users";
+import type { UserRole } from "@/lib/types/auth";
 
 export function useAuth() {
   const { data: session, status } = useSession();

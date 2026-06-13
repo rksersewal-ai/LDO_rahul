@@ -7,7 +7,8 @@ import { trpc } from "@/lib/trpc/client";
 
 function getBaseUrl() {
   if (typeof window !== "undefined") return "";
-  return "http://localhost:3000";
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return `http://localhost:${process.env.PORT ?? 3000}`;
 }
 
 export function TRPCProvider({ children }: { children: React.ReactNode }) {

@@ -11,7 +11,8 @@
     "format": "biome format --write .",
     "graphify": "npx tsx scripts/update-graphify.ts",
     "test": "vitest run --passWithNoTests",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "worker:ocr": "tsx scripts/start-worker.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

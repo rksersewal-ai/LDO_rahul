@@ -44,7 +44,7 @@ import {
   type SecurityPolicies,
   type SystemConfiguration,
 } from "@/lib/mock-data/admin-settings";
-import type { UserRole } from "@/lib/mock-data/users";
+import type { UserRole } from "@/lib/types/auth";
 
 type TabId =
   | "overview"

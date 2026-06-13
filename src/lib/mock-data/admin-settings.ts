@@ -1,5 +1,5 @@
 import type { Permission } from "@/lib/auth/permissions";
-import type { UserRole } from "@/lib/mock-data/users";
+import type { UserRole } from "@/lib/types/auth";
 
 // --- Feature Toggles ---
 export interface FeatureToggle {

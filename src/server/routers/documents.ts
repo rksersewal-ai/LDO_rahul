@@ -36,6 +36,7 @@ function requireWorkspaceId(ctx: { session: { user: { workspaceId: string | null
   return wsId;
 }
 
+// TODO(DB): Replace mock-db document operations with real Drizzle queries or guard them behind MOCK_MODE.
 export const documentsRouter = router({
   list: protectedProcedure.input(documentListSchema).query(({ input }) => {
     return listDocuments(input);
@@ -54,7 +55,7 @@ export const documentsRouter = router({
       documentNumber: input.documentNumber,
       title: input.title,
       category: input.category,
-      status: "DRAFT",
+      status: "draft",
       revision: input.revision,
       revisionDate: input.revisionDate || null,
       agency: input.agency || "CLW",
@@ -65,7 +66,7 @@ export const documentsRouter = router({
       pages: 1,
       ownerId: ctx.session.user?.id || "unknown",
       uploadedBy: ctx.session.user?.id || "unknown",
-      ocrStatus: "PENDING",
+      ocrStatus: "queued",
       ocrConfidence: null,
       ocrText: null,
       tags: input.tags,
@@ -109,7 +110,7 @@ export const documentsRouter = router({
   }),
 
   approve: supervisorProcedure.input(approveDocumentSchema).mutation(({ input }) => {
-    const updated = updateDocument(input.id, { status: "APPROVED" });
+    const updated = updateDocument(input.id, { status: "approved" });
     if (!updated) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
     }

@@ -54,8 +54,6 @@ export async function createAuditEntry(db: DbOrTransaction, input: AuditEntryInp
       details: input.details ?? (input.resourceTitle ? `Resource: ${input.resourceTitle}` : null),
       previousState: input.oldValue ?? null,
       newState: input.newValue ?? null,
-      oldValue: input.oldValue ?? null,
-      newValue: input.newValue ?? null,
       workspaceId: input.workspaceId ?? null,
       ipAddress: input.ipAddress ?? null,
       userAgent: input.userAgent ?? null,

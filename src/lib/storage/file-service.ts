@@ -10,7 +10,7 @@ const STORAGE_ROOT = process.env.STORAGE_PATH || "./storage";
  */
 export function storeFile(buffer: Buffer, hash: string): string {
   const relativePath = getContentAddressedPath(hash);
-  const absolutePath = join(STORAGE_ROOT, relativePath.replace("/storage/", ""));
+  const absolutePath = join(STORAGE_ROOT, relativePath);
   const dir = dirname(absolutePath);
 
   if (!existsSync(dir)) {
@@ -30,7 +30,7 @@ export function storeFile(buffer: Buffer, hash: string): string {
  */
 export function getFilePath(hash: string): string {
   const relativePath = getContentAddressedPath(hash);
-  return join(STORAGE_ROOT, relativePath.replace("/storage/", ""));
+  return join(STORAGE_ROOT, relativePath);
 }
 
 /**

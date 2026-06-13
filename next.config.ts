@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ["pg", "bullmq", "ioredis", "bcryptjs", "pdf-parse", "sharp"],
 };
 
 export default nextConfig;

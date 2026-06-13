@@ -27,7 +27,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MOCK_ADMIN_USERS } from "@/lib/mock-data/admin";
-import type { MockUser, UserRole } from "@/lib/mock-data/users";
+import type { MockUser } from "@/lib/mock-data/users";
+import type { UserRole } from "@/lib/types/auth";
 
 const roleBadgeVariant: Record<UserRole, "default" | "secondary" | "outline" | "destructive"> = {
   admin: "destructive",

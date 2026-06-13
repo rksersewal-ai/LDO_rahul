@@ -52,37 +52,37 @@ const FORCE_PASSWORD_CHANGE_ALLOWED_PROCEDURES = new Set([
 ]);
 
 /**
- * Middleware that enforces forcePasswordChange: blocks all procedures
- * except auth.changePassword and auth.getSession when the flag is set.
+ * Requires authentication and then enforces forcePasswordChange.
  */
-const enforcePasswordChange = t.middleware(async ({ ctx, next, path }) => {
-  if (ctx.session?.user?.forcePasswordChange) {
-    if (!FORCE_PASSWORD_CHANGE_ALLOWED_PROCEDURES.has(path)) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Password change required. Please change your password before continuing.",
-      });
-    }
-  }
-  return next({ ctx });
-});
-
-/**
- * Requires authentication - any logged-in user.
- */
-export const protectedProcedure = t.procedure.use(enforcePasswordChange).use(async ({ ctx, next }) => {
+const requireAuth = t.middleware(async ({ ctx, next, path }) => {
   if (!ctx.session?.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
   }
+
+  if (
+    ctx.session.user.forcePasswordChange &&
+    !FORCE_PASSWORD_CHANGE_ALLOWED_PROCEDURES.has(path)
+  ) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Password change required. Please change your password before continuing.",
+    });
+  }
+
   return next({
     ctx: { session: ctx.session },
   });
 });
 
 /**
+ * Requires authentication - any logged-in user.
+ */
+export const protectedProcedure = t.procedure.use(requireAuth);
+
+/**
  * Requires role >= engineer (engineer, reviewer, supervisor, admin).
  */
-export const engineerProcedure = t.procedure.use(enforcePasswordChange).use(async ({ ctx, next }) => {
+export const engineerProcedure = t.procedure.use(requireAuth).use(async ({ ctx, next }) => {
   if (!ctx.session?.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
   }
@@ -101,7 +101,7 @@ export const engineerProcedure = t.procedure.use(enforcePasswordChange).use(asyn
 /**
  * Requires role >= supervisor (supervisor, admin).
  */
-export const supervisorProcedure = t.procedure.use(enforcePasswordChange).use(async ({ ctx, next }) => {
+export const supervisorProcedure = t.procedure.use(requireAuth).use(async ({ ctx, next }) => {
   if (!ctx.session?.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
   }
@@ -120,7 +120,7 @@ export const supervisorProcedure = t.procedure.use(enforcePasswordChange).use(as
 /**
  * Requires admin role.
  */
-export const adminProcedure = t.procedure.use(enforcePasswordChange).use(async ({ ctx, next }) => {
+export const adminProcedure = t.procedure.use(requireAuth).use(async ({ ctx, next }) => {
   if (!ctx.session?.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
   }

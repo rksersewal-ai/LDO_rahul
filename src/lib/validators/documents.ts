@@ -4,33 +4,32 @@ export const documentCategoryEnum = z.enum([
   "DRAWING",
   "SPECIFICATION",
   "ELIGIBILITY_CRITERIA",
-  "SCOPE_OF_SUPPLY",
-  "SMI",
-  "STANDARD",
-  "TENDER",
-  "SDR",
-  "TEST_REPORT",
-  "CERTIFICATE",
+  "INSPECTION_REPORT",
+  "TEST_CERTIFICATE",
+  "MATERIAL_CERTIFICATE",
   "PROCEDURE",
+  "WORK_ORDER",
+  "CORRESPONDENCE",
+  "MANUAL",
   "OTHER",
 ]);
 
 export const documentStatusEnum = z.enum([
-  "ACTIVE",
-  "OBSOLETE",
-  "UNDER_REVIEW",
-  "DRAFT",
-  "APPROVED",
+  "draft",
+  "pending_review",
+  "under_review",
+  "approved",
+  "rejected",
+  "superseded",
+  "archived",
 ]);
 
 export const ocrStatusEnum = z.enum([
-  "PENDING",
-  "PROCESSING",
-  "COMPLETED",
-  "FAILED",
-  "FLAGGED",
-  "SKIPPED",
-  "NOT_REQUIRED",
+  "not_required",
+  "queued",
+  "processing",
+  "completed",
+  "failed",
 ]);
 
 export const documentListSchema = z.object({
