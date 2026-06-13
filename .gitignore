@@ -10,6 +10,12 @@
 !.yarn/releases
 !.yarn/versions
 
+# Single source of truth for dependencies is bun.lock.
+# Ignore other package-manager lockfiles to prevent ambiguous installs on Vercel.
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
 # testing
 /coverage
 
