@@ -238,3 +238,22 @@
     @apply font-sans;
   }
 }
+
+/* Tabular nums for consistent numeric display */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Banner ticker marquee animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 25s linear infinite;
+}

@@ -4,15 +4,15 @@ import { useState } from "react";
 import type {
   ActivityItem,
   DashboardMetric,
-  DrillDownData,
   RecentDocument,
   TrendDataPoint,
 } from "@/lib/mock-data/dashboard";
-import { drillDownData } from "@/lib/mock-data/dashboard";
 import { trpc } from "@/lib/trpc/client";
 import { getQueryConfig } from "@/lib/trpc/query-config";
 
 export type TrendRange = "7D" | "30D" | "3M" | "YTD";
+
+export type ComparePeriod = "week" | "month";
 
 export interface UseDashboardDataReturn {
   metrics: DashboardMetric[];
@@ -22,21 +22,27 @@ export interface UseDashboardDataReturn {
   activities: ActivityItem[];
   recentDocs: RecentDocument[];
   isLoading: boolean;
-  getDrillDown: (metricId: string) => DrillDownData | undefined;
+  isError: boolean;
+  error: { message: string } | null;
+  refetch: () => void;
+  dataUpdatedAt: number | undefined;
 }
 
-export function useDashboardData(): UseDashboardDataReturn {
+export function useDashboardData(compareRange?: ComparePeriod): UseDashboardDataReturn {
   const [trendRange, setTrendRange] = useState<TrendRange>("30D");
 
   // Dashboard metrics: refetch every 30s, stale after 30s
   const dashboardConfig = getQueryConfig("dashboard");
 
-  const metricsQuery = trpc.dashboard.getMetrics.useQuery(undefined, {
-    staleTime: dashboardConfig.staleTime,
-    gcTime: dashboardConfig.gcTime,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: dashboardConfig.refetchOnWindowFocus,
-  });
+  const metricsQuery = trpc.dashboard.getMetrics.useQuery(
+    { compareRange: compareRange ?? "week" },
+    {
+      staleTime: dashboardConfig.staleTime,
+      gcTime: dashboardConfig.gcTime,
+      refetchInterval: 30_000,
+      refetchOnWindowFocus: dashboardConfig.refetchOnWindowFocus,
+    },
+  );
 
   // Trends: refetch every 30s (same cadence as metrics)
   const trendsQuery = trpc.dashboard.getTrends.useQuery(
@@ -71,6 +77,22 @@ export function useDashboardData(): UseDashboardDataReturn {
     activityQuery.isLoading ||
     recentDocsQuery.isLoading;
 
+  const isError =
+    metricsQuery.isError ||
+    trendsQuery.isError ||
+    activityQuery.isError ||
+    recentDocsQuery.isError;
+
+  const error =
+    metricsQuery.error ?? trendsQuery.error ?? activityQuery.error ?? recentDocsQuery.error ?? null;
+
+  const refetch = () => {
+    void metricsQuery.refetch();
+    void trendsQuery.refetch();
+    void activityQuery.refetch();
+    void recentDocsQuery.refetch();
+  };
+
   return {
     metrics: (metricsQuery.data as DashboardMetric[] | undefined) ?? [],
     trendData: (trendsQuery.data as TrendDataPoint[] | undefined) ?? [],
@@ -79,6 +101,9 @@ export function useDashboardData(): UseDashboardDataReturn {
     activities: (activityQuery.data as ActivityItem[] | undefined) ?? [],
     recentDocs: (recentDocsQuery.data as RecentDocument[] | undefined) ?? [],
     isLoading,
-    getDrillDown: (metricId: string) => drillDownData[metricId],
+    isError,
+    error,
+    refetch,
+    dataUpdatedAt: metricsQuery.dataUpdatedAt,
   };
 }

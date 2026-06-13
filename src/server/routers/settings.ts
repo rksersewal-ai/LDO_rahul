@@ -5,6 +5,8 @@ import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
+import type { Banner } from "@/lib/mock-data/admin";
+import { MOCK_BANNERS } from "@/lib/mock-data/admin";
 import { getEffectiveSetting } from "@/lib/settings/get-effective-setting";
 import { adminProcedure, protectedProcedure, router, supervisorProcedure } from "@/server/trpc";
 
@@ -317,4 +319,67 @@ export const settingsRouter = router({
 
       return { success: true, key: input.key };
     }),
+
+  /**
+   * Get active banners for all authenticated users.
+   * Reads from the settings table (key='banners', scope='system') and filters
+   * to only return banners where isActive=true and the current date falls within
+   * the startDate/endDate range.
+   */
+  getActiveBanners: protectedProcedure.query(async () => {
+    const BANNERS_KEY = "banners";
+    const now = new Date();
+
+    // Read banners from settings table
+    const [row] = await db
+      .select()
+      .from(settings)
+      .where(
+        and(
+          eq(settings.scope, "system"),
+          eq(settings.key, BANNERS_KEY),
+        ),
+      );
+
+    let allBanners: Banner[];
+    if (row) {
+      try {
+        allBanners = JSON.parse(row.value) as Banner[];
+      } catch {
+        allBanners = [...MOCK_BANNERS];
+      }
+    } else {
+      allBanners = [...MOCK_BANNERS];
+    }
+
+    // Filter to active banners within date range
+    const activeBanners = allBanners.filter((banner) => {
+      if (!banner.isActive) return false;
+
+      const startDate = new Date(banner.startDate);
+      if (now < startDate) return false;
+
+      if (banner.endDate) {
+        const endDate = new Date(banner.endDate);
+        if (now > endDate) return false;
+      }
+
+      return true;
+    });
+
+    // Return banners with all fields including optional targetRoles, actionLabel, actionHref
+    return activeBanners.map((banner) => ({
+      id: banner.id,
+      message: banner.message,
+      type: banner.type,
+      isActive: banner.isActive,
+      startDate: banner.startDate,
+      endDate: banner.endDate,
+      createdBy: banner.createdBy,
+      createdAt: banner.createdAt,
+      ...(banner.targetRoles ? { targetRoles: banner.targetRoles } : {}),
+      ...(banner.actionLabel ? { actionLabel: banner.actionLabel } : {}),
+      ...(banner.actionHref ? { actionHref: banner.actionHref } : {}),
+    }));
+  }),
 });

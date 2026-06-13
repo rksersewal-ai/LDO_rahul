@@ -3,6 +3,7 @@
 import { Ban, Loader2, Play, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -37,7 +38,7 @@ const statusBadge: Record<
 };
 
 export default function OcrMonitorPage() {
-  const { data: ocrData, isLoading, refetch } = trpc.admin.getOcrQueue.useQuery(
+  const { data: ocrData, isLoading, isError, error, refetch } = trpc.admin.getOcrQueue.useQuery(
     undefined,
     { staleTime: 15_000, refetchInterval: 30_000 },
   );
@@ -128,6 +129,11 @@ export default function OcrMonitorPage() {
             {filtered.length} jobs
           </Badge>
         </div>
+
+        {/* Error State */}
+        {isError && !isLoading && (
+          <QueryErrorState error={error} retry={() => refetch()} />
+        )}
 
         {/* Jobs Table */}
         <div className="rounded-lg border">

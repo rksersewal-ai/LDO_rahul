@@ -69,7 +69,7 @@ export function MetricCard({
       {/* Metric Value */}
       <div className="mt-2 flex items-baseline gap-2">
         {icon && <span className="text-primary">{icon}</span>}
-        <span className="text-[var(--text-3xl)] font-bold tracking-tight text-foreground">
+        <span className="text-[var(--text-3xl)] font-bold tracking-tight text-foreground tabular-nums">
           {value}
         </span>
       </div>

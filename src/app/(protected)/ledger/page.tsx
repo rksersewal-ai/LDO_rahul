@@ -15,6 +15,7 @@ import { PageFrame } from "@/components/layout/page-frame";
 import { WorkRecordDetail } from "@/components/ledger/work-record-detail";
 import { WorkRecordForm } from "@/components/ledger/work-record-form";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,7 +71,7 @@ export default function WorkLedgerPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data: workData, isLoading, refetch, isRefetching } = trpc.work.list.useQuery(
+  const { data: workData, isLoading, isError, error, refetch, isRefetching } = trpc.work.list.useQuery(
     {
       search: search || undefined,
       status: statusFilter !== "all" ? statusFilter as "OPEN" | "CLOSED" | "SUBMITTED" | "VERIFIED" : undefined,
@@ -291,6 +292,11 @@ export default function WorkLedgerPage() {
             {isLoading ? "Loading..." : `Showing ${filteredRecords.length} of ${totalRecords} records`}
           </p>
         </div>
+
+        {/* Error State */}
+        {isError && !isLoading && (
+          <QueryErrorState error={error} retry={() => refetch()} />
+        )}
 
         {/* Data Table */}
         <div className="rounded-lg border bg-card overflow-x-auto">

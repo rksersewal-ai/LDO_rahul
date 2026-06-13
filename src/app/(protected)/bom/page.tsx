@@ -9,6 +9,7 @@ import { BomRecentlyModified } from "@/components/bom/bom-recently-modified";
 import { BomStatsStrip } from "@/components/bom/bom-stats-strip";
 import { PageFrame } from "@/components/layout/page-frame";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { type BomProductCategory } from "@/lib/mock-data/bom";
@@ -17,7 +18,7 @@ import { trpc } from "@/lib/trpc/client";
 export default function BomExplorerPage() {
   const [activeCategory, setActiveCategory] = useState<BomProductCategory | "all">("all");
 
-  const { data: productsData, isLoading } = trpc.bom.products.useQuery(
+  const { data: productsData, isLoading, isError, error, refetch } = trpc.bom.products.useQuery(
     undefined,
     { staleTime: 30_000 },
   );
@@ -87,6 +88,11 @@ export default function BomExplorerPage() {
           activeCategory={activeCategory}
           onCategoryChange={setActiveCategory}
         />
+
+        {/* Error State */}
+        {isError && !isLoading && (
+          <QueryErrorState error={error} retry={() => refetch()} />
+        )}
 
         {/* Product Cards Grid */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

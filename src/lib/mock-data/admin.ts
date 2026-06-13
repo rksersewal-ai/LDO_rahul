@@ -917,17 +917,20 @@ export interface Banner {
   endDate: string | null;
   createdBy: string;
   createdAt: string;
+  targetRoles?: string[];
+  actionLabel?: string;
+  actionHref?: string;
 }
 
 export const MOCK_BANNERS: Banner[] = [
   {
     id: "banner-001",
     message:
-      "Scheduled maintenance on Saturday, 21 Dec 2024, 10 PM to 2 AM IST. System will be unavailable.",
+      "Scheduled maintenance on Saturday, 10 PM to 2 AM IST. System may be unavailable.",
     type: "warning",
     isActive: true,
-    startDate: "2024-12-19T00:00:00Z",
-    endDate: "2024-12-22T00:00:00Z",
+    startDate: "2025-01-01T00:00:00Z",
+    endDate: "2030-12-31T23:59:59Z",
     createdBy: "Shri R.K. Sharma",
     createdAt: "2024-12-18T10:00:00Z",
   },
@@ -936,8 +939,8 @@ export const MOCK_BANNERS: Banner[] = [
     message: "New OCR engine deployed. Please report any accuracy issues to IT support.",
     type: "info",
     isActive: true,
-    startDate: "2024-12-15T00:00:00Z",
-    endDate: null,
+    startDate: "2025-01-01T00:00:00Z",
+    endDate: "2030-12-31T23:59:59Z",
     createdBy: "Shri T.K. Bansal",
     createdAt: "2024-12-15T09:00:00Z",
   },

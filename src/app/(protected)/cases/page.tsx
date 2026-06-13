@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { z } from "zod";
 import { CaseForm } from "@/components/cases/case-form";
 import { PageFrame } from "@/components/layout/page-frame";
+import { QueryErrorState } from "@/components/shared/query-error-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,7 +73,7 @@ export default function CasesPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: casesData, isLoading, refetch } = trpc.cases.list.useQuery(
+  const { data: casesData, isLoading, isError, error, refetch } = trpc.cases.list.useQuery(
     {
       status: statusFilter !== "all" ? statusFilter as "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "ESCALATED" : undefined,
       severity: severityFilter !== "all" ? severityFilter as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" : undefined,
@@ -211,6 +212,11 @@ export default function CasesPage() {
             {isLoading ? "Loading..." : `${filteredCases.length} of ${totalCases} cases`}
           </span>
         </div>
+
+        {/* Error State */}
+        {isError && !isLoading && (
+          <QueryErrorState error={error} retry={() => refetch()} />
+        )}
 
         {/* Table */}
         <div className="rounded-lg border">
