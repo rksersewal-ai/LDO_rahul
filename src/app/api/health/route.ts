@@ -1,5 +1,5 @@
-import { type NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
+import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -35,7 +35,7 @@ export async function GET(_request: NextRequest) {
   }
 
   // Check NAS Storage (optional)
-  if (process.env.NAS_STORAGE_PATH) {
+  if (process.env.STORAGE_NAS_PATH) {
     const nasCheck = await checkNasStorage();
     services.push(nasCheck);
     if (nasCheck.status === "unhealthy" && overallStatus !== "unhealthy") {
@@ -118,7 +118,7 @@ async function checkNasStorage(): Promise<ServiceCheck> {
     const fs = await import("node:fs/promises");
     // Use F_OK (existence) | W_OK (write) to verify the path is writable, not just present.
     const { constants } = await import("node:fs");
-    await fs.access(process.env.NAS_STORAGE_PATH!, constants.F_OK | constants.W_OK);
+    await fs.access(process.env.STORAGE_NAS_PATH!, constants.F_OK | constants.W_OK);
     const latencyMs = Math.round(performance.now() - start);
     return { name: "nas_storage", status: "healthy", latencyMs };
   } catch {
