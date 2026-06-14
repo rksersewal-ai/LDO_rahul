@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { and, asc, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { getStorageStatsByCategory, getSystemHealth } from "@/lib/admin/metrics";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { verifyAuditChain } from "@/lib/audit/verify-chain";
 import type { Permission } from "@/lib/auth/permissions";
+import { getCached, invalidateCache } from "@/lib/cache/query-cache";
 import { db } from "@/lib/db";
 import {
   auditLog,
@@ -16,13 +18,8 @@ import {
   userWorkspaces,
   workspaces,
 } from "@/lib/db/schema";
-import {
-  type Banner,
-  MOCK_BANNERS,
-  MOCK_STORAGE_STATS,
-  MOCK_SYSTEM_HEALTH,
-  MOCK_SYSTEM_METRICS,
-} from "@/lib/mock-data/admin";
+import { mergeDuplicateDetection } from "@/lib/dedup/merge";
+import { type Banner, MOCK_BANNERS } from "@/lib/mock-data/admin";
 import {
   type ComplianceSettings,
   type FeatureToggle,
@@ -38,32 +35,38 @@ import {
 import type { UserRole } from "@/lib/types/auth";
 import { adminProcedure, router } from "@/server/trpc";
 
-// In-memory mutable stores (non-DB-backed features only)
-const rolePermissions: RolePermissionMatrix = { ...MOCK_ROLE_PERMISSIONS };
-let systemConfiguration: SystemConfiguration = { ...MOCK_SYSTEM_CONFIGURATION };
-let complianceSettings: ComplianceSettings = { ...MOCK_COMPLIANCE_SETTINGS };
-
-// --- DB-backed helpers for banners, feature toggles, security policies ---
+// --- DB-backed settings keys (scope="system") ---
+// All admin-configurable settings are persisted in the `settings` table so they
+// survive restarts and stay consistent across replicas. There are intentionally
+// NO module-level mutable stores: those silently reset on redeploy and diverge
+// per-process in a clustered deployment.
 const BANNERS_KEY = "banners";
 const FEATURE_TOGGLES_KEY = "feature_toggles";
 const SECURITY_POLICIES_KEY = "security_policies";
+const ROLE_PERMISSIONS_KEY = "role_permissions";
+const SYSTEM_CONFIG_KEY = "system_configuration";
+const COMPLIANCE_SETTINGS_KEY = "compliance_settings";
+
+// Admin settings are read on most admin page loads but change rarely, so they
+// are cached (L1 + Redis via query-cache) and explicitly invalidated on write.
+// The TTL is also a safety net that self-heals any write path that forgets to
+// invalidate.
+const SETTINGS_CACHE_TTL_MS = 30_000;
+const settingsCacheKey = (key: string) => `admin_setting_${key}`;
 
 async function getSettingValue<T>(key: string, fallback: T): Promise<T> {
-  const [row] = await db
-    .select()
-    .from(settingsTable)
-    .where(
-      and(
-        eq(settingsTable.scope, "system"),
-        eq(settingsTable.key, key),
-      ),
-    );
-  if (!row) return fallback;
-  try {
-    return JSON.parse(row.value) as T;
-  } catch {
-    return fallback;
-  }
+  return getCached(settingsCacheKey(key), SETTINGS_CACHE_TTL_MS, async () => {
+    const [row] = await db
+      .select()
+      .from(settingsTable)
+      .where(and(eq(settingsTable.scope, "system"), eq(settingsTable.key, key)));
+    if (!row) return fallback;
+    try {
+      return JSON.parse(row.value) as T;
+    } catch {
+      return fallback;
+    }
+  });
 }
 
 async function upsertSettingValue(key: string, value: unknown, updatedBy: string): Promise<void> {
@@ -71,12 +74,7 @@ async function upsertSettingValue(key: string, value: unknown, updatedBy: string
   const [existing] = await db
     .select({ id: settingsTable.id })
     .from(settingsTable)
-    .where(
-      and(
-        eq(settingsTable.scope, "system"),
-        eq(settingsTable.key, key),
-      ),
-    );
+    .where(and(eq(settingsTable.scope, "system"), eq(settingsTable.key, key)));
 
   if (existing) {
     await db
@@ -100,15 +98,41 @@ async function upsertSettingValue(key: string, value: unknown, updatedBy: string
       updatedAt: new Date(),
     });
   }
+
+  // Invalidate the cached value so the next read reflects this write immediately.
+  invalidateCache(settingsCacheKey(key));
+}
+
+/**
+ * Verify the tamper-evident audit hash chain from GENESIS.
+ *
+ * The chain is anchored at the first entry, so verification must start from the
+ * oldest record. We bound the scan to `limit` entries (oldest-first) to keep the
+ * cost predictable on a large log; the returned result reflects the verified
+ * window. This is the single source of truth used by both `getAuditLog`
+ * (integrity flag on the list view) and the dedicated `verifyAuditChain` query.
+ */
+async function computeAuditChainValidity(limit = 1000) {
+  const entries = await db
+    .select({
+      id: auditLog.id,
+      action: auditLog.action,
+      userId: auditLog.userId,
+      hashChain: auditLog.hashChain,
+      previousHash: auditLog.previousHash,
+      createdAt: auditLog.createdAt,
+    })
+    .from(auditLog)
+    .orderBy(asc(auditLog.createdAt))
+    .limit(limit);
+
+  return verifyAuditChain(entries);
 }
 
 export const adminRouter = router({
-  // --- System Health ---
-  getHealth: adminProcedure.query(() => {
-    return {
-      services: MOCK_SYSTEM_HEALTH,
-      metrics: MOCK_SYSTEM_METRICS,
-    };
+  // --- System Health (real probes + metrics) ---
+  getHealth: adminProcedure.query(async () => {
+    return getSystemHealth();
   }),
 
   // --- User Management (Real DB) ---
@@ -563,13 +587,9 @@ export const adminRouter = router({
       return updated;
     }),
 
-  // --- Storage (still mock) ---
-  getStorageStats: adminProcedure.query(() => {
-    return {
-      categories: MOCK_STORAGE_STATS,
-      totalUsedGB: MOCK_SYSTEM_METRICS.storageUsedGB,
-      totalCapacityGB: MOCK_SYSTEM_METRICS.storageTotalGB,
-    };
+  // --- Storage (real, computed from document sizes by category) ---
+  getStorageStats: adminProcedure.query(async () => {
+    return getStorageStatsByCategory();
   }),
 
   // --- Deduplication (real DB) ---
@@ -601,17 +621,9 @@ export const adminRouter = router({
         docBCategory: sql<string>`db."category"`.as("doc_b_category"),
       })
       .from(duplicateDetections)
-      .innerJoin(
-        sql`"documents" as "da"`,
-        sql`"da"."id" = ${duplicateDetections.documentAId}`,
-      )
-      .innerJoin(
-        sql`"documents" as "db"`,
-        sql`"db"."id" = ${duplicateDetections.documentBId}`,
-      )
-      .where(
-        sql`${duplicateDetections.status} IN ('pending', 'merged')`,
-      )
+      .innerJoin(sql`"documents" as "da"`, sql`"da"."id" = ${duplicateDetections.documentAId}`)
+      .innerJoin(sql`"documents" as "db"`, sql`"db"."id" = ${duplicateDetections.documentBId}`)
+      .where(sql`${duplicateDetections.status} IN ('pending', 'merged')`)
       .orderBy(desc(duplicateDetections.score))
       .limit(100);
 
@@ -621,16 +633,32 @@ export const adminRouter = router({
   mergeDuplicates: adminProcedure
     .input(
       z.object({
+        // `groupId` is the duplicate_detection id for the pair being merged.
         groupId: z.string(),
         keepDocumentId: z.string(),
+        note: z.string().optional(),
       }),
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
+
+      const result = await mergeDuplicateDetection({
+        detectionId: input.groupId,
+        keepDocumentId: input.keepDocumentId,
+        note: input.note,
+        userId,
+        userName,
+        reason: "admin.mergeDuplicates",
+      });
+
       return {
         success: true,
         groupId: input.groupId,
-        keptDocumentId: input.keepDocumentId,
-        message: "Duplicates merged successfully. Other copies linked to primary.",
+        keptDocumentId: result.keptDocumentId,
+        archivedDocumentId: result.archivedDocumentId,
+        message:
+          "Duplicates merged. Non-primary copy soft-deleted; PL links redirected to primary.",
       };
     }),
 
@@ -692,26 +720,23 @@ export const adminRouter = router({
 
       const total = totalResult[0]?.total ?? 0;
 
-      return { items, total, offset, limit, hashChainValid: true };
+      // Real tamper-evident integrity signal (no longer hardcoded). Verifies the
+      // hash chain from genesis over a bounded window.
+      const chainResult = await computeAuditChainValidity();
+
+      return {
+        items,
+        total,
+        offset,
+        limit,
+        hashChainValid: chainResult.valid,
+        hashChainDetails: chainResult.details,
+      };
     }),
 
   // --- Audit Chain Verification ---
   verifyAuditChain: adminProcedure.query(async () => {
-    // Fetch the last 1000 audit entries ordered by createdAt ASC for chain verification
-    const entries = await db
-      .select({
-        id: auditLog.id,
-        action: auditLog.action,
-        userId: auditLog.userId,
-        hashChain: auditLog.hashChain,
-        previousHash: auditLog.previousHash,
-        createdAt: auditLog.createdAt,
-      })
-      .from(auditLog)
-      .orderBy(asc(auditLog.createdAt))
-      .limit(1000);
-
-    return verifyAuditChain(entries);
+    return computeAuditChainValidity();
   }),
 
   // --- Settings (Real DB) ---
@@ -778,6 +803,8 @@ export const adminRouter = router({
         newValue: input.value,
       });
 
+      // Keep the settings cache consistent for this key.
+      invalidateCache(settingsCacheKey(input.key));
       return result;
     }),
 
@@ -1016,12 +1043,7 @@ export const adminRouter = router({
         const [locked] = await tx
           .select()
           .from(settingsTable)
-          .where(
-            and(
-              eq(settingsTable.scope, "system"),
-              eq(settingsTable.key, BANNERS_KEY),
-            ),
-          )
+          .where(and(eq(settingsTable.scope, "system"), eq(settingsTable.key, BANNERS_KEY)))
           .for("update");
 
         let banners: Banner[];
@@ -1066,51 +1088,50 @@ export const adminRouter = router({
         return banner;
       });
 
+      invalidateCache(settingsCacheKey(BANNERS_KEY));
       return newBanner;
     }),
 
-  deleteBanner: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
-    const userId = ctx.session.user?.id ?? "system";
+  deleteBanner: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
 
-    const removed = await db.transaction(async (tx) => {
-      // Lock the settings row to prevent concurrent read-modify-write races
-      const [locked] = await tx
-        .select()
-        .from(settingsTable)
-        .where(
-          and(
-            eq(settingsTable.scope, "system"),
-            eq(settingsTable.key, BANNERS_KEY),
-          ),
-        )
-        .for("update");
+      const removed = await db.transaction(async (tx) => {
+        // Lock the settings row to prevent concurrent read-modify-write races
+        const [locked] = await tx
+          .select()
+          .from(settingsTable)
+          .where(and(eq(settingsTable.scope, "system"), eq(settingsTable.key, BANNERS_KEY)))
+          .for("update");
 
-      let banners: Banner[];
-      if (locked) {
-        try {
-          banners = JSON.parse(locked.value) as Banner[];
-        } catch {
-          banners = [...MOCK_BANNERS];
+        let banners: Banner[];
+        if (locked) {
+          try {
+            banners = JSON.parse(locked.value) as Banner[];
+          } catch {
+            banners = [...MOCK_BANNERS];
+          }
+        } else {
+          return null;
         }
-      } else {
-        return null;
-      }
 
-      const idx = banners.findIndex((b) => b.id === input.id);
-      if (idx === -1) return null;
-      const [removedBanner] = banners.splice(idx, 1);
+        const idx = banners.findIndex((b) => b.id === input.id);
+        if (idx === -1) return null;
+        const [removedBanner] = banners.splice(idx, 1);
 
-      const jsonValue = JSON.stringify(banners);
-      await tx
-        .update(settingsTable)
-        .set({ value: jsonValue, updatedBy: userId, updatedAt: new Date() })
-        .where(eq(settingsTable.id, locked.id));
+        const jsonValue = JSON.stringify(banners);
+        await tx
+          .update(settingsTable)
+          .set({ value: jsonValue, updatedBy: userId, updatedAt: new Date() })
+          .where(eq(settingsTable.id, locked.id));
 
-      return removedBanner;
-    });
+        return removedBanner;
+      });
 
-    return removed;
-  }),
+      invalidateCache(settingsCacheKey(BANNERS_KEY));
+      return removed;
+    }),
 
   // --- Feature Toggles (DB-backed via settings table) ---
   getFeatureToggles: adminProcedure.query(async () => {
@@ -1127,7 +1148,10 @@ export const adminRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const featureToggles = await getSettingValue<FeatureToggle[]>(FEATURE_TOGGLES_KEY, MOCK_FEATURE_TOGGLES);
+      const featureToggles = await getSettingValue<FeatureToggle[]>(
+        FEATURE_TOGGLES_KEY,
+        MOCK_FEATURE_TOGGLES,
+      );
       const idx = featureToggles.findIndex((f) => f.id === input.id);
       if (idx === -1) return null;
       featureToggles[idx].enabled = input.enabled;
@@ -1179,7 +1203,10 @@ export const adminRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
-      let securityPolicies = await getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES);
+      let securityPolicies = await getSettingValue<SecurityPolicies>(
+        SECURITY_POLICIES_KEY,
+        MOCK_SECURITY_POLICIES,
+      );
 
       if (input.password) {
         securityPolicies = {
@@ -1210,9 +1237,9 @@ export const adminRouter = router({
       return securityPolicies;
     }),
 
-  // --- Role Permissions (in-memory) ---
-  getRolePermissions: adminProcedure.query(() => {
-    return rolePermissions;
+  // --- Role Permissions (DB-backed via settings table) ---
+  getRolePermissions: adminProcedure.query(async () => {
+    return await getSettingValue<RolePermissionMatrix>(ROLE_PERMISSIONS_KEY, MOCK_ROLE_PERMISSIONS);
   }),
 
   updateRolePermission: adminProcedure
@@ -1223,23 +1250,46 @@ export const adminRouter = router({
         granted: z.boolean(),
       }),
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
       const role = input.role as UserRole;
       const permission = input.permission as Permission;
+
+      const rolePermissions = await getSettingValue<RolePermissionMatrix>(
+        ROLE_PERMISSIONS_KEY,
+        MOCK_ROLE_PERMISSIONS,
+      );
+
+      // The admin role's permission set is immutable (full access) by design.
       if (role === "admin") return rolePermissions;
+
+      const current = rolePermissions[role] ?? [];
       if (input.granted) {
-        if (!rolePermissions[role].includes(permission)) {
-          rolePermissions[role].push(permission);
+        if (!current.includes(permission)) {
+          rolePermissions[role] = [...current, permission];
         }
       } else {
-        rolePermissions[role] = rolePermissions[role].filter((p) => p !== permission);
+        rolePermissions[role] = current.filter((p) => p !== permission);
       }
+
+      await upsertSettingValue(ROLE_PERMISSIONS_KEY, rolePermissions, userId);
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "ROLE_PERMISSION_CHANGE",
+        resourceType: "role_permissions",
+        resourceId: role,
+        details: `${input.granted ? "Granted" : "Revoked"} permission "${permission}" ${input.granted ? "to" : "from"} role "${role}"`,
+      });
+
       return rolePermissions;
     }),
 
-  // --- System Configuration (in-memory) ---
-  getSystemConfiguration: adminProcedure.query(() => {
-    return systemConfiguration;
+  // --- System Configuration (DB-backed via settings table) ---
+  getSystemConfiguration: adminProcedure.query(async () => {
+    return await getSettingValue<SystemConfiguration>(SYSTEM_CONFIG_KEY, MOCK_SYSTEM_CONFIGURATION);
   }),
 
   updateSystemConfiguration: adminProcedure
@@ -1284,7 +1334,14 @@ export const adminRouter = router({
           .optional(),
       }),
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
+      let systemConfiguration = await getSettingValue<SystemConfiguration>(
+        SYSTEM_CONFIG_KEY,
+        MOCK_SYSTEM_CONFIGURATION,
+      );
+
       if (input.upload) {
         systemConfiguration = {
           ...systemConfiguration,
@@ -1317,12 +1374,27 @@ export const adminRouter = router({
           storage: { ...systemConfiguration.storage, ...input.storage },
         };
       }
+
+      await upsertSettingValue(SYSTEM_CONFIG_KEY, systemConfiguration, userId);
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "SETTINGS_CHANGE",
+        resourceType: "system_configuration",
+        resourceId: SYSTEM_CONFIG_KEY,
+        details: `Updated system configuration sections: ${Object.keys(input).join(", ")}`,
+      });
+
       return systemConfiguration;
     }),
 
-  // --- Compliance Settings (in-memory) ---
-  getComplianceSettings: adminProcedure.query(() => {
-    return complianceSettings;
+  // --- Compliance Settings (DB-backed via settings table) ---
+  getComplianceSettings: adminProcedure.query(async () => {
+    return await getSettingValue<ComplianceSettings>(
+      COMPLIANCE_SETTINGS_KEY,
+      MOCK_COMPLIANCE_SETTINGS,
+    );
   }),
 
   updateComplianceSettings: adminProcedure
@@ -1355,7 +1427,14 @@ export const adminRouter = router({
           .optional(),
       }),
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
+      const userName = ctx.session.user?.name ?? "System";
+      let complianceSettings = await getSettingValue<ComplianceSettings>(
+        COMPLIANCE_SETTINGS_KEY,
+        MOCK_COMPLIANCE_SETTINGS,
+      );
+
       if (input.auditRetention) {
         complianceSettings = {
           ...complianceSettings,
@@ -1374,14 +1453,36 @@ export const adminRouter = router({
           versionControl: { ...complianceSettings.versionControl, ...input.versionControl },
         };
       }
+
+      await upsertSettingValue(COMPLIANCE_SETTINGS_KEY, complianceSettings, userId);
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "SETTINGS_CHANGE",
+        resourceType: "compliance_settings",
+        resourceId: COMPLIANCE_SETTINGS_KEY,
+        details: `Updated compliance settings sections: ${Object.keys(input).join(", ")}`,
+      });
+
       return complianceSettings;
     }),
 
   // --- Export/Import ---
   exportSettings: adminProcedure.query(async () => {
-    const [featureToggles, securityPolicies, legacySettings] = await Promise.all([
+    const [
+      featureToggles,
+      securityPolicies,
+      rolePermissions,
+      systemConfiguration,
+      complianceSettings,
+      legacySettings,
+    ] = await Promise.all([
       getSettingValue<FeatureToggle[]>(FEATURE_TOGGLES_KEY, MOCK_FEATURE_TOGGLES),
       getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES),
+      getSettingValue<RolePermissionMatrix>(ROLE_PERMISSIONS_KEY, MOCK_ROLE_PERMISSIONS),
+      getSettingValue<SystemConfiguration>(SYSTEM_CONFIG_KEY, MOCK_SYSTEM_CONFIGURATION),
+      getSettingValue<ComplianceSettings>(COMPLIANCE_SETTINGS_KEY, MOCK_COMPLIANCE_SETTINGS),
       db.select().from(settingsTable),
     ]);
     return {
@@ -1448,7 +1549,10 @@ export const adminRouter = router({
               importedAt: new Date().toISOString(),
             };
           }
-          const featureToggles = await getSettingValue<FeatureToggle[]>(FEATURE_TOGGLES_KEY, MOCK_FEATURE_TOGGLES);
+          const featureToggles = await getSettingValue<FeatureToggle[]>(
+            FEATURE_TOGGLES_KEY,
+            MOCK_FEATURE_TOGGLES,
+          );
           for (const ft of validated.data) {
             const idx = featureToggles.findIndex((f) => f.id === ft.id);
             if (idx !== -1) {
@@ -1467,7 +1571,10 @@ export const adminRouter = router({
               importedAt: new Date().toISOString(),
             };
           }
-          const currentPolicies = await getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES);
+          const currentPolicies = await getSettingValue<SecurityPolicies>(
+            SECURITY_POLICIES_KEY,
+            MOCK_SECURITY_POLICIES,
+          );
           const updatedPolicies = {
             ...currentPolicies,
             ...validated.data,
@@ -1484,10 +1591,12 @@ export const adminRouter = router({
               importedAt: new Date().toISOString(),
             };
           }
-          complianceSettings = {
-            ...complianceSettings,
-            ...parsed.complianceSettings,
-          } as ComplianceSettings;
+          const current = await getSettingValue<ComplianceSettings>(
+            COMPLIANCE_SETTINGS_KEY,
+            MOCK_COMPLIANCE_SETTINGS,
+          );
+          const updated = { ...current, ...parsed.complianceSettings } as ComplianceSettings;
+          await upsertSettingValue(COMPLIANCE_SETTINGS_KEY, updated, userId);
           changes.push("Updated compliance settings");
         }
         if (parsed.systemConfiguration) {
@@ -1499,11 +1608,22 @@ export const adminRouter = router({
               importedAt: new Date().toISOString(),
             };
           }
-          systemConfiguration = {
-            ...systemConfiguration,
-            ...parsed.systemConfiguration,
-          } as SystemConfiguration;
+          const current = await getSettingValue<SystemConfiguration>(
+            SYSTEM_CONFIG_KEY,
+            MOCK_SYSTEM_CONFIGURATION,
+          );
+          const updated = { ...current, ...parsed.systemConfiguration } as SystemConfiguration;
+          await upsertSettingValue(SYSTEM_CONFIG_KEY, updated, userId);
           changes.push("Updated system configuration");
+        }
+        if (parsed.rolePermissions) {
+          const current = await getSettingValue<RolePermissionMatrix>(
+            ROLE_PERMISSIONS_KEY,
+            MOCK_ROLE_PERMISSIONS,
+          );
+          const updated = { ...current, ...parsed.rolePermissions } as RolePermissionMatrix;
+          await upsertSettingValue(ROLE_PERMISSIONS_KEY, updated, userId);
+          changes.push("Updated role permissions");
         }
 
         return { success: true, changes, importedAt: new Date().toISOString() };

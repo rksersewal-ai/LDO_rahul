@@ -8,10 +8,29 @@ import { checkRateLimit } from "@/server/middleware/rate-limit";
 export async function createContext(req?: Request) {
   const session = await auth();
   if (req) {
+    // CSRF defense: reject any cross-origin browser request. We validate the
+    // Origin against the request's own Host (so it works on any LAN host/IP
+    // without depending on NEXTAUTH_URL) plus any explicitly configured origin.
+    // Requests without an Origin header (e.g. server-to-server, some GETs) are
+    // allowed through and still gated by session auth in the procedures.
     const origin = req.headers.get("origin");
-    const allowedOrigin = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL;
-    if (origin && allowedOrigin && origin !== allowedOrigin) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Invalid origin" });
+    if (origin) {
+      const normalizedOrigin = origin.replace(/\/$/, "");
+      const allowed = new Set<string>();
+
+      const host = req.headers.get("host");
+      if (host) {
+        allowed.add(`https://${host}`);
+        allowed.add(`http://${host}`);
+      }
+      const configured = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL;
+      if (configured) {
+        allowed.add(configured.replace(/\/$/, ""));
+      }
+
+      if (!allowed.has(normalizedOrigin)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid origin" });
+      }
     }
   }
   return { session };
@@ -88,7 +107,7 @@ const enforcePasswordChange = t.middleware(async ({ ctx, next, path }) => {
  * Rate limit middleware (per-user, 100 requests per 60-second sliding window).
  */
 const rateLimit = t.middleware(async ({ ctx, next }) => {
-  checkRateLimit(ctx.session?.user?.id);
+  await checkRateLimit(ctx.session?.user?.id);
   return next({ ctx });
 });
 
