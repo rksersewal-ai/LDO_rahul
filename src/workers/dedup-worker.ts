@@ -93,6 +93,16 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
   let totalPairsScored = 0;
   let detectionsFound = 0;
 
+  // Yield to the event loop periodically so a long synchronous O(n²) scan never
+  // blocks the worker's BullMQ heartbeat (which would cause stalled-job churn
+  // and Redis disconnects). Tunable; defaults are safe for a LAN deployment.
+  const YIELD_EVERY = Number(process.env.DEDUP_YIELD_EVERY ?? "5000");
+  // Hard ceiling on documents compared pairwise in a single scan. Above this,
+  // the naive O(n²) algorithm is infeasible (e.g. 50k docs ≈ 1.25B pairs), so
+  // we fail fast with a clear message instead of melting CPU / running OOM.
+  const MAX_DEDUP_DOCS = Number(process.env.DEDUP_MAX_DOCS ?? "20000");
+  let comparisonsSinceYield = 0;
+
   try {
     // Fetch all non-deleted documents in workspace
     const allDocs = await db
@@ -109,6 +119,21 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
       })
       .from(documents)
       .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0)));
+
+    // Safety valve: refuse to run an O(n²) scan over an unsafe number of docs.
+    if (allDocs.length > MAX_DEDUP_DOCS) {
+      await db
+        .update(dedupScanHistory)
+        .set({
+          status: "failed",
+          completedAt: new Date(),
+          pairsScored: 0,
+          detectionsFound: 0,
+          errorMessage: `Workspace has ${allDocs.length} documents, exceeding the safe pairwise-scan limit of ${MAX_DEDUP_DOCS}. Increase DEDUP_MAX_DOCS only if the host has the CPU/memory headroom, or use targeted dedup.`,
+        })
+        .where(eq(dedupScanHistory.id, scanId));
+      return;
+    }
 
     // Fetch PL links for all documents
     const docIds = allDocs.map((d) => d.id);
@@ -219,6 +244,14 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
         }
 
         totalPairsScored++;
+        comparisonsSinceYield++;
+
+        // Periodically hand control back to the event loop so the worker stays
+        // responsive (heartbeats, cancellation checks) during huge scans.
+        if (comparisonsSinceYield >= YIELD_EVERY) {
+          comparisonsSinceYield = 0;
+          await new Promise((resolve) => setImmediate(resolve));
+        }
 
         if (score >= DEDUP_THRESHOLD) {
           // Ensure documentAId < documentBId for uniqueness

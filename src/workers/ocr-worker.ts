@@ -1,3 +1,4 @@
+import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -202,7 +203,13 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
  * tune throughput vs. resource use without code changes.
  */
 export function createOcrWorker(): Worker<OcrJobPayload> {
-  const concurrency = Number(process.env.OCR_WORKER_CONCURRENCY ?? "2");
+  // OCR (tesseract + sharp) is CPU-bound. Clamp concurrency to the available
+  // cores, reserving one for the rest of the system, so OCR can never fully
+  // saturate the host. The env value is an upper bound, not an override.
+  const cpuCount = os.cpus().length || 1;
+  const maxByCpu = Math.max(1, cpuCount - 1);
+  const requested = Number(process.env.OCR_WORKER_CONCURRENCY ?? "2");
+  const concurrency = Math.max(1, Math.min(requested, maxByCpu));
   // OCR can be slow on large multi-page scans; default 5 min ceiling per job.
   const jobTimeoutMs = Number(process.env.OCR_JOB_TIMEOUT_MS ?? `${5 * 60 * 1000}`);
 
