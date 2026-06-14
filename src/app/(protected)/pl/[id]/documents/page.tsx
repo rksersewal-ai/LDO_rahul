@@ -3,6 +3,7 @@
 import { ArrowLeft, Link2, Plus } from "lucide-react";
 import Link from "next/link";
 import { use, useState } from "react";
+import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,12 @@ export default function PlDocumentsPage({ params }: { params: Promise<{ id: stri
           title="Linked Documents"
           subtitle={pl ? `Documents linked to ${pl.plNumber} - ${pl.name}` : "Loading..."}
           actions={
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => toast.info("Link Document dialog coming soon. Use the Documents Hub to upload and link documents to this PL.")}
+            >
               <Plus className="h-3 w-3" />
               Link Document
             </Button>

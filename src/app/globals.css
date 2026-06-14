@@ -233,6 +233,7 @@
     @apply bg-background text-foreground;
     font-size: var(--text-base);
     line-height: 1.5;
+    font-variant-numeric: tabular-nums;
   }
   html {
     @apply font-sans;

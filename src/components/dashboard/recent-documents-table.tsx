@@ -8,15 +8,23 @@ import {
   ChevronsRight,
   Columns3,
   Download,
+  Eye,
   Filter,
   MoreHorizontal,
   RefreshCw,
   Search,
 } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
 import type { RecentDocument } from "@/lib/mock-data/dashboard";
 import { cn } from "@/lib/utils";
@@ -126,10 +134,26 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
       id: "actions",
       header: "",
       size: 40,
-      cell: () => (
-        <Button variant="ghost" size="icon-xs">
-          <MoreHorizontal className="h-3.5 w-3.5" />
-        </Button>
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={(e) => e.stopPropagation()}
+              />
+            }
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-36">
+            <DropdownMenuItem render={<Link href={`/documents/${row.original.id}`} />}>
+              <Eye className="h-3 w-3" />
+              <span className="text-xs">View</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];
@@ -209,7 +233,7 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
 
         <div className="flex items-center gap-2">
           {/* Refresh */}
-          <Button variant="outline" size="icon-sm">
+          <Button variant="outline" size="icon-sm" onClick={() => window.location.reload()}>
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
 
