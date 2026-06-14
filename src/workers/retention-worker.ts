@@ -10,6 +10,7 @@ import {
   userWorkspaces,
 } from "@/lib/db/schema";
 import { logError, logInfo } from "@/lib/logging/structured-logger";
+import { getRedisConnectionOptions } from "./redis-connection";
 import type { RetentionScanPayload } from "./retention-queue";
 
 /** Roles that should be notified when records reach their retention expiry. */
@@ -135,15 +136,13 @@ export async function processRetentionJob(job: Job<RetentionScanPayload>): Promi
  * Create and return a BullMQ Worker for the 'retention-scan' queue.
  */
 export function createRetentionWorker(): Worker<RetentionScanPayload> {
-  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-
   const worker = new Worker<RetentionScanPayload>("retention-scan", processRetentionJob, {
-    connection: {
-      host: new URL(redisUrl).hostname,
-      port: Number(new URL(redisUrl).port) || 6379,
-      maxRetriesPerRequest: null,
-    },
+    connection: getRedisConnectionOptions(),
     concurrency: 1,
+  });
+
+  worker.on("error", (err) => {
+    logError("[retention] Worker error", {}, err);
   });
 
   worker.on("failed", (job, err) => {

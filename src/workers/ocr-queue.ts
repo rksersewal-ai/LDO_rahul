@@ -1,4 +1,6 @@
 import { Queue } from "bullmq";
+import { logError } from "@/lib/logging/structured-logger";
+import { getRedisConnectionOptions } from "./redis-connection";
 
 export interface OcrJobPayload {
   jobId: string;
@@ -8,8 +10,6 @@ export interface OcrJobPayload {
   mimeType: string;
 }
 
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-
 let ocrQueue: Queue | null = null;
 
 /**
@@ -18,11 +18,12 @@ let ocrQueue: Queue | null = null;
 export function getOcrQueue(): Queue {
   if (!ocrQueue) {
     ocrQueue = new Queue("ocr-pipeline", {
-      connection: {
-        host: new URL(redisUrl).hostname,
-        port: Number(new URL(redisUrl).port) || 6379,
-        maxRetriesPerRequest: null,
-      },
+      connection: getRedisConnectionOptions(),
+    });
+    // Prevent an unhandled 'error' event (e.g. transient Redis outage) from
+    // crashing the host process.
+    ocrQueue.on("error", (err) => {
+      logError("[ocr-queue] Redis connection error", {}, err);
     });
   }
   return ocrQueue;

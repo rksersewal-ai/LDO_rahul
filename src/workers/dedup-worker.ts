@@ -5,8 +5,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { dedupScanHistory, documentPlLinks, documents, duplicateDetections } from "@/lib/db/schema";
 import { DEDUP_THRESHOLD, type DocInput, scoreDocumentPair } from "@/lib/dedup/scorer";
+import { logError } from "@/lib/logging/structured-logger";
 import type { DedupJobPayload } from "./dedup-queue";
 import { withJobTimeout } from "./job-timeout";
+import { getRedisConnectionOptions } from "./redis-connection";
 
 /**
  * Compute a basic (fast) dedup score using only hash, doc number, and metadata signals.
@@ -305,7 +307,6 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
  * O(n²) over a workspace and can run long, so the default ceiling is generous.
  */
 export function createDedupWorker(): Worker<DedupJobPayload> {
-  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
   const concurrency = Number(process.env.DEDUP_WORKER_CONCURRENCY ?? "1");
   const jobTimeoutMs = Number(process.env.DEDUP_JOB_TIMEOUT_MS ?? `${30 * 60 * 1000}`);
 
@@ -313,14 +314,14 @@ export function createDedupWorker(): Worker<DedupJobPayload> {
     "dedup-scan",
     (job) => withJobTimeout(processDedupJob(job), jobTimeoutMs, `Dedup scan job ${job.id}`),
     {
-      connection: {
-        host: new URL(redisUrl).hostname,
-        port: Number(new URL(redisUrl).port) || 6379,
-        maxRetriesPerRequest: null,
-      },
+      connection: getRedisConnectionOptions(),
       concurrency,
     },
   );
+
+  worker.on("error", (err) => {
+    logError("[dedup-worker] Worker error", {}, err);
+  });
 
   return worker;
 }

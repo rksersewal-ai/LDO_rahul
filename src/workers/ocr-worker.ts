@@ -7,11 +7,13 @@ import sharp from "sharp";
 
 import { db } from "@/lib/db";
 import { documents, notifications, ocrJobs, ocrPlCandidates } from "@/lib/db/schema";
+import { logError } from "@/lib/logging/structured-logger";
 import { recognizeImage } from "@/lib/ocr/tesseract-engine";
 import { extractPlCandidates, isValidModulo11 } from "@/lib/pl/validation";
 import * as nasStorage from "@/lib/storage/nas-storage";
 import { withJobTimeout } from "./job-timeout";
 import type { OcrJobPayload } from "./ocr-queue";
+import { getRedisConnectionOptions } from "./redis-connection";
 
 /**
  * Process a single OCR job: extract text, identify PL candidates,
@@ -200,7 +202,6 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
  * tune throughput vs. resource use without code changes.
  */
 export function createOcrWorker(): Worker<OcrJobPayload> {
-  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
   const concurrency = Number(process.env.OCR_WORKER_CONCURRENCY ?? "2");
   // OCR can be slow on large multi-page scans; default 5 min ceiling per job.
   const jobTimeoutMs = Number(process.env.OCR_JOB_TIMEOUT_MS ?? `${5 * 60 * 1000}`);
@@ -209,14 +210,15 @@ export function createOcrWorker(): Worker<OcrJobPayload> {
     "ocr-pipeline",
     (job) => withJobTimeout(processOcrJob(job), jobTimeoutMs, `OCR job ${job.id}`),
     {
-      connection: {
-        host: new URL(redisUrl).hostname,
-        port: Number(new URL(redisUrl).port) || 6379,
-        maxRetriesPerRequest: null,
-      },
+      connection: getRedisConnectionOptions(),
       concurrency,
     },
   );
+
+  // Without an 'error' listener a transient Redis outage crashes the process.
+  worker.on("error", (err) => {
+    logError("[ocr-worker] Worker error", {}, err);
+  });
 
   return worker;
 }
