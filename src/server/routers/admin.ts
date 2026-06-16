@@ -112,21 +112,31 @@ async function upsertSettingValue(key: string, value: unknown, updatedBy: string
  * window. This is the single source of truth used by both `getAuditLog`
  * (integrity flag on the list view) and the dedicated `verifyAuditChain` query.
  */
-async function computeAuditChainValidity(limit = 1000) {
-  const entries = await db
-    .select({
-      id: auditLog.id,
-      action: auditLog.action,
-      userId: auditLog.userId,
-      hashChain: auditLog.hashChain,
-      previousHash: auditLog.previousHash,
-      createdAt: auditLog.createdAt,
-    })
-    .from(auditLog)
-    .orderBy(asc(auditLog.createdAt))
-    .limit(limit);
+async function computeAuditChainValidity(limit = 1000, useCache = false) {
+  const run = async () => {
+    const entries = await db
+      .select({
+        id: auditLog.id,
+        action: auditLog.action,
+        userId: auditLog.userId,
+        hashChain: auditLog.hashChain,
+        previousHash: auditLog.previousHash,
+        createdAt: auditLog.createdAt,
+      })
+      .from(auditLog)
+      .orderBy(asc(auditLog.createdAt))
+      .limit(limit);
 
-  return verifyAuditChain(entries);
+    return verifyAuditChain(entries);
+  };
+
+  // The audit-log list view calls this on every page load. Re-hashing up to
+  // `limit` rows each time is wasteful, so cache the result briefly. The
+  // explicit "verify chain" admin action passes useCache=false for a fresh run.
+  if (useCache) {
+    return getCached(`audit_chain_validity_${limit}`, 30_000, run);
+  }
+  return run();
 }
 
 export const adminRouter = router({
@@ -721,8 +731,9 @@ export const adminRouter = router({
       const total = totalResult[0]?.total ?? 0;
 
       // Real tamper-evident integrity signal (no longer hardcoded). Verifies the
-      // hash chain from genesis over a bounded window.
-      const chainResult = await computeAuditChainValidity();
+      // hash chain from genesis over a bounded window. Cached briefly so paging
+      // through the audit log doesn't re-hash the window on every request.
+      const chainResult = await computeAuditChainValidity(1000, true);
 
       return {
         items,

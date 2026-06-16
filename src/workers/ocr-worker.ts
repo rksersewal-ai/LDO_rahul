@@ -1,32 +1,80 @@
+import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import pdf from "pdf-parse";
 // @ts-expect-error - sharp types not resolved with bundler moduleResolution
 import sharp from "sharp";
 
 import { db } from "@/lib/db";
-import { documents, notifications, ocrJobs, ocrPlCandidates } from "@/lib/db/schema";
-import { logError } from "@/lib/logging/structured-logger";
-import { recognizeImage } from "@/lib/ocr/tesseract-engine";
+import { documentPages, documents, notifications, ocrJobs, ocrPlCandidates } from "@/lib/db/schema";
+import { logError, logWarn } from "@/lib/logging/structured-logger";
+import { type HybridOcrResult, runHybridOcr } from "@/lib/ocr/hybrid-pipeline";
 import { extractPlCandidates, isValidModulo11 } from "@/lib/pl/validation";
 import * as nasStorage from "@/lib/storage/nas-storage";
 import { withJobTimeout } from "./job-timeout";
 import type { OcrJobPayload } from "./ocr-queue";
 import { getRedisConnectionOptions } from "./redis-connection";
 
+/** Generate a small WebP thumbnail; handles PDFs by rendering the first page. */
+async function generateThumbnail(fileBuffer: Buffer, mimeType: string): Promise<Buffer | null> {
+  try {
+    if (mimeType === "application/pdf") {
+      return await sharp(fileBuffer, { page: 0, density: 100 })
+        .resize({ width: 400 })
+        .webp()
+        .toBuffer();
+    }
+    return await sharp(fileBuffer).resize({ width: 400 }).webp().toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Process a single OCR job: extract text, identify PL candidates,
- * generate thumbnail, and update database records.
+ * Persist per-page extraction audit (best-effort). If the document_pages table
+ * hasn't been migrated yet, this logs a warning and the job still succeeds.
+ */
+async function persistPageAudit(documentId: string, result: HybridOcrResult): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.delete(documentPages).where(eq(documentPages.documentId, documentId));
+      if (result.pages.length === 0) return;
+      await tx.insert(documentPages).values(
+        result.pages.map((p) => ({
+          id: nanoid(),
+          documentId,
+          pageNumber: p.pageNumber,
+          extractionMethod: p.method,
+          textContent: p.text.slice(0, 20000),
+          ocrConfidence: p.confidence,
+          dpiUsed: p.dpiUsed,
+        })),
+      );
+    });
+  } catch (error) {
+    logWarn("[ocr-worker] Per-page audit persistence skipped (document_pages unavailable?)", {
+      code: documentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Process a single OCR job using the hybrid digital-first pipeline:
+ * native PDFs extract text with zero OCR; scanned/hybrid PDFs OCR only the
+ * image pages; images are OCR'd (with tiling for large drawings).
  */
 export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
   const { documentId, versionId, filePath, mimeType } = job.data;
 
   try {
-    // Step a: Update documents to processing
     await db.update(documents).set({ ocrStatus: "processing" }).where(eq(documents.id, documentId));
+    await db
+      .update(ocrJobs)
+      .set({ status: "processing", startedAt: new Date() })
+      .where(eq(ocrJobs.id, job.data.jobId));
 
-    // Step b: Load file from NAS storage
+    // Load file from NAS storage.
     let fileBuffer: Buffer;
     try {
       fileBuffer = await nasStorage.getFile(filePath);
@@ -41,56 +89,31 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
       return;
     }
 
-    // Step c: Initialize extraction variables
-    let extractedText = "";
-    let pageCount = 1;
-    let confidence = 0.3;
-
-    // Step d: Branch by mimeType
-    if (mimeType === "application/pdf") {
-      const data = await pdf(fileBuffer);
-      extractedText = data.text;
-      pageCount = data.numpages;
-
-      if (extractedText.length <= 100) {
-        // Image-only PDF - render first page to PNG then OCR
-        const pngBuffer = await sharp(fileBuffer, { page: 0 }).png().toBuffer();
-        const ocrResult = await recognizeImage(pngBuffer, "image/png");
-        if (ocrResult.text.length > 0) {
-          extractedText = ocrResult.text;
-          confidence = ocrResult.confidence;
-        } else {
-          // Tesseract returned empty - degraded fallback
-          confidence = 0.3;
+    // Run the hybrid pipeline. Progress is reported per OCR page.
+    const result = await runHybridOcr(fileBuffer, mimeType, {
+      onProgress: async (p) => {
+        if (p.stage === "ocr" && p.totalPages > 0) {
+          await job.updateProgress({
+            stage: p.stage,
+            currentPage: p.currentPage,
+            totalPages: p.totalPages,
+          });
+          await db
+            .update(ocrJobs)
+            .set({ processedPages: p.currentPage, pageCount: p.totalPages })
+            .where(eq(ocrJobs.id, job.data.jobId));
         }
-      }
-    } else if (mimeType.startsWith("image/")) {
-      // Use tesseract for image OCR
-      const ocrResult = await recognizeImage(fileBuffer, mimeType);
-      if (ocrResult.text.length > 0) {
-        extractedText = ocrResult.text;
-        confidence = ocrResult.confidence;
-      } else {
-        // Tesseract returned empty - degraded fallback
-        extractedText = "";
-        confidence = 0.3;
-      }
-    }
+      },
+    });
 
-    // Step e: Compute confidence based on text length (only if not already set by tesseract)
-    if (extractedText.length > 500) {
-      confidence = Math.max(confidence, 0.95);
-    } else if (extractedText.length > 100) {
-      confidence = Math.max(confidence, 0.8);
-    }
-    // If extractedText <= 100, keep existing confidence (0.3 for degraded or tesseract value)
+    const extractedText = result.text;
+    const confidence = result.confidence;
+    const pageCount = result.pageCount;
 
-    // Step f: Extract PL candidates
+    // Identify PL candidates from the full extracted text.
     const plCandidates = extractPlCandidates(extractedText);
 
-    // Step g-l: Wrap DB mutations in a transaction
     await db.transaction(async (tx) => {
-      // Step g: Get workspace ID from document
       const docRecord = await tx
         .select({ workspaceId: documents.workspaceId, createdBy: documents.createdBy })
         .from(documents)
@@ -100,7 +123,6 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
       const workspaceId = docRecord[0]?.workspaceId ?? null;
       const uploadedBy = docRecord[0]?.createdBy ?? null;
 
-      // Step h: Insert PL candidates in a single batch to avoid N+1 inserts
       if (plCandidates.length > 0) {
         const candidateRows = plCandidates.map((pl) => {
           const candidateConfidence = isValidModulo11(pl) ? 0.9 : 0.6;
@@ -108,7 +130,6 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
           const contextStart = Math.max(0, idx - 15);
           const contextEnd = Math.min(extractedText.length, idx + pl.length + 15);
           const context = extractedText.slice(contextStart, contextEnd);
-
           return {
             id: nanoid(),
             documentId,
@@ -122,24 +143,23 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
             createdAt: new Date(),
           };
         });
-
         await tx.insert(ocrPlCandidates).values(candidateRows);
       }
 
-      // Step i: Generate thumbnail via NAS storage
+      const thumbnailBuffer = await generateThumbnail(fileBuffer, mimeType);
       let thumbnailPath = nasStorage.getThumbnailPath(workspaceId ?? "default", documentId);
-      try {
-        const thumbnailBuffer = await sharp(fileBuffer).resize({ width: 400 }).webp().toBuffer();
-        thumbnailPath = await nasStorage.storeThumbnail(
-          thumbnailBuffer,
-          workspaceId ?? "default",
-          documentId,
-        );
-      } catch {
-        // Skip thumbnail generation if it fails (e.g., for PDFs)
+      if (thumbnailBuffer) {
+        try {
+          thumbnailPath = await nasStorage.storeThumbnail(
+            thumbnailBuffer,
+            workspaceId ?? "default",
+            documentId,
+          );
+        } catch {
+          // Non-fatal: keep computed path; thumbnail simply won't exist.
+        }
       }
 
-      // Step j: Update documents record
       await tx
         .update(documents)
         .set({
@@ -151,7 +171,6 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
         })
         .where(eq(documents.id, documentId));
 
-      // Step k: Update ocrJobs by job ID
       await tx
         .update(ocrJobs)
         .set({
@@ -159,18 +178,25 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
           confidence,
           extractedText: extractedText.slice(0, 10000),
           pageCount,
+          processedPages: result.ocrPageCount,
+          engine: result.method === "native" ? "native" : "tesseract",
           completedAt: new Date(),
         })
         .where(eq(ocrJobs.id, job.data.jobId));
 
-      // Step l: Insert notification for uploader
       if (uploadedBy) {
+        const methodLabel =
+          result.method === "native"
+            ? "native text extraction (no OCR)"
+            : result.method === "hybrid"
+              ? `hybrid (${result.ocrPageCount} page(s) OCR'd)`
+              : "OCR";
         await tx.insert(notifications).values({
           id: nanoid(),
           userId: uploadedBy,
           type: "document_upload",
-          title: "OCR Processing Complete",
-          message: `Document OCR completed with ${Math.round(confidence * 100)}% confidence`,
+          title: "Document Processing Complete",
+          message: `Processed via ${methodLabel} at ${Math.round(confidence * 100)}% confidence`,
           entityType: "document",
           entityId: documentId,
           isRead: false,
@@ -178,19 +204,15 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
         });
       }
     });
+
+    // Per-page audit outside the main transaction (best-effort).
+    await persistPageAudit(documentId, result);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-
-    // On error: update documents to failed
     await db.update(documents).set({ ocrStatus: "failed" }).where(eq(documents.id, documentId));
-
-    // Update ocrJobs to failed by job ID
     await db
       .update(ocrJobs)
-      .set({
-        status: "failed",
-        errorMessage,
-      })
+      .set({ status: "failed", errorMessage })
       .where(eq(ocrJobs.id, job.data.jobId));
   }
 }
@@ -202,7 +224,13 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
  * tune throughput vs. resource use without code changes.
  */
 export function createOcrWorker(): Worker<OcrJobPayload> {
-  const concurrency = Number(process.env.OCR_WORKER_CONCURRENCY ?? "2");
+  // OCR (tesseract + sharp) is CPU-bound. Clamp concurrency to the available
+  // cores, reserving one for the rest of the system, so OCR can never fully
+  // saturate the host. The env value is an upper bound, not an override.
+  const cpuCount = os.cpus().length || 1;
+  const maxByCpu = Math.max(1, cpuCount - 1);
+  const requested = Number(process.env.OCR_WORKER_CONCURRENCY ?? "2");
+  const concurrency = Math.max(1, Math.min(requested, maxByCpu));
   // OCR can be slow on large multi-page scans; default 5 min ceiling per job.
   const jobTimeoutMs = Number(process.env.OCR_JOB_TIMEOUT_MS ?? `${5 * 60 * 1000}`);
 

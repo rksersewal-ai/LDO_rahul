@@ -13,6 +13,19 @@ import { uploadDocumentSchema } from "@/lib/validators/documents";
 // Largest accepted upload (default 500MB to match the dropzone UI).
 const MAX_UPLOAD_BYTES = Number(process.env.DOC_MAX_UPLOAD_BYTES ?? `${500 * 1024 * 1024}`);
 
+// Bound concurrent in-memory uploads. request.formData() buffers the whole file,
+// so peak memory is roughly (concurrency × file size). Capping concurrency keeps
+// many simultaneous large uploads from exhausting process memory. This counter
+// is per-process — sufficient for the LAN deployment's bounded replica count.
+const MAX_CONCURRENT_UPLOADS = Number(process.env.DOC_MAX_CONCURRENT_UPLOADS ?? "3");
+let activeUploads = 0;
+
+interface UploadActor {
+  userId: string;
+  userName: string;
+  workspaceId: string;
+}
+
 /**
  * Authenticated multipart document upload.
  *
@@ -45,6 +58,38 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Reject oversized bodies up front, before buffering anything into memory.
+  const contentLength = Number(req.headers.get("content-length") ?? "0");
+  if (contentLength > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      {
+        error: `File exceeds the maximum size of ${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`,
+      },
+      { status: 413 },
+    );
+  }
+
+  // Backpressure: cap concurrent in-memory uploads to protect process memory.
+  if (activeUploads >= MAX_CONCURRENT_UPLOADS) {
+    return NextResponse.json(
+      { error: "The server is busy handling other uploads. Please retry in a moment." },
+      { status: 503, headers: { "Retry-After": "5" } },
+    );
+  }
+
+  activeUploads++;
+  try {
+    return await handleUpload(req, {
+      userId: session.user.id,
+      userName: session.user.name ?? "Unknown",
+      workspaceId,
+    });
+  } finally {
+    activeUploads--;
+  }
+}
+
+async function handleUpload(req: NextRequest, actor: UploadActor): Promise<NextResponse> {
   let form: FormData;
   try {
     form = await req.formData();
@@ -109,9 +154,9 @@ export async function POST(req: NextRequest) {
       buffer,
       originalFilename: file.name,
       metadata: metaResult.data,
-      workspaceId,
-      userId: session.user.id,
-      userName: session.user.name ?? "Unknown",
+      workspaceId: actor.workspaceId,
+      userId: actor.userId,
+      userName: actor.userName,
       clearanceRequired:
         clearanceRequired !== undefined && Number.isFinite(clearanceRequired)
           ? clearanceRequired
