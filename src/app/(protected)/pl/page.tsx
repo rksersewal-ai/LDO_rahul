@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, RefreshCw } from "lucide-react";
+import { BookText, Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
@@ -29,20 +29,12 @@ export default function PlHubPage() {
     search: filters.search || undefined,
     category: (filters.category as "CAT-A" | "CAT-B" | "CAT-C" | "CAT-D") || undefined,
     status:
-      (filters.status as
-        | "active"
-        | "inactive"
-        | "deprecated"
-        | "under_review"
-        | "obsolete") || undefined,
+      (filters.status as "active" | "inactive" | "deprecated" | "under_review" | "obsolete") ||
+      undefined,
     workshop: filters.workshop || undefined,
     lifecycleStage:
-      (filters.lifecycleStage as
-        | "draft"
-        | "active"
-        | "restricted"
-        | "obsolete"
-        | "deprecated") || undefined,
+      (filters.lifecycleStage as "draft" | "active" | "restricted" | "obsolete" | "deprecated") ||
+      undefined,
     safetyCritical: filters.safetyOnly ? true : undefined,
     page,
     pageSize,
@@ -84,6 +76,15 @@ export default function PlHubPage() {
                 rows={exportRows}
                 filenamePrefix="pl-numbers"
               />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                render={<Link href="/pl/ledger" />}
+              >
+                <BookText className="h-3 w-3" />
+                Association Ledger
+              </Button>
               <Button size="sm" className="h-7 text-xs gap-1" render={<Link href="/pl/new" />}>
                 <Plus className="h-3 w-3" />
                 Create PL
@@ -93,7 +94,13 @@ export default function PlHubPage() {
         />
 
         {/* Filters toolbar */}
-        <PlFilters filters={filters} onFiltersChange={(f) => { setFilters(f); setPage(1); }} />
+        <PlFilters
+          filters={filters}
+          onFiltersChange={(f) => {
+            setFilters(f);
+            setPage(1);
+          }}
+        />
 
         {/* Results info */}
         <div className="flex items-center justify-between">
