@@ -122,9 +122,7 @@ const columns: ColumnDef<PlRow, unknown>[] = [
       const stage = row.original.lifecycleStage;
       if (!stage) return <span className="text-xs text-muted-foreground">-</span>;
       return (
-        <span className="text-xs capitalize text-muted-foreground">
-          {stage.replace("_", " ")}
-        </span>
+        <span className="text-xs capitalize text-muted-foreground">{stage.replace("_", " ")}</span>
       );
     },
     size: 100,
@@ -252,13 +250,14 @@ export function PlTable({ data, className }: PlTableProps) {
                   <span className="px-2 font-mono text-xs font-medium w-[110px] truncate">
                     {row.plNumber}
                   </span>
-                  <span className="px-2 text-xs font-medium w-[240px] truncate">
-                    {row.name}
-                  </span>
+                  <span className="px-2 text-xs font-medium w-[240px] truncate">{row.name}</span>
                   <span className="px-2 w-[90px]">
                     <Badge
                       variant="outline"
-                      className={cn("text-[10px] font-semibold", getCategoryBadgeClass(row.category))}
+                      className={cn(
+                        "text-[10px] font-semibold",
+                        getCategoryBadgeClass(row.category),
+                      )}
                     >
                       {row.category}
                     </Badge>

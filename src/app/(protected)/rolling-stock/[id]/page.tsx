@@ -56,11 +56,7 @@ function getWorkRecordStatusClass(status: string): string {
   }
 }
 
-export default function RollingStockDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function RollingStockDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data, isLoading, error } = trpc.rollingStock.getById.useQuery({ id });
 
@@ -116,10 +112,7 @@ export default function RollingStockDetailPage({
               </p>
             </div>
           </div>
-          <Badge
-            variant="outline"
-            className={cn("text-xs", getStatusBadgeClass(data.status))}
-          >
+          <Badge variant="outline" className={cn("text-xs", getStatusBadgeClass(data.status))}>
             {formatStatus(data.status)}
           </Badge>
         </div>
@@ -238,12 +231,8 @@ export default function RollingStockDetailPage({
                 <TableBody>
                   {data.workRecords.map((wr) => (
                     <TableRow key={wr.id}>
-                      <TableCell className="text-xs font-medium">
-                        {wr.workOrderNumber}
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[200px] truncate">
-                        {wr.title}
-                      </TableCell>
+                      <TableCell className="text-xs font-medium">{wr.workOrderNumber}</TableCell>
+                      <TableCell className="text-xs max-w-[200px] truncate">{wr.title}</TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"

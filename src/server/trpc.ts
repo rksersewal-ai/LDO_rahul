@@ -34,10 +34,14 @@ const t = initTRPC.context<Context>().create({
 
     // Log INTERNAL_SERVER_ERROR to structured logger
     if (error.code === "INTERNAL_SERVER_ERROR") {
-      logError("Internal server error in tRPC procedure", {
-        path,
-        code: error.code,
-      }, error.cause instanceof Error ? error.cause : error);
+      logError(
+        "Internal server error in tRPC procedure",
+        {
+          path,
+          code: error.code,
+        },
+        error.cause instanceof Error ? error.cause : error,
+      );
     }
 
     // Preserve custom messages from TRPCError; only use generic fallback
@@ -95,52 +99,59 @@ const rateLimit = t.middleware(async ({ ctx, next }) => {
 /**
  * Requires authentication - any logged-in user.
  */
-export const protectedProcedure = t.procedure.use(enforcePasswordChange).use(rateLimit).use(async ({ ctx, next }) => {
-  if (!ctx.session?.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
-  }
-  return next({
-    ctx: { session: ctx.session },
+export const protectedProcedure = t.procedure
+  .use(enforcePasswordChange)
+  .use(rateLimit)
+  .use(async ({ ctx, next }) => {
+    if (!ctx.session?.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+    }
+    return next({
+      ctx: { session: ctx.session },
+    });
   });
-});
 
 /**
  * Requires role >= engineer (engineer, reviewer, supervisor, admin).
  */
-export const engineerProcedure = t.procedure.use(enforcePasswordChange).use(async ({ ctx, next }) => {
-  if (!ctx.session?.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
-  }
-  const role = ctx.session.user.role as UserRole;
-  if (!isRoleAtLeast(role, "engineer")) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Requires engineer role or higher",
+export const engineerProcedure = t.procedure
+  .use(enforcePasswordChange)
+  .use(async ({ ctx, next }) => {
+    if (!ctx.session?.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+    }
+    const role = ctx.session.user.role as UserRole;
+    if (!isRoleAtLeast(role, "engineer")) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Requires engineer role or higher",
+      });
+    }
+    return next({
+      ctx: { session: ctx.session },
     });
-  }
-  return next({
-    ctx: { session: ctx.session },
   });
-});
 
 /**
  * Requires role >= supervisor (supervisor, admin).
  */
-export const supervisorProcedure = t.procedure.use(enforcePasswordChange).use(async ({ ctx, next }) => {
-  if (!ctx.session?.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
-  }
-  const role = ctx.session.user.role as UserRole;
-  if (!isRoleAtLeast(role, "supervisor")) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Requires supervisor role or higher",
+export const supervisorProcedure = t.procedure
+  .use(enforcePasswordChange)
+  .use(async ({ ctx, next }) => {
+    if (!ctx.session?.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+    }
+    const role = ctx.session.user.role as UserRole;
+    if (!isRoleAtLeast(role, "supervisor")) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Requires supervisor role or higher",
+      });
+    }
+    return next({
+      ctx: { session: ctx.session },
     });
-  }
-  return next({
-    ctx: { session: ctx.session },
   });
-});
 
 /**
  * Requires admin role.

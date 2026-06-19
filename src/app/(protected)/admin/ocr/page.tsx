@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type OcrJobStatus, type OcrQueueJob } from "@/lib/mock-data/admin";
+import type { OcrJobStatus, OcrQueueJob } from "@/lib/mock-data/admin";
 import { trpc } from "@/lib/trpc/client";
 
 const statusBadge: Record<
@@ -38,10 +38,13 @@ const statusBadge: Record<
 };
 
 export default function OcrMonitorPage() {
-  const { data: ocrData, isLoading, isError, error, refetch } = trpc.admin.getOcrQueue.useQuery(
-    undefined,
-    { staleTime: 15_000, refetchInterval: 30_000 },
-  );
+  const {
+    data: ocrData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = trpc.admin.getOcrQueue.useQuery(undefined, { staleTime: 15_000, refetchInterval: 30_000 });
   const retryMutation = trpc.admin.retryOcrJob.useMutation({ onSuccess: () => refetch() });
   const cancelMutation = trpc.admin.cancelOcrJob.useMutation({ onSuccess: () => refetch() });
 
@@ -131,9 +134,7 @@ export default function OcrMonitorPage() {
         </div>
 
         {/* Error State */}
-        {isError && !isLoading && (
-          <QueryErrorState error={error} retry={() => refetch()} />
-        )}
+        {isError && !isLoading && <QueryErrorState error={error} retry={() => refetch()} />}
 
         {/* Jobs Table */}
         <div className="rounded-lg border">

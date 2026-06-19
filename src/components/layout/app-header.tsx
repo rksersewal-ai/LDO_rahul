@@ -105,7 +105,12 @@ export function AppHeader() {
             <Search className="size-3.5" />
             <span>Search documents...</span>
             <kbd className="ml-auto hidden sm:inline-flex h-5 items-center gap-1 rounded border bg-background px-1.5 text-[10px] font-medium text-muted-foreground">
-              {isMac ? <span className="text-xs">&#8984;</span> : <span className="text-xs">Ctrl+</span>}K
+              {isMac ? (
+                <span className="text-xs">&#8984;</span>
+              ) : (
+                <span className="text-xs">Ctrl+</span>
+              )}
+              K
             </kbd>
           </button>
         </div>

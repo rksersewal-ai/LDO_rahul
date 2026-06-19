@@ -186,7 +186,10 @@ export const documentCommentsRouter = router({
       .select()
       .from(documentComments)
       .where(
-        and(eq(documentComments.id, input.commentId), eq(documentComments.workspaceId, workspaceId)),
+        and(
+          eq(documentComments.id, input.commentId),
+          eq(documentComments.workspaceId, workspaceId),
+        ),
       );
 
     if (!comment) {
@@ -242,7 +245,10 @@ export const documentCommentsRouter = router({
       .select()
       .from(documentComments)
       .where(
-        and(eq(documentComments.id, input.commentId), eq(documentComments.workspaceId, workspaceId)),
+        and(
+          eq(documentComments.id, input.commentId),
+          eq(documentComments.workspaceId, workspaceId),
+        ),
       );
 
     if (!comment) {

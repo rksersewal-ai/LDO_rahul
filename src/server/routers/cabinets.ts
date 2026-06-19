@@ -269,51 +269,53 @@ export const cabinetsRouter = router({
       return { success: true };
     }),
 
-  getDocuments: protectedProcedure.input(cabinetGetDocumentsSchema).query(async ({ input, ctx }) => {
-    const workspaceId = requireWorkspaceId(ctx);
+  getDocuments: protectedProcedure
+    .input(cabinetGetDocumentsSchema)
+    .query(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
 
-    // Verify cabinet belongs to workspace
-    const [cabinet] = await db
-      .select({ id: cabinets.id })
-      .from(cabinets)
-      .where(and(eq(cabinets.id, input.cabinetId), eq(cabinets.workspaceId, workspaceId)));
+      // Verify cabinet belongs to workspace
+      const [cabinet] = await db
+        .select({ id: cabinets.id })
+        .from(cabinets)
+        .where(and(eq(cabinets.id, input.cabinetId), eq(cabinets.workspaceId, workspaceId)));
 
-    if (!cabinet) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Cabinet not found" });
-    }
+      if (!cabinet) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Cabinet not found" });
+      }
 
-    const offset = (input.page - 1) * input.pageSize;
+      const offset = (input.page - 1) * input.pageSize;
 
-    const [data, totalResult] = await Promise.all([
-      db
-        .select({
-          documentId: documents.id,
-          documentNumber: documents.documentNumber,
-          title: documents.title,
-          category: documents.category,
-          status: documents.status,
-          addedBy: documentCabinets.addedBy,
-          addedAt: documentCabinets.addedAt,
-        })
-        .from(documentCabinets)
-        .innerJoin(documents, eq(documentCabinets.documentId, documents.id))
-        .where(eq(documentCabinets.cabinetId, input.cabinetId))
-        .orderBy(desc(documentCabinets.addedAt))
-        .offset(offset)
-        .limit(input.pageSize),
-      db
-        .select({ totalCount: count() })
-        .from(documentCabinets)
-        .where(eq(documentCabinets.cabinetId, input.cabinetId)),
-    ]);
+      const [data, totalResult] = await Promise.all([
+        db
+          .select({
+            documentId: documents.id,
+            documentNumber: documents.documentNumber,
+            title: documents.title,
+            category: documents.category,
+            status: documents.status,
+            addedBy: documentCabinets.addedBy,
+            addedAt: documentCabinets.addedAt,
+          })
+          .from(documentCabinets)
+          .innerJoin(documents, eq(documentCabinets.documentId, documents.id))
+          .where(eq(documentCabinets.cabinetId, input.cabinetId))
+          .orderBy(desc(documentCabinets.addedAt))
+          .offset(offset)
+          .limit(input.pageSize),
+        db
+          .select({ totalCount: count() })
+          .from(documentCabinets)
+          .where(eq(documentCabinets.cabinetId, input.cabinetId)),
+      ]);
 
-    return {
-      data,
-      totalCount: totalResult[0]?.totalCount ?? 0,
-      page: input.page,
-      pageSize: input.pageSize,
-    };
-  }),
+      return {
+        data,
+        totalCount: totalResult[0]?.totalCount ?? 0,
+        page: input.page,
+        pageSize: input.pageSize,
+      };
+    }),
 
   addDocuments: engineerProcedure
     .input(addDocumentsToCabinetSchema)

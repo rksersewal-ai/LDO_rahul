@@ -40,8 +40,7 @@ const RDSO_SPEC_PATTERN =
   /\bRDSO\/\d{4}\/[A-Z]{2,4}\/(?:SPEC|STD|DRG|TCD|CAMTECH|SPN)\/\d{3,5}(?:\/[A-Za-z0-9]+)?\b/g;
 
 /** Loco/rolling stock unit numbers: WAP-7 30001, WAG-9HC 31501, WDP-4D 40201, etc. */
-const LOCO_NUMBER_PATTERN =
-  /\b(W[A-Z]{2,3}-\d[A-Z]{0,2})\s+(\d{5})\b/g;
+const LOCO_NUMBER_PATTERN = /\b(W[A-Z]{2,3}-\d[A-Z]{0,2})\s+(\d{5})\b/g;
 
 // --- Extraction Functions ---
 

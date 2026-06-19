@@ -834,7 +834,12 @@ export const documentsRouter = router({
 
           await tx
             .update(documents)
-            .set({ isDeleted: true, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
+            .set({
+              isDeleted: true,
+              deletedAt: new Date(),
+              updatedAt: new Date(),
+              updatedBy: userId,
+            })
             .where(
               and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
             );

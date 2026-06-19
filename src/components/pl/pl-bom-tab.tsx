@@ -69,10 +69,7 @@ export function PlBomTab({ plId }: PlBomTabProps) {
               </thead>
               <tbody>
                 {data.asProduct.map((product) => (
-                  <tr
-                    key={product.id}
-                    className="border-b last:border-b-0 hover:bg-muted/30"
-                  >
+                  <tr key={product.id} className="border-b last:border-b-0 hover:bg-muted/30">
                     <td className="px-3 py-2 font-mono font-medium">{product.productCode}</td>
                     <td className="px-3 py-2">{product.name}</td>
                     <td className="px-3 py-2 text-muted-foreground">{product.version}</td>
@@ -122,10 +119,7 @@ export function PlBomTab({ plId }: PlBomTabProps) {
               </thead>
               <tbody>
                 {data.asComponent.map((entry) => (
-                  <tr
-                    key={entry.entryId}
-                    className="border-b last:border-b-0 hover:bg-muted/30"
-                  >
+                  <tr key={entry.entryId} className="border-b last:border-b-0 hover:bg-muted/30">
                     <td className="px-3 py-2">
                       <span className="font-mono font-medium">{entry.productCode}</span>
                       <span className="text-muted-foreground ml-1">({entry.productName})</span>

@@ -14,12 +14,13 @@ import {
 } from "@/lib/db/schema";
 import { DEDUP_THRESHOLD, type DocInput, scoreDocumentPair } from "@/lib/dedup/scorer";
 import { markHashRemovedIfOrphaned } from "@/lib/storage/hash-removal";
-import { addDedupJob } from "@/workers/dedup-queue";
 import { adminProcedure, protectedProcedure, router } from "@/server/trpc";
+import { addDedupJob } from "@/workers/dedup-queue";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId?: string | null } } }): string {
   const wsId = ctx.session.user.workspaceId;
-  if (!wsId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No workspace assigned." });
+  if (!wsId)
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No workspace assigned." });
   return wsId;
 }
 
@@ -71,14 +72,8 @@ export const dedupRouter = router({
             docBCategory: sql<string>`db."category"`.as("doc_b_category"),
           })
           .from(duplicateDetections)
-          .innerJoin(
-            sql`"documents" as "da"`,
-            sql`"da"."id" = ${duplicateDetections.documentAId}`,
-          )
-          .innerJoin(
-            sql`"documents" as "db"`,
-            sql`"db"."id" = ${duplicateDetections.documentBId}`,
-          )
+          .innerJoin(sql`"documents" as "da"`, sql`"da"."id" = ${duplicateDetections.documentAId}`)
+          .innerJoin(sql`"documents" as "db"`, sql`"db"."id" = ${duplicateDetections.documentBId}`)
           .where(
             and(
               eq(duplicateDetections.status, "pending"),
@@ -195,8 +190,14 @@ export const dedupRouter = router({
           ? detection.documentBId
           : detection.documentAId;
 
-      if (input.keepDocumentId !== detection.documentAId && input.keepDocumentId !== detection.documentBId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "keepDocumentId must be one of the pair." });
+      if (
+        input.keepDocumentId !== detection.documentAId &&
+        input.keepDocumentId !== detection.documentBId
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "keepDocumentId must be one of the pair.",
+        });
       }
 
       // 3-7 run in a single transaction so the relation, archival, PL-link
@@ -284,7 +285,11 @@ export const dedupRouter = router({
         });
       });
 
-      return { success: true, archivedDocumentId: archivedId, keptDocumentId: input.keepDocumentId };
+      return {
+        success: true,
+        archivedDocumentId: archivedId,
+        keptDocumentId: input.keepDocumentId,
+      };
     }),
 
   /**
@@ -378,12 +383,7 @@ export const dedupRouter = router({
     const rows = await db
       .select({ key: settings.key, value: settings.value })
       .from(settings)
-      .where(
-        and(
-          eq(settings.scope, "system"),
-          like(settings.key, "dedup.scan.%"),
-        ),
-      );
+      .where(and(eq(settings.scope, "system"), like(settings.key, "dedup.scan.%")));
 
     const settingsMap: Record<string, string> = {};
     for (const row of rows) {
@@ -415,7 +415,11 @@ export const dedupRouter = router({
       const userName = ctx.session.user?.name ?? "System";
       const now = new Date();
 
-      const updates: Array<{ key: string; value: string; dataType: "string" | "number" | "boolean" }> = [];
+      const updates: Array<{
+        key: string;
+        value: string;
+        dataType: "string" | "number" | "boolean";
+      }> = [];
 
       if (input.schedule !== undefined) {
         updates.push({ key: "dedup.scan.schedule", value: input.schedule, dataType: "string" });
@@ -424,10 +428,18 @@ export const dedupRouter = router({
         updates.push({ key: "dedup.scan.type", value: input.type, dataType: "string" });
       }
       if (input.enabled !== undefined) {
-        updates.push({ key: "dedup.scan.enabled", value: String(input.enabled), dataType: "boolean" });
+        updates.push({
+          key: "dedup.scan.enabled",
+          value: String(input.enabled),
+          dataType: "boolean",
+        });
       }
       if (input.batchSize !== undefined) {
-        updates.push({ key: "dedup.scan.batchSize", value: String(input.batchSize), dataType: "number" });
+        updates.push({
+          key: "dedup.scan.batchSize",
+          value: String(input.batchSize),
+          dataType: "number",
+        });
       }
 
       for (const update of updates) {

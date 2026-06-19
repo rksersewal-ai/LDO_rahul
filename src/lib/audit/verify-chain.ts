@@ -45,9 +45,10 @@ export function verifyAuditChain(entries: AuditLogEntry[]): VerifyChainResult {
     }
 
     // Recompute the hash for this entry
-    const timestamp = entry.createdAt instanceof Date
-      ? entry.createdAt.toISOString()
-      : new Date(entry.createdAt).toISOString();
+    const timestamp =
+      entry.createdAt instanceof Date
+        ? entry.createdAt.toISOString()
+        : new Date(entry.createdAt).toISOString();
 
     const hashInput = `${timestamp}|${entry.userId}|${entry.action}|${expectedPreviousHash}`;
     const expectedHash = createHash("sha256").update(hashInput).digest("hex");

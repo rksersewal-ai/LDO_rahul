@@ -13,10 +13,10 @@ import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDashboardData } from "@/hooks/use-dashboard-data";
 import type { ComparePeriod } from "@/hooks/use-dashboard-data";
-import { exportToCSV } from "@/lib/utils/export-service";
+import { useDashboardData } from "@/hooks/use-dashboard-data";
 import { trpc } from "@/lib/trpc/client";
+import { exportToCSV } from "@/lib/utils/export-service";
 
 function MetricCardSkeleton() {
   return (
@@ -34,10 +34,7 @@ function MetricCardSkeleton() {
 function DashboardLoadingSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Dashboard"
-        subtitle="Engineering Document Management System - Overview"
-      />
+      <PageHeader title="Dashboard" subtitle="Engineering Document Management System - Overview" />
       {/* KPI Grid skeleton */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
@@ -71,8 +68,19 @@ function DashboardLoadingSkeleton() {
 
 export default function DashboardPage() {
   const [comparePeriod, setComparePeriod] = useState<ComparePeriod>("week");
-  const { metrics, trendData, trendRange, setTrendRange, activities, recentDocs, isLoading, isError, error, refetch, dataUpdatedAt } =
-    useDashboardData(comparePeriod);
+  const {
+    metrics,
+    trendData,
+    trendRange,
+    setTrendRange,
+    activities,
+    recentDocs,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    dataUpdatedAt,
+  } = useDashboardData(comparePeriod);
   const [drillOpen, setDrillOpen] = useState(false);
   const [drillMetricId, setDrillMetricId] = useState<string | null>(null);
   const [drillMetricTitle, setDrillMetricTitle] = useState("");
@@ -147,7 +155,7 @@ export default function DashboardPage() {
   const pendingApprovals = pendingApprovalsQuery.data ?? [];
 
   // Compute context string based on compare period - now comes from server
-  const getContextString = (metric: typeof metrics[0]) => {
+  const getContextString = (metric: (typeof metrics)[0]) => {
     return metric.context;
   };
 
@@ -193,7 +201,12 @@ export default function DashboardPage() {
                 </button>
               </div>
               {/* Export Dashboard */}
-              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleExportDashboard}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={handleExportDashboard}
+              >
                 <Download className="h-3 w-3" />
                 Export
               </Button>
@@ -274,16 +287,18 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* PL Breakdown Widget */}
           <div className="rounded-lg border bg-card p-4">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">
-              PL Number Breakdown
-            </h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">PL Number Breakdown</h3>
             {plBreakdownQuery.isLoading ? (
               <div className="space-y-2">
                 <Skeleton className="h-14 w-full" />
                 <Skeleton className="h-6 w-3/4" />
               </div>
             ) : plBreakdownQuery.isError ? (
-              <QueryErrorState error={plBreakdownQuery.error} retry={() => plBreakdownQuery.refetch()} className="py-4" />
+              <QueryErrorState
+                error={plBreakdownQuery.error}
+                retry={() => plBreakdownQuery.refetch()}
+                className="py-4"
+              />
             ) : plData ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-2">
@@ -315,7 +330,10 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Safety Critical: <span className="font-semibold text-destructive tabular-nums">{plData.safetyCriticalCount}</span>
+                  Safety Critical:{" "}
+                  <span className="font-semibold text-destructive tabular-nums">
+                    {plData.safetyCriticalCount}
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -323,16 +341,18 @@ export default function DashboardPage() {
 
           {/* Rolling Stock Summary Widget */}
           <div className="rounded-lg border bg-card p-4">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">
-              Rolling Stock Summary
-            </h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">Rolling Stock Summary</h3>
             {rollingStockQuery.isLoading ? (
               <div className="space-y-2">
                 <Skeleton className="h-14 w-full" />
                 <Skeleton className="h-6 w-3/4" />
               </div>
             ) : rollingStockQuery.isError ? (
-              <QueryErrorState error={rollingStockQuery.error} retry={() => rollingStockQuery.refetch()} className="py-4" />
+              <QueryErrorState
+                error={rollingStockQuery.error}
+                retry={() => rollingStockQuery.refetch()}
+                className="py-4"
+              />
             ) : rsData ? (
               <div className="space-y-3">
                 <div className="rounded-md border bg-muted/30 p-2 text-center">

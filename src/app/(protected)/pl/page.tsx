@@ -29,20 +29,12 @@ export default function PlHubPage() {
     search: filters.search || undefined,
     category: (filters.category as "CAT-A" | "CAT-B" | "CAT-C" | "CAT-D") || undefined,
     status:
-      (filters.status as
-        | "active"
-        | "inactive"
-        | "deprecated"
-        | "under_review"
-        | "obsolete") || undefined,
+      (filters.status as "active" | "inactive" | "deprecated" | "under_review" | "obsolete") ||
+      undefined,
     workshop: filters.workshop || undefined,
     lifecycleStage:
-      (filters.lifecycleStage as
-        | "draft"
-        | "active"
-        | "restricted"
-        | "obsolete"
-        | "deprecated") || undefined,
+      (filters.lifecycleStage as "draft" | "active" | "restricted" | "obsolete" | "deprecated") ||
+      undefined,
     safetyCritical: filters.safetyOnly ? true : undefined,
     page,
     pageSize,
@@ -93,7 +85,13 @@ export default function PlHubPage() {
         />
 
         {/* Filters toolbar */}
-        <PlFilters filters={filters} onFiltersChange={(f) => { setFilters(f); setPage(1); }} />
+        <PlFilters
+          filters={filters}
+          onFiltersChange={(f) => {
+            setFilters(f);
+            setPage(1);
+          }}
+        />
 
         {/* Results info */}
         <div className="flex items-center justify-between">

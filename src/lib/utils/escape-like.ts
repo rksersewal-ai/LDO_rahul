@@ -7,8 +7,5 @@
  * @returns The escaped string safe for use in LIKE patterns
  */
 export function escapeLikePattern(str: string): string {
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/%/g, "\\%")
-    .replace(/_/g, "\\_");
+  return str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }

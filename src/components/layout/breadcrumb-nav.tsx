@@ -48,7 +48,8 @@ const ROUTE_LABELS: Record<string, string> = {
 export function BreadcrumbNav({ items }: BreadcrumbNavProps) {
   const pathname = usePathname();
 
-  const autoCrumbs: BreadcrumbItem[] = items ??
+  const autoCrumbs: BreadcrumbItem[] =
+    items ??
     pathname
       .split("/")
       .filter(Boolean)
@@ -69,7 +70,10 @@ export function BreadcrumbNav({ items }: BreadcrumbNavProps) {
             {isLast ? (
               <span className="font-semibold text-foreground">{item.label}</span>
             ) : item.href ? (
-              <Link href={item.href} className="text-muted-foreground hover:text-foreground transition-colors">
+              <Link
+                href={item.href}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
                 {item.label}
               </Link>
             ) : (

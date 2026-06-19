@@ -87,7 +87,12 @@ function getCategoryColor(category: string): string {
 /**
  * Generate revision history from the current document.
  */
-function generateRevisionHistory(doc: { revision: string | null; createdAt: Date | string | null; workshop: string | null; status: string | null }): RevisionEntry[] {
+function generateRevisionHistory(doc: {
+  revision: string | null;
+  createdAt: Date | string | null;
+  workshop: string | null;
+  status: string | null;
+}): RevisionEntry[] {
   const revStr = doc.revision ?? "A";
   const currentRev = revStr.startsWith("R")
     ? Number.parseInt(revStr.replace("R", ""), 10)
@@ -133,13 +138,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const [selectedPlNumber, setSelectedPlNumber] = useState<string | null>(null);
 
   // Fetch document by ID
-  const {
-    data: doc,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = trpc.documents.getById.useQuery({ id });
+  const { data: doc, isLoading, isError, error, refetch } = trpc.documents.getById.useQuery({ id });
 
   // Fetch linked PLs
   const { data: linkedPls } = trpc.documents.getLinkedPls.useQuery(
@@ -148,10 +147,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   );
 
   // Fetch OCR job for this document
-  const { data: ocrJob } = trpc.ocr.getByDocument.useQuery(
-    { documentId: id },
-    { enabled: !!doc },
-  );
+  const { data: ocrJob } = trpc.ocr.getByDocument.useQuery({ documentId: id }, { enabled: !!doc });
 
   // Mutations
   const deleteMutation = trpc.documents.delete.useMutation({
@@ -229,7 +225,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const docStatus = doc.status?.toUpperCase() ?? "DRAFT";
   const docCategory = doc.category?.toUpperCase() ?? "OTHER";
   const docRevision = doc.revision ?? "A";
-  const tags = doc.tags ? doc.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [];
+  const tags = doc.tags
+    ? doc.tags
+        .split(",")
+        .map((t: string) => t.trim())
+        .filter(Boolean)
+    : [];
   const revisions = generateRevisionHistory(doc);
 
   // Status-based button visibility
@@ -259,26 +260,17 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   function handleApprove() {
     setIsApproving(true);
-    approveMutation.mutate(
-      { id: doc!.id },
-      { onSettled: () => setIsApproving(false) },
-    );
+    approveMutation.mutate({ id: doc!.id }, { onSettled: () => setIsApproving(false) });
   }
 
   function handleReject() {
     setIsRejecting(true);
-    rejectMutation.mutate(
-      { id: doc!.id },
-      { onSettled: () => setIsRejecting(false) },
-    );
+    rejectMutation.mutate({ id: doc!.id }, { onSettled: () => setIsRejecting(false) });
   }
 
   function handleDelete() {
     setIsDeleting(true);
-    deleteMutation.mutate(
-      { id: doc!.id },
-      { onSettled: () => setIsDeleting(false) },
-    );
+    deleteMutation.mutate({ id: doc!.id }, { onSettled: () => setIsDeleting(false) });
   }
 
   function handleLinkPl() {
@@ -406,11 +398,18 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 <MetaField label="Revision" value={docRevision} mono />
                 <MetaField
                   label="Revision Date"
-                  value={doc.revisionDate ? new Date(doc.revisionDate).toLocaleDateString("en-IN") : "Not set"}
+                  value={
+                    doc.revisionDate
+                      ? new Date(doc.revisionDate).toLocaleDateString("en-IN")
+                      : "Not set"
+                  }
                 />
                 <MetaField label="Workshop" value={doc.workshop ?? "Not set"} />
                 <MetaField label="Owner" value={doc.createdBy ?? "Unknown"} />
-                <MetaField label="File Type" value={(doc.mimeType ?? "pdf").split("/").pop()?.toUpperCase() ?? "PDF"} />
+                <MetaField
+                  label="File Type"
+                  value={(doc.mimeType ?? "pdf").split("/").pop()?.toUpperCase() ?? "PDF"}
+                />
                 <MetaField label="File Size" value={formatFileSize(doc.fileSize ?? 0)} />
                 <MetaField label="Pages" value={String(doc.pageCount ?? 1)} />
                 <MetaField
@@ -484,7 +483,9 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               )}
               {doc.ocrStatus === "completed" && !ocrJob?.extractedText && !doc.ocrText && (
-                <p className="text-xs text-muted-foreground">OCR completed but no text extracted.</p>
+                <p className="text-xs text-muted-foreground">
+                  OCR completed but no text extracted.
+                </p>
               )}
               {doc.ocrStatus === "processing" && (
                 <p className="text-xs text-muted-foreground">OCR processing in progress...</p>
@@ -557,7 +558,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           <DialogHeader>
             <DialogTitle>Approve Document</DialogTitle>
             <DialogDescription>
-              Are you sure you want to approve {doc.documentNumber}? This will mark the document as approved.
+              Are you sure you want to approve {doc.documentNumber}? This will mark the document as
+              approved.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -592,7 +594,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           <DialogHeader>
             <DialogTitle>Reject Document</DialogTitle>
             <DialogDescription>
-              Are you sure you want to reject {doc.documentNumber}? The document will be returned to draft status.
+              Are you sure you want to reject {doc.documentNumber}? The document will be returned to
+              draft status.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -604,12 +607,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             >
               Cancel
             </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={handleReject}
-              disabled={isRejecting}
-            >
+            <Button size="sm" variant="destructive" onClick={handleReject} disabled={isRejecting}>
               {isRejecting ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -644,12 +642,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             >
               Cancel
             </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
+            <Button size="sm" variant="destructive" onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -693,7 +686,11 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             >
               Cancel
             </Button>
-            <Button size="sm" onClick={handleLinkPl} disabled={!selectedPlNumber || linkPlMutation.isPending}>
+            <Button
+              size="sm"
+              onClick={handleLinkPl}
+              disabled={!selectedPlNumber || linkPlMutation.isPending}
+            >
               {linkPlMutation.isPending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (

@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { useRef, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 
 function ExpiredState() {
@@ -37,7 +37,11 @@ function PasswordForm({
   onSubmit,
   error,
   isLoading,
-}: { onSubmit: (password: string) => void; error: string | null; isLoading: boolean }) {
+}: {
+  onSubmit: (password: string) => void;
+  error: string | null;
+  isLoading: boolean;
+}) {
   const [password, setPassword] = useState("");
 
   return (

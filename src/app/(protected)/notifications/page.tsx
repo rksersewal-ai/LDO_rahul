@@ -319,7 +319,8 @@ export default function NotificationsPage() {
                           <span
                             className={cn(
                               "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-                              priorityColors[(record.priority as string)?.toUpperCase() ?? ""] ?? "",
+                              priorityColors[(record.priority as string)?.toUpperCase() ?? ""] ??
+                                "",
                             )}
                           >
                             {(record.priority as string) ?? "-"}

@@ -4,12 +4,18 @@ export const addCommentSchema = z.object({
   documentId: z.string().min(1, "Document ID is required"),
   versionId: z.string().optional(),
   parentId: z.string().optional(),
-  content: z.string().min(1, "Comment cannot be empty").max(5000, "Comment must be 5000 characters or fewer"),
+  content: z
+    .string()
+    .min(1, "Comment cannot be empty")
+    .max(5000, "Comment must be 5000 characters or fewer"),
 });
 
 export const editCommentSchema = z.object({
   commentId: z.string().min(1, "Comment ID is required"),
-  content: z.string().min(1, "Comment cannot be empty").max(5000, "Comment must be 5000 characters or fewer"),
+  content: z
+    .string()
+    .min(1, "Comment cannot be empty")
+    .max(5000, "Comment must be 5000 characters or fewer"),
 });
 
 export const deleteCommentSchema = z.object({

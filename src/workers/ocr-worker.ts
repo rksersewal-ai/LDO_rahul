@@ -23,7 +23,10 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
   try {
     // Validate filePath before processing
     if (!filePath) {
-      await db.update(ocrJobs).set({ status: "failed", errorMessage: "No file path provided for OCR processing" }).where(eq(ocrJobs.id, job.data.jobId));
+      await db
+        .update(ocrJobs)
+        .set({ status: "failed", errorMessage: "No file path provided for OCR processing" })
+        .where(eq(ocrJobs.id, job.data.jobId));
       await db.update(documents).set({ ocrStatus: "failed" }).where(eq(documents.id, documentId));
       return;
     }

@@ -4,7 +4,6 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { isRoleAtLeast } from "@/lib/auth/permissions";
-import type { UserRole } from "@/lib/types/auth";
 import { db } from "@/lib/db";
 import {
   bomEntries,
@@ -20,6 +19,7 @@ import {
 import { logWarn } from "@/lib/logging/structured-logger";
 import { assertValidPl, normalizePlNumber } from "@/lib/pl/validation";
 import { sanitizeUserInput } from "@/lib/security/sanitize";
+import type { UserRole } from "@/lib/types/auth";
 import {
   createPlSchema,
   plAliasSchema,
@@ -122,32 +122,30 @@ export const plRouter = router({
   }),
 
   // --- 4. pl.getById ---
-  getById: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const workspaceId = requireWorkspaceId(ctx);
+  getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
 
-      const [pl] = await db
-        .select()
-        .from(plNumbers)
-        .where(and(eq(plNumbers.id, input.id), eq(plNumbers.workspaceId, workspaceId)));
+    const [pl] = await db
+      .select()
+      .from(plNumbers)
+      .where(and(eq(plNumbers.id, input.id), eq(plNumbers.workspaceId, workspaceId)));
 
-      if (!pl) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "PL number not found" });
-      }
+    if (!pl) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "PL number not found" });
+    }
 
-      const [aliases, relationshipsAsSource, relationshipsAsTarget] = await Promise.all([
-        db.select().from(plAliases).where(eq(plAliases.plId, input.id)),
-        db.select().from(plRelationships).where(eq(plRelationships.sourcePlId, input.id)),
-        db.select().from(plRelationships).where(eq(plRelationships.targetPlId, input.id)),
-      ]);
+    const [aliases, relationshipsAsSource, relationshipsAsTarget] = await Promise.all([
+      db.select().from(plAliases).where(eq(plAliases.plId, input.id)),
+      db.select().from(plRelationships).where(eq(plRelationships.sourcePlId, input.id)),
+      db.select().from(plRelationships).where(eq(plRelationships.targetPlId, input.id)),
+    ]);
 
-      return {
-        ...pl,
-        aliases,
-        relationships: [...relationshipsAsSource, ...relationshipsAsTarget],
-      };
-    }),
+    return {
+      ...pl,
+      aliases,
+      relationships: [...relationshipsAsSource, ...relationshipsAsTarget],
+    };
+  }),
 
   // --- 5. pl.getByPlNumber ---
   getByPlNumber: protectedProcedure
@@ -197,8 +195,14 @@ export const plRouter = router({
     if (input.itemType === "VD" && !input.uvamItemId) {
       logWarn(`[pl.create] Advisory: VD item ${input.plNumber} created without uvamItemId`);
     }
-    if (input.itemType === "NVD" && !input.eligibilityCriteriaText && !input.eligibilityCriteriaDocId) {
-      logWarn(`[pl.create] Advisory: NVD item ${input.plNumber} created without eligibility criteria`);
+    if (
+      input.itemType === "NVD" &&
+      !input.eligibilityCriteriaText &&
+      !input.eligibilityCriteriaDocId
+    ) {
+      logWarn(
+        `[pl.create] Advisory: NVD item ${input.plNumber} created without eligibility criteria`,
+      );
     }
 
     const [created] = await db
@@ -309,7 +313,10 @@ export const plRouter = router({
     const setValues: Record<string, unknown> = { updatedAt: new Date(), updatedBy: userId };
 
     if (updates.name !== undefined) setValues.name = sanitizeUserInput(updates.name);
-    if (updates.description !== undefined) setValues.description = updates.description ? sanitizeUserInput(updates.description) : updates.description;
+    if (updates.description !== undefined)
+      setValues.description = updates.description
+        ? sanitizeUserInput(updates.description)
+        : updates.description;
     if (updates.category !== undefined) setValues.category = updates.category;
     if (updates.status !== undefined) setValues.status = updates.status;
     if (updates.safetyCritical !== undefined) setValues.safetyCritical = updates.safetyCritical;
@@ -324,29 +331,50 @@ export const plRouter = router({
     // Railway-specific fields
     if (updates.itemType !== undefined) setValues.itemType = updates.itemType;
     if (updates.uvamItemId !== undefined) setValues.uvamItemId = updates.uvamItemId;
-    if (updates.eligibilityCriteriaText !== undefined) setValues.eligibilityCriteriaText = updates.eligibilityCriteriaText;
-    if (updates.eligibilityCriteriaDocId !== undefined) setValues.eligibilityCriteriaDocId = updates.eligibilityCriteriaDocId;
+    if (updates.eligibilityCriteriaText !== undefined)
+      setValues.eligibilityCriteriaText = updates.eligibilityCriteriaText;
+    if (updates.eligibilityCriteriaDocId !== undefined)
+      setValues.eligibilityCriteriaDocId = updates.eligibilityCriteriaDocId;
     if (updates.strDocId !== undefined) setValues.strDocId = updates.strDocId;
     if (updates.qapDocId !== undefined) setValues.qapDocId = updates.qapDocId;
-    if (updates.inspectionAgency !== undefined) setValues.inspectionAgency = updates.inspectionAgency;
-    if (updates.unitOfMeasurement !== undefined) setValues.unitOfMeasurement = updates.unitOfMeasurement;
+    if (updates.inspectionAgency !== undefined)
+      setValues.inspectionAgency = updates.inspectionAgency;
+    if (updates.unitOfMeasurement !== undefined)
+      setValues.unitOfMeasurement = updates.unitOfMeasurement;
     if (updates.shelfLifeMonths !== undefined) setValues.shelfLifeMonths = updates.shelfLifeMonths;
-    if (updates.lastProcurementRate !== undefined) setValues.lastProcurementRate = updates.lastProcurementRate;
-    if (updates.lastProcurementDate !== undefined) setValues.lastProcurementDate = updates.lastProcurementDate ? new Date(updates.lastProcurementDate) : null;
+    if (updates.lastProcurementRate !== undefined)
+      setValues.lastProcurementRate = updates.lastProcurementRate;
+    if (updates.lastProcurementDate !== undefined)
+      setValues.lastProcurementDate = updates.lastProcurementDate
+        ? new Date(updates.lastProcurementDate)
+        : null;
 
     // Business rule advisories for railway-specific fields
-    const effectiveItemType = (updates.itemType !== undefined ? updates.itemType : oldPl.itemType) as string | null;
+    const effectiveItemType = (
+      updates.itemType !== undefined ? updates.itemType : oldPl.itemType
+    ) as string | null;
     if (effectiveItemType === "VD") {
-      const effectiveUvamId = updates.uvamItemId !== undefined ? updates.uvamItemId : (oldPl as Record<string, unknown>).uvamItemId;
+      const effectiveUvamId =
+        updates.uvamItemId !== undefined
+          ? updates.uvamItemId
+          : (oldPl as Record<string, unknown>).uvamItemId;
       if (!effectiveUvamId) {
         logWarn(`[pl.update] Advisory: VD item ${oldPl.plNumber} updated without uvamItemId`);
       }
     }
     if (effectiveItemType === "NVD") {
-      const effectiveEcText = updates.eligibilityCriteriaText !== undefined ? updates.eligibilityCriteriaText : (oldPl as Record<string, unknown>).eligibilityCriteriaText;
-      const effectiveEcDoc = updates.eligibilityCriteriaDocId !== undefined ? updates.eligibilityCriteriaDocId : (oldPl as Record<string, unknown>).eligibilityCriteriaDocId;
+      const effectiveEcText =
+        updates.eligibilityCriteriaText !== undefined
+          ? updates.eligibilityCriteriaText
+          : (oldPl as Record<string, unknown>).eligibilityCriteriaText;
+      const effectiveEcDoc =
+        updates.eligibilityCriteriaDocId !== undefined
+          ? updates.eligibilityCriteriaDocId
+          : (oldPl as Record<string, unknown>).eligibilityCriteriaDocId;
       if (!effectiveEcText && !effectiveEcDoc) {
-        logWarn(`[pl.update] Advisory: NVD item ${oldPl.plNumber} updated without eligibility criteria`);
+        logWarn(
+          `[pl.update] Advisory: NVD item ${oldPl.plNumber} updated without eligibility criteria`,
+        );
       }
     }
 
@@ -535,83 +563,85 @@ export const plRouter = router({
     }),
 
   // --- 11. pl.addRelationship ---
-  addRelationship: engineerProcedure.input(plRelationshipSchema).mutation(async ({ input, ctx }) => {
-    const workspaceId = requireWorkspaceId(ctx);
-    const userId = ctx.session.user.id;
-    const userName = ctx.session.user.name ?? "Unknown";
+  addRelationship: engineerProcedure
+    .input(plRelationshipSchema)
+    .mutation(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+      const userId = ctx.session.user.id;
+      const userName = ctx.session.user.name ?? "Unknown";
 
-    // No self-reference
-    if (input.sourcePlId === input.targetPlId) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Cannot create a relationship between a PL and itself",
-      });
-    }
+      // No self-reference
+      if (input.sourcePlId === input.targetPlId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot create a relationship between a PL and itself",
+        });
+      }
 
-    // Verify both PLs belong to workspace
-    const sourcePls = await db
-      .select({ id: plNumbers.id })
-      .from(plNumbers)
-      .where(
-        and(
-          inArray(plNumbers.id, [input.sourcePlId, input.targetPlId]),
-          eq(plNumbers.workspaceId, workspaceId),
-        ),
-      );
+      // Verify both PLs belong to workspace
+      const sourcePls = await db
+        .select({ id: plNumbers.id })
+        .from(plNumbers)
+        .where(
+          and(
+            inArray(plNumbers.id, [input.sourcePlId, input.targetPlId]),
+            eq(plNumbers.workspaceId, workspaceId),
+          ),
+        );
 
-    if (sourcePls.length < 2) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "One or both PL numbers not found in this workspace",
-      });
-    }
+      if (sourcePls.length < 2) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or both PL numbers not found in this workspace",
+        });
+      }
 
-    // Check unique constraint
-    const [existing] = await db
-      .select({ id: plRelationships.id })
-      .from(plRelationships)
-      .where(
-        and(
-          eq(plRelationships.sourcePlId, input.sourcePlId),
-          eq(plRelationships.targetPlId, input.targetPlId),
-          eq(plRelationships.relationType, input.relationType),
-        ),
-      );
+      // Check unique constraint
+      const [existing] = await db
+        .select({ id: plRelationships.id })
+        .from(plRelationships)
+        .where(
+          and(
+            eq(plRelationships.sourcePlId, input.sourcePlId),
+            eq(plRelationships.targetPlId, input.targetPlId),
+            eq(plRelationships.relationType, input.relationType),
+          ),
+        );
 
-    if (existing) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "This relationship already exists",
-      });
-    }
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This relationship already exists",
+        });
+      }
 
-    const id = randomUUID();
+      const id = randomUUID();
 
-    const [created] = await db
-      .insert(plRelationships)
-      .values({
-        id,
+      const [created] = await db
+        .insert(plRelationships)
+        .values({
+          id,
+          workspaceId,
+          sourcePlId: input.sourcePlId,
+          targetPlId: input.targetPlId,
+          relationType: input.relationType,
+          notes: input.notes ?? null,
+          createdBy: userId,
+        })
+        .returning();
+
+      await createAuditEntry(db, {
+        userId,
+        userName,
+        action: "pl.addRelationship",
+        resourceType: "pl_relationship",
+        resourceId: id,
+        details: `Created ${input.relationType} relationship from ${input.sourcePlId} to ${input.targetPlId}`,
         workspaceId,
-        sourcePlId: input.sourcePlId,
-        targetPlId: input.targetPlId,
-        relationType: input.relationType,
-        notes: input.notes ?? null,
-        createdBy: userId,
-      })
-      .returning();
+      });
 
-    await createAuditEntry(db, {
-      userId,
-      userName,
-      action: "pl.addRelationship",
-      resourceType: "pl_relationship",
-      resourceId: id,
-      details: `Created ${input.relationType} relationship from ${input.sourcePlId} to ${input.targetPlId}`,
-      workspaceId,
-    });
-
-    return created;
-  }),
+      return created;
+    }),
 
   // --- 12. pl.removeRelationship ---
   removeRelationship: engineerProcedure
@@ -809,12 +839,46 @@ export const plRouter = router({
 
       if (input.status) {
         conditions.push(
-          eq(documents.status, input.status as "draft" | "pending_review" | "under_review" | "approved" | "rejected" | "superseded" | "archived"),
+          eq(
+            documents.status,
+            input.status as
+              | "draft"
+              | "pending_review"
+              | "under_review"
+              | "approved"
+              | "rejected"
+              | "superseded"
+              | "archived",
+          ),
         );
       }
       if (input.category) {
         conditions.push(
-          eq(documents.category, input.category as "DRAWING" | "SPECIFICATION" | "ELIGIBILITY_CRITERIA" | "INSPECTION_REPORT" | "TEST_CERTIFICATE" | "MATERIAL_CERTIFICATE" | "PROCEDURE" | "WORK_ORDER" | "CORRESPONDENCE" | "MANUAL" | "OTHER" | "STR" | "EC" | "SOS" | "SOR" | "QAP" | "SET_LIST" | "GAD" | "WIRING_DIAGRAM" | "BOM_DOCUMENT" | "VENDOR_DOCUMENT"),
+          eq(
+            documents.category,
+            input.category as
+              | "DRAWING"
+              | "SPECIFICATION"
+              | "ELIGIBILITY_CRITERIA"
+              | "INSPECTION_REPORT"
+              | "TEST_CERTIFICATE"
+              | "MATERIAL_CERTIFICATE"
+              | "PROCEDURE"
+              | "WORK_ORDER"
+              | "CORRESPONDENCE"
+              | "MANUAL"
+              | "OTHER"
+              | "STR"
+              | "EC"
+              | "SOS"
+              | "SOR"
+              | "QAP"
+              | "SET_LIST"
+              | "GAD"
+              | "WIRING_DIAGRAM"
+              | "BOM_DOCUMENT"
+              | "VENDOR_DOCUMENT",
+          ),
         );
       }
 
@@ -924,7 +988,10 @@ export const plRouter = router({
       const conditions = [eq(workRecords.plNumberId, input.plId)];
       if (input.status) {
         conditions.push(
-          eq(workRecords.status, input.status as "open" | "in_progress" | "completed" | "on_hold" | "cancelled"),
+          eq(
+            workRecords.status,
+            input.status as "open" | "in_progress" | "completed" | "on_hold" | "cancelled",
+          ),
         );
       }
 
@@ -1043,7 +1110,9 @@ export const plRouter = router({
 
   // --- 20. pl.searchCandidates ---
   searchCandidates: protectedProcedure
-    .input(z.object({ query: z.string().min(1), limit: z.number().int().min(1).max(50).default(20) }))
+    .input(
+      z.object({ query: z.string().min(1), limit: z.number().int().min(1).max(50).default(20) }),
+    )
     .query(async ({ input, ctx }) => {
       const workspaceId = requireWorkspaceId(ctx);
       const searchQuery = input.query.trim();
@@ -1065,10 +1134,7 @@ export const plRouter = router({
         .select()
         .from(plNumbers)
         .where(
-          and(
-            ilike(plNumbers.plNumber, `${searchQuery}%`),
-            eq(plNumbers.workspaceId, workspaceId),
-          ),
+          and(ilike(plNumbers.plNumber, `${searchQuery}%`), eq(plNumbers.workspaceId, workspaceId)),
         )
         .limit(limit);
 
@@ -1084,10 +1150,7 @@ export const plRouter = router({
         })
         .from(plAliases)
         .where(
-          and(
-            ilike(plAliases.alias, `%${searchQuery}%`),
-            eq(plAliases.workspaceId, workspaceId),
-          ),
+          and(ilike(plAliases.alias, `%${searchQuery}%`), eq(plAliases.workspaceId, workspaceId)),
         )
         .limit(limit);
 
@@ -1201,10 +1264,7 @@ export const plRouter = router({
           and(
             eq(documents.workspaceId, workspaceId),
             eq(documents.isDeleted, false),
-            or(
-              ilike(documents.documentNumber, searchTerm),
-              ilike(documents.title, searchTerm),
-            ),
+            or(ilike(documents.documentNumber, searchTerm), ilike(documents.title, searchTerm)),
           ),
         )
         .limit(input.limit);

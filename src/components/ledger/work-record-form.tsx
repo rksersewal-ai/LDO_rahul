@@ -126,10 +126,7 @@ export function WorkRecordForm({ onSubmit, isLoading, className }: WorkRecordFor
   }, [selectedType]);
 
   // Duplicate detection
-  const { data: workRecordsData } = trpc.work.list.useQuery(
-    { limit: 100 },
-    { staleTime: 30_000 },
-  );
+  const { data: workRecordsData } = trpc.work.list.useQuery({ limit: 100 }, { staleTime: 30_000 });
   const duplicates = useMemo(() => {
     if (!selectedTypeCode || (!eOfficeCaseNumber && !plNumber)) return [];
     const records = workRecordsData?.data ?? [];
@@ -518,7 +515,8 @@ export function WorkRecordForm({ onSubmit, isLoading, className }: WorkRecordFor
                 {duplicates.map((dup) => (
                   <li key={dup.id} className="text-[10px] text-amber-700 dark:text-amber-400">
                     <span className="font-mono font-medium">{dup.title}</span> -{" "}
-                    {(dup.description ?? "").slice(0, 60)}... ({new Date(dup.createdAt).toLocaleDateString("en-IN")})
+                    {(dup.description ?? "").slice(0, 60)}... (
+                    {new Date(dup.createdAt).toLocaleDateString("en-IN")})
                   </li>
                 ))}
               </ul>

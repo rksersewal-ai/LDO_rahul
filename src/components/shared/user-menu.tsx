@@ -35,7 +35,7 @@ export function UserMenu() {
   const currentUser = {
     name: session?.user?.name ?? "Unknown User",
     email: session?.user?.email ?? "",
-    role: (session?.user as Record<string, unknown>)?.role as string ?? "viewer",
+    role: ((session?.user as Record<string, unknown>)?.role as string) ?? "viewer",
   };
 
   return (
@@ -71,7 +71,10 @@ export function UserMenu() {
           <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
           <Badge
             variant="secondary"
-            className={cn("mt-1.5 text-[10px] h-4 px-1.5", roleColors[currentUser.role] ?? roleColors.viewer)}
+            className={cn(
+              "mt-1.5 text-[10px] h-4 px-1.5",
+              roleColors[currentUser.role] ?? roleColors.viewer,
+            )}
           >
             {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
           </Badge>

@@ -52,12 +52,7 @@ async function getSettingValue<T>(key: string, fallback: T): Promise<T> {
   const [row] = await db
     .select()
     .from(settingsTable)
-    .where(
-      and(
-        eq(settingsTable.scope, "system"),
-        eq(settingsTable.key, key),
-      ),
-    );
+    .where(and(eq(settingsTable.scope, "system"), eq(settingsTable.key, key)));
   if (!row) return fallback;
   try {
     return JSON.parse(row.value) as T;
@@ -71,12 +66,7 @@ async function upsertSettingValue(key: string, value: unknown, updatedBy: string
   const [existing] = await db
     .select({ id: settingsTable.id })
     .from(settingsTable)
-    .where(
-      and(
-        eq(settingsTable.scope, "system"),
-        eq(settingsTable.key, key),
-      ),
-    );
+    .where(and(eq(settingsTable.scope, "system"), eq(settingsTable.key, key)));
 
   if (existing) {
     await db
@@ -601,17 +591,9 @@ export const adminRouter = router({
         docBCategory: sql<string>`db."category"`.as("doc_b_category"),
       })
       .from(duplicateDetections)
-      .innerJoin(
-        sql`"documents" as "da"`,
-        sql`"da"."id" = ${duplicateDetections.documentAId}`,
-      )
-      .innerJoin(
-        sql`"documents" as "db"`,
-        sql`"db"."id" = ${duplicateDetections.documentBId}`,
-      )
-      .where(
-        sql`${duplicateDetections.status} IN ('pending', 'merged')`,
-      )
+      .innerJoin(sql`"documents" as "da"`, sql`"da"."id" = ${duplicateDetections.documentAId}`)
+      .innerJoin(sql`"documents" as "db"`, sql`"db"."id" = ${duplicateDetections.documentBId}`)
+      .where(sql`${duplicateDetections.status} IN ('pending', 'merged')`)
       .orderBy(desc(duplicateDetections.score))
       .limit(100);
 
@@ -1016,12 +998,7 @@ export const adminRouter = router({
         const [locked] = await tx
           .select()
           .from(settingsTable)
-          .where(
-            and(
-              eq(settingsTable.scope, "system"),
-              eq(settingsTable.key, BANNERS_KEY),
-            ),
-          )
+          .where(and(eq(settingsTable.scope, "system"), eq(settingsTable.key, BANNERS_KEY)))
           .for("update");
 
         let banners: Banner[];
@@ -1069,48 +1046,45 @@ export const adminRouter = router({
       return newBanner;
     }),
 
-  deleteBanner: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
-    const userId = ctx.session.user?.id ?? "system";
+  deleteBanner: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user?.id ?? "system";
 
-    const removed = await db.transaction(async (tx) => {
-      // Lock the settings row to prevent concurrent read-modify-write races
-      const [locked] = await tx
-        .select()
-        .from(settingsTable)
-        .where(
-          and(
-            eq(settingsTable.scope, "system"),
-            eq(settingsTable.key, BANNERS_KEY),
-          ),
-        )
-        .for("update");
+      const removed = await db.transaction(async (tx) => {
+        // Lock the settings row to prevent concurrent read-modify-write races
+        const [locked] = await tx
+          .select()
+          .from(settingsTable)
+          .where(and(eq(settingsTable.scope, "system"), eq(settingsTable.key, BANNERS_KEY)))
+          .for("update");
 
-      let banners: Banner[];
-      if (locked) {
-        try {
-          banners = JSON.parse(locked.value) as Banner[];
-        } catch {
-          banners = [...MOCK_BANNERS];
+        let banners: Banner[];
+        if (locked) {
+          try {
+            banners = JSON.parse(locked.value) as Banner[];
+          } catch {
+            banners = [...MOCK_BANNERS];
+          }
+        } else {
+          return null;
         }
-      } else {
-        return null;
-      }
 
-      const idx = banners.findIndex((b) => b.id === input.id);
-      if (idx === -1) return null;
-      const [removedBanner] = banners.splice(idx, 1);
+        const idx = banners.findIndex((b) => b.id === input.id);
+        if (idx === -1) return null;
+        const [removedBanner] = banners.splice(idx, 1);
 
-      const jsonValue = JSON.stringify(banners);
-      await tx
-        .update(settingsTable)
-        .set({ value: jsonValue, updatedBy: userId, updatedAt: new Date() })
-        .where(eq(settingsTable.id, locked.id));
+        const jsonValue = JSON.stringify(banners);
+        await tx
+          .update(settingsTable)
+          .set({ value: jsonValue, updatedBy: userId, updatedAt: new Date() })
+          .where(eq(settingsTable.id, locked.id));
 
-      return removedBanner;
-    });
+        return removedBanner;
+      });
 
-    return removed;
-  }),
+      return removed;
+    }),
 
   // --- Feature Toggles (DB-backed via settings table) ---
   getFeatureToggles: adminProcedure.query(async () => {
@@ -1127,7 +1101,10 @@ export const adminRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const featureToggles = await getSettingValue<FeatureToggle[]>(FEATURE_TOGGLES_KEY, MOCK_FEATURE_TOGGLES);
+      const featureToggles = await getSettingValue<FeatureToggle[]>(
+        FEATURE_TOGGLES_KEY,
+        MOCK_FEATURE_TOGGLES,
+      );
       const idx = featureToggles.findIndex((f) => f.id === input.id);
       if (idx === -1) return null;
       featureToggles[idx].enabled = input.enabled;
@@ -1179,7 +1156,10 @@ export const adminRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
-      let securityPolicies = await getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES);
+      let securityPolicies = await getSettingValue<SecurityPolicies>(
+        SECURITY_POLICIES_KEY,
+        MOCK_SECURITY_POLICIES,
+      );
 
       if (input.password) {
         securityPolicies = {
@@ -1448,7 +1428,10 @@ export const adminRouter = router({
               importedAt: new Date().toISOString(),
             };
           }
-          const featureToggles = await getSettingValue<FeatureToggle[]>(FEATURE_TOGGLES_KEY, MOCK_FEATURE_TOGGLES);
+          const featureToggles = await getSettingValue<FeatureToggle[]>(
+            FEATURE_TOGGLES_KEY,
+            MOCK_FEATURE_TOGGLES,
+          );
           for (const ft of validated.data) {
             const idx = featureToggles.findIndex((f) => f.id === ft.id);
             if (idx !== -1) {
@@ -1467,7 +1450,10 @@ export const adminRouter = router({
               importedAt: new Date().toISOString(),
             };
           }
-          const currentPolicies = await getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES);
+          const currentPolicies = await getSettingValue<SecurityPolicies>(
+            SECURITY_POLICIES_KEY,
+            MOCK_SECURITY_POLICIES,
+          );
           const updatedPolicies = {
             ...currentPolicies,
             ...validated.data,

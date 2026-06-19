@@ -71,11 +71,24 @@ export default function WorkLedgerPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data: workData, isLoading, isError, error, refetch, isRefetching } = trpc.work.list.useQuery(
+  const {
+    data: workData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+  } = trpc.work.list.useQuery(
     {
       search: search || undefined,
-      status: statusFilter !== "all" ? statusFilter as "OPEN" | "CLOSED" | "SUBMITTED" | "VERIFIED" : undefined,
-      priority: priorityFilter !== "all" ? priorityFilter as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" : undefined,
+      status:
+        statusFilter !== "all"
+          ? (statusFilter as "OPEN" | "CLOSED" | "SUBMITTED" | "VERIFIED")
+          : undefined,
+      priority:
+        priorityFilter !== "all"
+          ? (priorityFilter as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL")
+          : undefined,
       limit: 200,
     },
     { staleTime: 15_000 },
@@ -91,8 +104,10 @@ export default function WorkLedgerPage() {
     // Filter by section field which maps to work category in the DB
     return records.filter((r: Record<string, unknown>) => {
       const section = (r.section as string) ?? "";
-      return section.toUpperCase() === categoryFilter.toUpperCase()
-        || section.toUpperCase().startsWith(categoryFilter.toUpperCase());
+      return (
+        section.toUpperCase() === categoryFilter.toUpperCase() ||
+        section.toUpperCase().startsWith(categoryFilter.toUpperCase())
+      );
     });
   }, [records, categoryFilter]);
 
@@ -289,14 +304,14 @@ export default function WorkLedgerPage() {
         {/* Results info */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            {isLoading ? "Loading..." : `Showing ${filteredRecords.length} of ${totalRecords} records`}
+            {isLoading
+              ? "Loading..."
+              : `Showing ${filteredRecords.length} of ${totalRecords} records`}
           </p>
         </div>
 
         {/* Error State */}
-        {isError && !isLoading && (
-          <QueryErrorState error={error} retry={() => refetch()} />
-        )}
+        {isError && !isLoading && <QueryErrorState error={error} retry={() => refetch()} />}
 
         {/* Data Table */}
         <div className="rounded-lg border bg-card overflow-x-auto">
@@ -337,19 +352,35 @@ export default function WorkLedgerPage() {
                       <TableCell className="text-xs font-mono">
                         {(record.workOrderNumber as string) ?? "-"}
                       </TableCell>
-                      <TableCell className="text-xs max-w-[200px] truncate" title={record.title as string}>
+                      <TableCell
+                        className="text-xs max-w-[200px] truncate"
+                        title={record.title as string}
+                      >
                         {(record.title as string) ?? "-"}
                       </TableCell>
-                      <TableCell className="text-xs max-w-[250px] truncate" title={record.description as string}>
+                      <TableCell
+                        className="text-xs max-w-[250px] truncate"
+                        title={record.description as string}
+                      >
                         {(record.description as string) ?? "-"}
                       </TableCell>
                       <TableCell>
-                        <Badge className={cn("text-[10px]", statusColors[(record.status as string)?.toUpperCase() ?? ""] ?? "")}>
+                        <Badge
+                          className={cn(
+                            "text-[10px]",
+                            statusColors[(record.status as string)?.toUpperCase() ?? ""] ?? "",
+                          )}
+                        >
                           {(record.status as string) ?? "-"}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge className={cn("text-[10px]", priorityColors[(record.priority as string)?.toUpperCase() ?? ""] ?? "")}>
+                        <Badge
+                          className={cn(
+                            "text-[10px]",
+                            priorityColors[(record.priority as string)?.toUpperCase() ?? ""] ?? "",
+                          )}
+                        >
                           {(record.priority as string) ?? "-"}
                         </Badge>
                       </TableCell>
@@ -357,7 +388,10 @@ export default function WorkLedgerPage() {
                   ))}
                   {filteredRecords.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-xs text-muted-foreground">
+                      <TableCell
+                        colSpan={6}
+                        className="h-24 text-center text-xs text-muted-foreground"
+                      >
                         No work records found matching the filters.
                       </TableCell>
                     </TableRow>

@@ -1,9 +1,9 @@
 "use client";
 
+import { X } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +68,9 @@ export function SystemBanner() {
   if (visibleBanners.length === 0) return null;
 
   // Determine the dominant type for styling (critical > warning > info)
-  const dominantType: BannerItem["type"] = visibleBanners.some((b: BannerItem) => b.type === "critical")
+  const dominantType: BannerItem["type"] = visibleBanners.some(
+    (b: BannerItem) => b.type === "critical",
+  )
     ? "critical"
     : visibleBanners.some((b: BannerItem) => b.type === "warning")
       ? "warning"
@@ -96,10 +98,7 @@ export function SystemBanner() {
             <span key={segment.id} className="inline">
               {idx > 0 && <span className="mx-2 opacity-50">{SEPARATOR}</span>}
               {segment.actionHref ? (
-                <Link
-                  href={segment.actionHref}
-                  className="hover:underline underline-offset-2"
-                >
+                <Link href={segment.actionHref} className="hover:underline underline-offset-2">
                   {segment.message}
                   {segment.actionLabel && (
                     <span className="ml-1 font-semibold">[{segment.actionLabel}]</span>
@@ -116,10 +115,7 @@ export function SystemBanner() {
             <span key={`dup-${segment.id}`} className="inline">
               {idx > 0 && <span className="mx-2 opacity-50">{SEPARATOR}</span>}
               {segment.actionHref ? (
-                <Link
-                  href={segment.actionHref}
-                  className="hover:underline underline-offset-2"
-                >
+                <Link href={segment.actionHref} className="hover:underline underline-offset-2">
                   {segment.message}
                   {segment.actionLabel && (
                     <span className="ml-1 font-semibold">[{segment.actionLabel}]</span>

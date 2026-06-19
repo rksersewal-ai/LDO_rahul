@@ -119,15 +119,35 @@ export default function DeduplicationPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "running":
-        return <Badge variant="default" className="text-[10px]">Running</Badge>;
+        return (
+          <Badge variant="default" className="text-[10px]">
+            Running
+          </Badge>
+        );
       case "completed":
-        return <Badge variant="secondary" className="text-[10px]">Completed</Badge>;
+        return (
+          <Badge variant="secondary" className="text-[10px]">
+            Completed
+          </Badge>
+        );
       case "failed":
-        return <Badge variant="destructive" className="text-[10px]">Failed</Badge>;
+        return (
+          <Badge variant="destructive" className="text-[10px]">
+            Failed
+          </Badge>
+        );
       case "cancelled":
-        return <Badge variant="outline" className="text-[10px]">Cancelled</Badge>;
+        return (
+          <Badge variant="outline" className="text-[10px]">
+            Cancelled
+          </Badge>
+        );
       default:
-        return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
+        return (
+          <Badge variant="outline" className="text-[10px]">
+            {status}
+          </Badge>
+        );
     }
   };
 
@@ -386,7 +406,10 @@ export default function DeduplicationPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] text-muted-foreground">
-                      Detected: {item.detectedAt ? new Date(item.detectedAt).toLocaleDateString("en-IN") : "N/A"}
+                      Detected:{" "}
+                      {item.detectedAt
+                        ? new Date(item.detectedAt).toLocaleDateString("en-IN")
+                        : "N/A"}
                     </span>
                   </div>
                 </div>
@@ -497,7 +520,9 @@ export default function DeduplicationPage() {
 
           {!pendingQuery.isLoading && items.length === 0 && (
             <div className="rounded-lg border bg-card p-8 text-center">
-              <p className="text-sm text-muted-foreground">No pending duplicate detections found.</p>
+              <p className="text-sm text-muted-foreground">
+                No pending duplicate detections found.
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Click &quot;Run Now&quot; to analyze documents for duplicates.
               </p>

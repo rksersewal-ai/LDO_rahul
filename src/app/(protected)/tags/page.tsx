@@ -37,8 +37,18 @@ export default function TagsPage() {
   const [formDescription, setFormDescription] = useState("");
 
   const { data, isLoading, error, refetch } = trpc.tags.list.useQuery();
-  const createMutation = trpc.tags.create.useMutation({ onSuccess: () => { refetch(); closeDialog(); } });
-  const updateMutation = trpc.tags.update.useMutation({ onSuccess: () => { refetch(); closeDialog(); } });
+  const createMutation = trpc.tags.create.useMutation({
+    onSuccess: () => {
+      refetch();
+      closeDialog();
+    },
+  });
+  const updateMutation = trpc.tags.update.useMutation({
+    onSuccess: () => {
+      refetch();
+      closeDialog();
+    },
+  });
   const deleteMutation = trpc.tags.delete.useMutation({ onSuccess: () => refetch() });
 
   function openCreate() {
@@ -103,9 +113,7 @@ export default function TagsPage() {
           <LoadingState variant="table" rows={6} />
         ) : error ? (
           <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
-            <p className="text-sm text-destructive">
-              Failed to load tags: {error.message}
-            </p>
+            <p className="text-sm text-destructive">Failed to load tags: {error.message}</p>
           </div>
         ) : !data || data.length === 0 ? (
           <EmptyState

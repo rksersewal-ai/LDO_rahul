@@ -4,7 +4,7 @@ import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
-import { documentTags, documents, tags } from "@/lib/db/schema";
+import { documents, documentTags, tags } from "@/lib/db/schema";
 import {
   createTagSchema,
   tagDocumentsSchema,
@@ -317,7 +317,9 @@ export const tagsRouter = router({
 
     await db
       .delete(documentTags)
-      .where(and(eq(documentTags.tagId, input.tagId), eq(documentTags.documentId, input.documentId)));
+      .where(
+        and(eq(documentTags.tagId, input.tagId), eq(documentTags.documentId, input.documentId)),
+      );
 
     await createAuditEntry(db, {
       userId,

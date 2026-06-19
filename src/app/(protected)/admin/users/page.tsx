@@ -42,10 +42,11 @@ const roleBadgeVariant: Record<UserRole, "default" | "secondary" | "outline" | "
 };
 
 export default function UserManagementPage() {
-  const { data: usersData, isLoading, refetch } = trpc.admin.getUsers.useQuery(
-    undefined,
-    { staleTime: 15_000 },
-  );
+  const {
+    data: usersData,
+    isLoading,
+    refetch,
+  } = trpc.admin.getUsers.useQuery(undefined, { staleTime: 15_000 });
 
   const users = (usersData ?? []) as Array<Record<string, unknown>>;
   const [search, setSearch] = useState("");
@@ -152,7 +153,11 @@ export default function UserManagementPage() {
 
   // Password reset handlers
   const openPasswordReset = (user: Record<string, unknown>) => {
-    setPasswordResetUser({ id: user.id as string, name: user.name as string, username: user.username as string });
+    setPasswordResetUser({
+      id: user.id as string,
+      name: user.name as string,
+      username: user.username as string,
+    });
     setPasswordResetOpen(true);
   };
 

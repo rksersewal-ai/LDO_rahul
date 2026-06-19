@@ -28,14 +28,17 @@ function requireWorkspaceId(ctx: { session: { user: { workspaceId: string | null
 }
 
 /** Map frontend status values (UPPER_CASE) to DB enum values (lowercase) */
-function mapStatusToDb(status: string): "open" | "investigating" | "resolved" | "closed" | "escalated" {
-  const statusMap: Record<string, "open" | "investigating" | "resolved" | "closed" | "escalated"> = {
-    OPEN: "open",
-    IN_PROGRESS: "investigating",
-    RESOLVED: "resolved",
-    CLOSED: "closed",
-    ESCALATED: "escalated",
-  };
+function mapStatusToDb(
+  status: string,
+): "open" | "investigating" | "resolved" | "closed" | "escalated" {
+  const statusMap: Record<string, "open" | "investigating" | "resolved" | "closed" | "escalated"> =
+    {
+      OPEN: "open",
+      IN_PROGRESS: "investigating",
+      RESOLVED: "resolved",
+      CLOSED: "closed",
+      ESCALATED: "escalated",
+    };
   return statusMap[status] ?? "open";
 }
 
@@ -149,10 +152,7 @@ export const casesRouter = router({
         .orderBy(orderFn(sortCol))
         .limit(input.limit)
         .offset(input.offset),
-      db
-        .select({ total: count() })
-        .from(cases)
-        .where(whereClause),
+      db.select({ total: count() }).from(cases).where(whereClause),
     ]);
 
     const items = data.map(mapCaseToFrontend);
@@ -240,7 +240,8 @@ export const casesRouter = router({
     const updateValues: Record<string, unknown> = { updatedBy: userId, updatedAt: new Date() };
 
     if (input.title !== undefined) updateValues.title = sanitizeUserInput(input.title);
-    if (input.description !== undefined) updateValues.description = sanitizeUserInput(input.description);
+    if (input.description !== undefined)
+      updateValues.description = sanitizeUserInput(input.description);
     if (input.type !== undefined) updateValues.type = input.type;
     if (input.severity !== undefined) {
       updateValues.severity = input.severity;

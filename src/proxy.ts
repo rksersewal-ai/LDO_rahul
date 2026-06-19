@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 export default async function proxy(req: NextRequest) {
   // Wrap with NextAuth to get session (async)
   const session = await auth();
-  
+
   const { nextUrl } = req;
   const isAuthenticated = !!session;
 
@@ -48,11 +48,7 @@ export default async function proxy(req: NextRequest) {
 
   // Force password change redirect
   const forcePasswordChange = session?.user?.forcePasswordChange;
-  if (
-    forcePasswordChange &&
-    nextUrl.pathname !== "/change-password" &&
-    !isAuthApi
-  ) {
+  if (forcePasswordChange && nextUrl.pathname !== "/change-password" && !isAuthApi) {
     return NextResponse.redirect(new URL("/change-password", nextUrl));
   }
 

@@ -3,12 +3,7 @@ import { and, eq } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { documents } from "@/lib/db/schema";
 
-export const MIME_WHITELIST = [
-  "application/pdf",
-  "image/tiff",
-  "image/jpeg",
-  "image/png",
-] as const;
+export const MIME_WHITELIST = ["application/pdf", "image/tiff", "image/jpeg", "image/png"] as const;
 
 export const MAGIC_BYTES = {
   PDF: Buffer.from([0x25, 0x50, 0x44, 0x46]),

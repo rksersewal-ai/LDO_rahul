@@ -1,8 +1,20 @@
 import { z } from "zod";
 
 export const plCategoryEnum = z.enum(["CAT-A", "CAT-B", "CAT-C", "CAT-D"]);
-export const plStatusEnum = z.enum(["active", "inactive", "deprecated", "under_review", "obsolete"]);
-export const lifecycleStageEnum = z.enum(["draft", "active", "restricted", "obsolete", "deprecated"]);
+export const plStatusEnum = z.enum([
+  "active",
+  "inactive",
+  "deprecated",
+  "under_review",
+  "obsolete",
+]);
+export const lifecycleStageEnum = z.enum([
+  "draft",
+  "active",
+  "restricted",
+  "obsolete",
+  "deprecated",
+]);
 
 export const plItemTypeEnum = z.enum(["VD", "NVD"]);
 export const inspectionAgencyEnum = z.enum(["RDSO", "ZONAL", "WORKSHOP", "STORES"]);

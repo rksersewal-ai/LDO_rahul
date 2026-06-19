@@ -56,12 +56,7 @@ export async function isDocumentUnderHold(documentId: string): Promise<boolean> 
     .select({ holdId: documentLegalHolds.holdId })
     .from(documentLegalHolds)
     .innerJoin(legalHolds, eq(documentLegalHolds.holdId, legalHolds.id))
-    .where(
-      and(
-        eq(documentLegalHolds.documentId, documentId),
-        eq(legalHolds.status, "active"),
-      ),
-    )
+    .where(and(eq(documentLegalHolds.documentId, documentId), eq(legalHolds.status, "active")))
     .limit(1);
 
   return rows.length > 0;

@@ -130,10 +130,7 @@ export const bomRouter = router({
       workspaceId,
     });
 
-    const [newProduct] = await db
-      .select()
-      .from(bomProducts)
-      .where(eq(bomProducts.id, id));
+    const [newProduct] = await db.select().from(bomProducts).where(eq(bomProducts.id, id));
 
     return newProduct;
   }),
@@ -204,10 +201,7 @@ export const bomRouter = router({
 
     // Check PL deprecation/obsolete warning
     if (input.plId) {
-      const [pl] = await db
-        .select()
-        .from(plNumbers)
-        .where(eq(plNumbers.id, input.plId));
+      const [pl] = await db.select().from(plNumbers).where(eq(plNumbers.id, input.plId));
 
       if (pl && (pl.status === "deprecated" || pl.status === "obsolete")) {
         return {
@@ -225,10 +219,7 @@ export const bomRouter = router({
     const workspaceId = requireWorkspaceId(ctx);
 
     // Find entry
-    const [entry] = await db
-      .select()
-      .from(bomEntries)
-      .where(eq(bomEntries.id, input.entryId));
+    const [entry] = await db.select().from(bomEntries).where(eq(bomEntries.id, input.entryId));
 
     if (!entry) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Entry not found" });
@@ -238,9 +229,7 @@ export const bomRouter = router({
     const [product] = await db
       .select()
       .from(bomProducts)
-      .where(
-        and(eq(bomProducts.id, entry.bomProductId), eq(bomProducts.workspaceId, workspaceId)),
-      );
+      .where(and(eq(bomProducts.id, entry.bomProductId), eq(bomProducts.workspaceId, workspaceId)));
 
     if (!product) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
@@ -261,10 +250,7 @@ export const bomRouter = router({
     if (input.drawingRef !== undefined) updateData.drawingRef = input.drawingRef;
     if (input.specifications !== undefined) updateData.specification = input.specifications;
 
-    await db
-      .update(bomEntries)
-      .set(updateData)
-      .where(eq(bomEntries.id, input.entryId));
+    await db.update(bomEntries).set(updateData).where(eq(bomEntries.id, input.entryId));
 
     await createAuditEntry(db, {
       userId: ctx.session.user.id,
@@ -290,10 +276,7 @@ export const bomRouter = router({
       const workspaceId = requireWorkspaceId(ctx);
 
       // Find entry
-      const [entry] = await db
-        .select()
-        .from(bomEntries)
-        .where(eq(bomEntries.id, input.entryId));
+      const [entry] = await db.select().from(bomEntries).where(eq(bomEntries.id, input.entryId));
 
       if (!entry) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Entry not found" });
@@ -344,12 +327,7 @@ export const bomRouter = router({
         const remainingSiblings = await tx
           .select()
           .from(bomEntries)
-          .where(
-            and(
-              eq(bomEntries.bomProductId, entry.bomProductId),
-              parentCondition,
-            ),
-          )
+          .where(and(eq(bomEntries.bomProductId, entry.bomProductId), parentCondition))
           .orderBy(asc(bomEntries.position));
 
         for (let i = 0; i < remainingSiblings.length; i++) {
@@ -380,10 +358,7 @@ export const bomRouter = router({
     const workspaceId = requireWorkspaceId(ctx);
 
     // Find entry
-    const [entry] = await db
-      .select()
-      .from(bomEntries)
-      .where(eq(bomEntries.id, input.entryId));
+    const [entry] = await db.select().from(bomEntries).where(eq(bomEntries.id, input.entryId));
 
     if (!entry) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Entry not found" });
@@ -393,9 +368,7 @@ export const bomRouter = router({
     const [product] = await db
       .select()
       .from(bomProducts)
-      .where(
-        and(eq(bomProducts.id, entry.bomProductId), eq(bomProducts.workspaceId, workspaceId)),
-      );
+      .where(and(eq(bomProducts.id, entry.bomProductId), eq(bomProducts.workspaceId, workspaceId)));
 
     if (!product) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
@@ -438,10 +411,7 @@ export const bomRouter = router({
     const workspaceId = requireWorkspaceId(ctx);
 
     // Find entry
-    const [entry] = await db
-      .select()
-      .from(bomEntries)
-      .where(eq(bomEntries.id, input.entryId));
+    const [entry] = await db.select().from(bomEntries).where(eq(bomEntries.id, input.entryId));
 
     if (!entry) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Entry not found" });
@@ -451,9 +421,7 @@ export const bomRouter = router({
     const [product] = await db
       .select()
       .from(bomProducts)
-      .where(
-        and(eq(bomProducts.id, entry.bomProductId), eq(bomProducts.workspaceId, workspaceId)),
-      );
+      .where(and(eq(bomProducts.id, entry.bomProductId), eq(bomProducts.workspaceId, workspaceId)));
 
     if (!product) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
@@ -499,9 +467,7 @@ export const bomRouter = router({
       const [product] = await db
         .select()
         .from(bomProducts)
-        .where(
-          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
-        );
+        .where(and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)));
 
       if (!product) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
@@ -514,7 +480,8 @@ export const bomRouter = router({
         .orderBy(asc(bomEntries.position));
 
       if (input.format === "csv") {
-        const headers = "Item Number,Part Name,Part Number,Quantity,Unit,Material,Specification,Drawing Ref,Remarks";
+        const headers =
+          "Item Number,Part Name,Part Number,Quantity,Unit,Material,Specification,Drawing Ref,Remarks";
         const rows = entries.map((e) =>
           [
             escapeCsvField(String(e.itemNumber)),
@@ -574,9 +541,7 @@ export const bomRouter = router({
       const [original] = await db
         .select()
         .from(bomProducts)
-        .where(
-          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
-        );
+        .where(and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)));
 
       if (!original) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
@@ -686,9 +651,7 @@ export const bomRouter = router({
       const [product] = await db
         .select()
         .from(bomProducts)
-        .where(
-          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
-        );
+        .where(and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)));
 
       if (!product) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
@@ -730,9 +693,7 @@ export const bomRouter = router({
       const [product] = await db
         .select()
         .from(bomProducts)
-        .where(
-          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
-        );
+        .where(and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)));
 
       if (!product) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
@@ -774,9 +735,7 @@ export const bomRouter = router({
       const [product] = await db
         .select()
         .from(bomProducts)
-        .where(
-          and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)),
-        );
+        .where(and(eq(bomProducts.id, input.productId), eq(bomProducts.workspaceId, workspaceId)));
 
       if (!product) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
@@ -785,12 +744,7 @@ export const bomRouter = router({
       const history = await db
         .select()
         .from(auditLog)
-        .where(
-          and(
-            eq(auditLog.entityType, "bom_product"),
-            eq(auditLog.entityId, input.productId),
-          ),
-        )
+        .where(and(eq(auditLog.entityType, "bom_product"), eq(auditLog.entityId, input.productId)))
         .orderBy(desc(auditLog.createdAt));
 
       return history;

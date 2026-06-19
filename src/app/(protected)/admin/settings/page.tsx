@@ -32,12 +32,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { Permission } from "@/lib/auth/permissions";
-import {
-  type ComplianceSettings,
-  type FeatureToggle,
-  type RolePermissionMatrix,
-  type SecurityPolicies,
-  type SystemConfiguration,
+import type {
+  ComplianceSettings,
+  FeatureToggle,
+  RolePermissionMatrix,
+  SecurityPolicies,
+  SystemConfiguration,
 } from "@/lib/mock-data/admin-settings";
 import type { UserRole } from "@/lib/mock-data/users";
 import { trpc } from "@/lib/trpc/client";
@@ -64,26 +64,63 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
-  const { data: featuresData } = trpc.admin.getFeatureToggles.useQuery(undefined, { staleTime: 30_000 });
-  const { data: securityData } = trpc.admin.getSecurityPolicies.useQuery(undefined, { staleTime: 30_000 });
-  const { data: rolePermsData } = trpc.admin.getRolePermissions.useQuery(undefined, { staleTime: 30_000 });
-  const { data: sysConfigData } = trpc.admin.getSystemConfiguration.useQuery(undefined, { staleTime: 30_000 });
-  const { data: complianceData } = trpc.admin.getComplianceSettings.useQuery(undefined, { staleTime: 30_000 });
+  const { data: featuresData } = trpc.admin.getFeatureToggles.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const { data: securityData } = trpc.admin.getSecurityPolicies.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const { data: rolePermsData } = trpc.admin.getRolePermissions.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const { data: sysConfigData } = trpc.admin.getSystemConfiguration.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const { data: complianceData } = trpc.admin.getComplianceSettings.useQuery(undefined, {
+    staleTime: 30_000,
+  });
 
   const [features, setFeatures] = useState<FeatureToggle[]>([]);
   const [security, setSecurity] = useState<SecurityPolicies>({
-    password: { minLength: 8, requireUppercase: true, requireLowercase: true, requireNumbers: true, requireSpecialChars: true, expiryDays: 90, historyCount: 5 },
+    password: {
+      minLength: 8,
+      requireUppercase: true,
+      requireLowercase: true,
+      requireNumbers: true,
+      requireSpecialChars: true,
+      expiryDays: 90,
+      historyCount: 5,
+    },
     session: { maxDuration: 480, idleTimeout: 30, maxConcurrentSessions: 3, requireMfa: false },
     lockout: { maxAttempts: 5, durationMinutes: 30, autoUnlock: true },
     login: { allowRememberMe: true, showCaptchaAfterFailures: 3 },
     ipRestrictions: { enabled: false, allowedRanges: [], blockedRanges: [] },
   } as unknown as SecurityPolicies);
-  const [rolePerms, setRolePerms] = useState<RolePermissionMatrix>({} as unknown as RolePermissionMatrix);
+  const [rolePerms, setRolePerms] = useState<RolePermissionMatrix>(
+    {} as unknown as RolePermissionMatrix,
+  );
   const [sysConfig, setSysConfig] = useState<SystemConfiguration>({
     upload: { maxFileSizeMB: 100, allowedExtensions: [], maxConcurrentUploads: 5 },
-    ocr: { autoProcess: true, maxRetries: 3, timeoutMinutes: 10, batchSize: 10, ocrEngine: "tesseract" },
-    notification: { emailEnabled: true, pushEnabled: true, digestFrequency: "daily", retentionDays: 90 },
-    backup: { frequency: "daily", retentionDays: 30, autoBackup: true, lastBackup: null, compressionEnabled: true },
+    ocr: {
+      autoProcess: true,
+      maxRetries: 3,
+      timeoutMinutes: 10,
+      batchSize: 10,
+      ocrEngine: "tesseract",
+    },
+    notification: {
+      emailEnabled: true,
+      pushEnabled: true,
+      digestFrequency: "daily",
+      retentionDays: 90,
+    },
+    backup: {
+      frequency: "daily",
+      retentionDays: 30,
+      autoBackup: true,
+      lastBackup: null,
+      compressionEnabled: true,
+    },
   } as unknown as SystemConfiguration);
   const [compliance, setCompliance] = useState<ComplianceSettings>({
     auditRetention: { retentionDays: 2555, immutable: true, hashAlgorithm: "SHA-256" },
@@ -99,7 +136,8 @@ export default function SettingsPage() {
   const effectiveCompliance = (complianceData as ComplianceSettings | undefined) ?? compliance;
 
   // Don't render tabs until server data is loaded to avoid accessing undefined fields
-  const isDataReady = !!featuresData && !!securityData && !!rolePermsData && !!sysConfigData && !!complianceData;
+  const isDataReady =
+    !!featuresData && !!securityData && !!rolePermsData && !!sysConfigData && !!complianceData;
 
   if (!isDataReady) {
     return (
@@ -160,7 +198,9 @@ export default function SettingsPage() {
           {activeTab === "security" && (
             <SecurityTab security={effectiveSecurity} setSecurity={setSecurity} />
           )}
-          {activeTab === "roles" && <RolesTab rolePerms={effectiveRolePerms} setRolePerms={setRolePerms} />}
+          {activeTab === "roles" && (
+            <RolesTab rolePerms={effectiveRolePerms} setRolePerms={setRolePerms} />
+          )}
           {activeTab === "system" && (
             <SystemTab sysConfig={effectiveSysConfig} setSysConfig={setSysConfig} />
           )}
@@ -793,7 +833,17 @@ const ALL_PERMISSIONS: Permission[] = [
   "audit.view",
 ];
 
-const ALL_ROLES: UserRole[] = ["admin", "supervisor", "reviewer", "engineer", "viewer", "classification_officer", "records_manager", "legal_hold_officer", "auditor"];
+const ALL_ROLES: UserRole[] = [
+  "admin",
+  "supervisor",
+  "reviewer",
+  "engineer",
+  "viewer",
+  "classification_officer",
+  "records_manager",
+  "legal_hold_officer",
+  "auditor",
+];
 
 function RolesTab({
   rolePerms,

@@ -74,4 +74,4 @@ export function checkRateLimit(userId: string | undefined): void {
 }
 
 // Export for testing
-export { rateLimitStore, MAX_REQUESTS, WINDOW_MS };
+export { MAX_REQUESTS, rateLimitStore, WINDOW_MS };

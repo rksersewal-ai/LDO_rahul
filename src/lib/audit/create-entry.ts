@@ -65,6 +65,10 @@ export async function createAuditEntry(db: DbOrTransaction, input: AuditEntryInp
       createdAt: now,
     });
   } catch (error) {
-    logError("[AuditLog] Failed to create audit entry", { action: input.action, resourceType: input.resourceType }, error);
+    logError(
+      "[AuditLog] Failed to create audit entry",
+      { action: input.action, resourceType: input.resourceType },
+      error,
+    );
   }
 }

@@ -78,10 +78,7 @@ export function useDashboardData(compareRange?: ComparePeriod): UseDashboardData
     recentDocsQuery.isLoading;
 
   const isError =
-    metricsQuery.isError ||
-    trendsQuery.isError ||
-    activityQuery.isError ||
-    recentDocsQuery.isError;
+    metricsQuery.isError || trendsQuery.isError || activityQuery.isError || recentDocsQuery.isError;
 
   const error =
     metricsQuery.error ?? trendsQuery.error ?? activityQuery.error ?? recentDocsQuery.error ?? null;

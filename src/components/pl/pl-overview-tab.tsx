@@ -18,7 +18,13 @@ interface PlRelationship {
   id: string;
   sourcePlId: string;
   targetPlId: string;
-  relationType: "equivalent_to" | "substitute_for" | "supersedes" | "child_of" | "accessory_of" | "related_to";
+  relationType:
+    | "equivalent_to"
+    | "substitute_for"
+    | "supersedes"
+    | "child_of"
+    | "accessory_of"
+    | "related_to";
   notes: string | null;
   createdAt: Date | string;
   [key: string]: unknown;
@@ -131,13 +137,17 @@ export function PlOverviewTab({ pl }: PlOverviewTabProps) {
                 </span>
               )}
               {pl.itemType === "VD" && !pl.uvamItemId && (
-                <Badge variant="secondary" className="text-[10px]">UVAM Registered</Badge>
+                <Badge variant="secondary" className="text-[10px]">
+                  UVAM Registered
+                </Badge>
               )}
             </div>
             {/* Eligibility Criteria */}
             {pl.itemType === "NVD" && pl.eligibilityCriteriaText && (
               <div className="mt-3 pt-3 border-t border-border/50">
-                <p className="text-xs text-muted-foreground font-medium mb-1">Eligibility Criteria</p>
+                <p className="text-xs text-muted-foreground font-medium mb-1">
+                  Eligibility Criteria
+                </p>
                 <p className="text-xs text-foreground">{pl.eligibilityCriteriaText}</p>
               </div>
             )}
@@ -196,7 +206,11 @@ export function PlOverviewTab({ pl }: PlOverviewTabProps) {
           />
           <InfoRow
             label="Lifecycle Stage"
-            value={pl.lifecycleStage ? pl.lifecycleStage.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null}
+            value={
+              pl.lifecycleStage
+                ? pl.lifecycleStage.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                : null
+            }
           />
         </dl>
       </section>
@@ -253,25 +267,25 @@ export function PlOverviewTab({ pl }: PlOverviewTabProps) {
           Procurement & Inspection
         </h3>
         <dl className="rounded-md border p-3">
-          <InfoRow
-            label="Inspection Agency"
-            value={pl.inspectionAgency ?? null}
-          />
-          <InfoRow
-            label="Unit of Measurement"
-            value={pl.unitOfMeasurement ?? null}
-          />
+          <InfoRow label="Inspection Agency" value={pl.inspectionAgency ?? null} />
+          <InfoRow label="Unit of Measurement" value={pl.unitOfMeasurement ?? null} />
           <InfoRow
             label="Shelf Life"
             value={pl.shelfLifeMonths != null ? `${pl.shelfLifeMonths} months` : null}
           />
           <InfoRow
             label="Last Rate"
-            value={pl.lastProcurementRate != null ? `INR ${pl.lastProcurementRate.toLocaleString()}` : null}
+            value={
+              pl.lastProcurementRate != null
+                ? `INR ${pl.lastProcurementRate.toLocaleString()}`
+                : null
+            }
           />
           <InfoRow
             label="Last Procured"
-            value={pl.lastProcurementDate ? new Date(pl.lastProcurementDate).toLocaleDateString() : null}
+            value={
+              pl.lastProcurementDate ? new Date(pl.lastProcurementDate).toLocaleDateString() : null
+            }
           />
         </dl>
       </section>
@@ -302,7 +316,10 @@ export function PlOverviewTab({ pl }: PlOverviewTabProps) {
             <ul className="space-y-1.5">
               {pl.aliases.map((alias) => (
                 <li key={alias.id} className="flex items-center gap-2">
-                  <Badge variant={getAliasTypeBadgeVariant(alias.aliasType)} className="text-[10px]">
+                  <Badge
+                    variant={getAliasTypeBadgeVariant(alias.aliasType)}
+                    className="text-[10px]"
+                  >
                     {alias.aliasType.replace("_", " ")}
                   </Badge>
                   <span className="text-xs font-mono">{alias.alias}</span>
