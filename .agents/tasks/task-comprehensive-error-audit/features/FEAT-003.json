@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "fix",
   "description": "Phase 5: Database schema fixes. HIGH RISK phase - changing isDeleted from integer to boolean requires updating every router that touches it. Also fix fileSize bigint, workspace indexes, pl_number per-workspace unique constraint, audit-log dedup columns, approvals/cases workspaceId, composite indexes, cabinets root uniqueness, and connection pool config.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "1. In src/lib/db/schema/documents.ts: Change `fileSize: integer('file_size')` to `fileSize: text('file_size')` - actually, per the user instruction this should be bigint. Use `import { bigint } from 'drizzle-orm/pg-core'` and change to `fileSize: bigint('file_size', { mode: 'number' })`. This stores large file sizes correctly.",
     "2. In src/lib/db/schema/documents.ts: Add a workspaceId index if not already present. Check the existing indexes - there is no idx_documents_workspace_id. Add: `index('idx_documents_workspace_id').on(table.workspaceId)` to the table's index array.",
@@ -32,5 +32,5 @@
     "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && ./node_modules/.bin/tsc --noEmit -p tsconfig.json"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All isDeleted integer(0/1) references updated to boolean(false/true) across 10 source files. isResolved also converted to boolean in document-comments. TypeScript check, vitest (105 tests), and next build all pass cleanly. The document-share-links schema still uses integer for isRevoked/allowDownload as instructed (left unchanged)."
 }
