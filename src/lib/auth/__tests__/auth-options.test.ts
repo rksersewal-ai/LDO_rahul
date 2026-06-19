@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Replicate the authorize logic from auth-options.ts for isolated testing.
 // This is the exact same algorithm used in the real authorize function.
 const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
 interface MockUser {
   id: string;
@@ -60,7 +61,17 @@ async function authorizeLogic(
 
   // Check if account is locked
   if (user.lockedAt) {
-    return null;
+    const lockElapsed = Date.now() - new Date(user.lockedAt).getTime();
+    if (lockElapsed < LOCKOUT_DURATION_MS) {
+      // Lockout period has not expired yet
+      return null;
+    }
+    // Lockout period expired: auto-unlock the account
+    db.updateUser(user.id, {
+      lockedAt: null,
+      lockReason: null,
+      failedLoginAttempts: 0,
+    });
   }
 
   // Verify password with bcrypt
@@ -173,8 +184,10 @@ describe("auth authorize logic", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null when account is locked (lockedAt is set)", async () => {
-    mockFindUser.mockReturnValue({ ...activeUser, lockedAt: new Date("2024-01-01") });
+  it("returns null when account is locked and lockout period has not expired", async () => {
+    // Lock was set 5 minutes ago (still within 30-minute lockout window)
+    const recentLock = new Date(Date.now() - 5 * 60 * 1000);
+    mockFindUser.mockReturnValue({ ...activeUser, lockedAt: recentLock });
 
     const result = await authorizeLogic(
       { username: "admin", password: "pass" },
@@ -184,6 +197,43 @@ describe("auth authorize logic", () => {
     expect(result).toBeNull();
     // bcrypt.compare should NOT be called for locked accounts
     expect(mockCompare).not.toHaveBeenCalled();
+  });
+
+  it("auto-unlocks account and continues auth when lockout period has expired", async () => {
+    // Lock was set 31 minutes ago (past 30-minute lockout window)
+    const expiredLock = new Date(Date.now() - 31 * 60 * 1000);
+    mockFindUser.mockReturnValue({
+      ...activeUser,
+      lockedAt: expiredLock,
+      failedLoginAttempts: 5,
+    });
+    mockCompare.mockResolvedValue(true);
+
+    const result = await authorizeLogic(
+      { username: "admin", password: "correct" },
+      mockDb,
+      mockBcrypt,
+    );
+
+    // Should have called updateUser to unlock the account
+    expect(mockUpdateUser).toHaveBeenCalledWith("u1", {
+      lockedAt: null,
+      lockReason: null,
+      failedLoginAttempts: 0,
+    });
+
+    // Should proceed with authentication and return user
+    expect(result).toEqual({
+      id: "u1",
+      name: "Admin User",
+      email: "admin@test.com",
+      role: "admin",
+      department: "Engineering",
+      designation: "Director",
+      workspaceId: "ws-1",
+      clearanceLevel: "top-secret",
+      forcePasswordChange: false,
+    });
   });
 
   it("returns null and increments failedLoginAttempts on wrong password", async () => {

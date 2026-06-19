@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
 const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -32,7 +33,20 @@ export const authConfig: NextAuthConfig = {
 
         // Check if account is locked
         if (user.lockedAt) {
-          return null;
+          const lockElapsed = Date.now() - new Date(user.lockedAt).getTime();
+          if (lockElapsed < LOCKOUT_DURATION_MS) {
+            // Lockout period has not expired yet
+            return null;
+          }
+          // Lockout period expired: auto-unlock the account
+          await db
+            .update(users)
+            .set({
+              lockedAt: null,
+              lockReason: null,
+              failedLoginAttempts: 0,
+            })
+            .where(eq(users.id, user.id));
         }
 
         // Verify password with bcrypt

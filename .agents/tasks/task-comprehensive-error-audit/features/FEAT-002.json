@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Phase 3 & 4: Authentication/session fixes and tRPC router/API fixes. Fix auth-related issues and router bugs.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "1. Check src/components/layout/app-header.tsx or wherever UserMenu is defined. If signOut uses a manual fetch to /api/auth/signout, replace with next-auth's signOut() function from 'next-auth/react'. Ensure the UserMenu component correctly calls signOut({callbackUrl: '/login'}).",
     "2. Check UserMenu or session display for session fields (role, department, designation). Ensure they are sourced from the session object and displayed properly. The session type should include these fields.",

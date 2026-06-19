@@ -798,13 +798,26 @@ export const documentsRouter = router({
     // Process the bulk action
     switch (input.action) {
       case "archive": {
-        await db
-          .update(documents)
-          .set({ status: "archived", updatedAt: new Date(), updatedBy: userId })
-          .where(
-            and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
-          );
-        succeeded.push(...processableIds);
+        // Skip documents that are already archived
+        const archivableIds = processableIds.filter((id) => {
+          const status = docStatusMap.get(id);
+          if (status === "archived") {
+            failed.push(id);
+            errors.push({ id, reason: "Document is already archived" });
+            return false;
+          }
+          return true;
+        });
+
+        if (archivableIds.length > 0) {
+          await db
+            .update(documents)
+            .set({ status: "archived", updatedAt: new Date(), updatedBy: userId })
+            .where(
+              and(inArray(documents.id, archivableIds), eq(documents.workspaceId, workspaceId)),
+            );
+          succeeded.push(...archivableIds);
+        }
         break;
       }
 
