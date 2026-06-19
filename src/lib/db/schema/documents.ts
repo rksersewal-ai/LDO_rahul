@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   integer,
@@ -97,5 +98,22 @@ export const documents = pgTable(
     index("idx_documents_three_point_hash").on(table.threePointHash),
     index("idx_documents_created_at").on(table.createdAt),
     index("idx_documents_ocr_status").on(table.ocrStatus),
+    // --- Performance: composite + partial indexes matching real query shapes ---
+    // Promoted into the schema (was SQL-migration-only) so drizzle-kit push
+    // keeps them as the source of truth and they are never dropped on sync.
+    // Most list/dashboard queries filter (workspace_id, is_deleted) ordered by
+    // created_at; Postgres backward-scans these for DESC.
+    index("idx_documents_ws_deleted_created").on(
+      table.workspaceId,
+      table.isDeleted,
+      table.createdAt,
+    ),
+    index("idx_documents_ws_live")
+      .on(table.workspaceId, table.createdAt)
+      .where(sql`${table.isDeleted} = 0`),
+    index("idx_documents_ws_status")
+      .on(table.workspaceId, table.status)
+      .where(sql`${table.isDeleted} = 0`),
+    index("idx_documents_filehash_live").on(table.fileHash).where(sql`${table.isDeleted} = 0`),
   ],
 );
