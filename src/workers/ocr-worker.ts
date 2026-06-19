@@ -21,6 +21,13 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
   const { documentId, versionId, filePath, mimeType } = job.data;
 
   try {
+    // Validate filePath before processing
+    if (!filePath) {
+      await db.update(ocrJobs).set({ status: "failed", errorMessage: "No file path provided for OCR processing" }).where(eq(ocrJobs.id, job.data.jobId));
+      await db.update(documents).set({ ocrStatus: "failed" }).where(eq(documents.id, documentId));
+      return;
+    }
+
     // Step a: Update documents to processing
     await db.update(documents).set({ ocrStatus: "processing" }).where(eq(documents.id, documentId));
 
@@ -201,7 +208,7 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
  */
 export function createOcrWorker(): Worker<OcrJobPayload> {
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-  const concurrency = Number(process.env.OCR_WORKER_CONCURRENCY ?? "2");
+  const concurrency = Number(process.env.OCR_WORKER_CONCURRENCY ?? "1");
   // OCR can be slow on large multi-page scans; default 5 min ceiling per job.
   const jobTimeoutMs = Number(process.env.OCR_JOB_TIMEOUT_MS ?? `${5 * 60 * 1000}`);
 
@@ -215,6 +222,7 @@ export function createOcrWorker(): Worker<OcrJobPayload> {
         maxRetriesPerRequest: null,
       },
       concurrency,
+      stalledInterval: 30000,
     },
   );
 

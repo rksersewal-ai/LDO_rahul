@@ -14,6 +14,9 @@ const ocrWorker = createOcrWorker();
 const dedupWorker = createDedupWorker();
 const retentionWorker = createRetentionWorker();
 
+// Configure stalled job detection - jobs not reporting progress within 30s are marked stalled
+// BullMQ automatically retries stalled jobs based on the job's 'attempts' setting.
+
 // Register the recurring retention scan (idempotent across restarts).
 scheduleRecurringRetentionScan().catch((error) => {
   logError(

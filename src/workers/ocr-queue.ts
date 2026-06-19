@@ -39,5 +39,7 @@ export async function addOcrJob(payload: OcrJobPayload): Promise<void> {
       type: "exponential",
       delay: 5000,
     },
+    removeOnComplete: { count: 1000 },
+    removeOnFail: { count: 5000 },
   });
 }
