@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Phase 3 & 4: Authentication/session fixes and tRPC router/API fixes. Fix auth-related issues and router bugs.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Check src/components/layout/app-header.tsx or wherever UserMenu is defined. If signOut uses a manual fetch to /api/auth/signout, replace with next-auth's signOut() function from 'next-auth/react'. Ensure the UserMenu component correctly calls signOut({callbackUrl: '/login'}).",
     "2. Check UserMenu or session display for session fields (role, department, designation). Ensure they are sourced from the session object and displayed properly. The session type should include these fields.",
@@ -27,5 +27,5 @@
     "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && ./node_modules/.bin/vitest run"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Implemented two actual fixes: (1) Added auto-unlock logic to auth-options.ts - accounts locked for 30+ minutes are automatically reset on next login attempt, allowing authentication to proceed. (2) Added status guard to bulk archive - documents already in 'archived' state are skipped with informative error rather than redundantly re-archived. Other items (UserMenu signOut, session display, OCR retrigger, share-links viewCount, changePassword TRPCError) were confirmed already correct. Upload schema validated - matches what router expects. All 105 tests pass, build succeeds cleanly."
 }
