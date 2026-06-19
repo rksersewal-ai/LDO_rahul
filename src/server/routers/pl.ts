@@ -1200,7 +1200,7 @@ export const plRouter = router({
         .where(
           and(
             eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 0),
+            eq(documents.isDeleted, false),
             or(
               ilike(documents.documentNumber, searchTerm),
               ilike(documents.title, searchTerm),

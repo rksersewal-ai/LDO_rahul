@@ -57,7 +57,7 @@ export const dashboardRouter = router({
           db
             .select({ total: sql<number>`COALESCE(${count()}, 0)` })
             .from(documents)
-            .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0))),
+            .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, false))),
 
           // Documents added this period
           // Index: documents(workspace_id, is_deleted, created_at)
@@ -67,7 +67,7 @@ export const dashboardRouter = router({
             .where(
               and(
                 eq(documents.workspaceId, workspaceId),
-                eq(documents.isDeleted, 0),
+                eq(documents.isDeleted, false),
                 gte(documents.createdAt, periodStart),
               ),
             ),
@@ -213,7 +213,7 @@ export const dashboardRouter = router({
         .where(
           and(
             eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 0),
+            eq(documents.isDeleted, false),
             gte(documents.createdAt, startDate),
           ),
         )
@@ -341,7 +341,7 @@ export const dashboardRouter = router({
       })
       .from(documents)
       .leftJoin(users, eq(documents.createdBy, users.id))
-      .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0)))
+      .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, false)))
       .orderBy(desc(documents.createdAt))
       .limit(10);
 
@@ -476,7 +476,7 @@ export const dashboardRouter = router({
 
           const baseWhere = and(
             eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 0),
+            eq(documents.isDeleted, false),
             searchFilter,
           );
 

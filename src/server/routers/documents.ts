@@ -42,7 +42,7 @@ export const documentsRouter = router({
   list: protectedProcedure.input(documentListSchema).query(async ({ input, ctx }) => {
     const workspaceId = requireWorkspaceId(ctx);
 
-    const conditions = [eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0)];
+    const conditions = [eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, false)];
 
     if (input.search) {
       const escaped = escapeLikePattern(input.search);
@@ -174,7 +174,7 @@ export const documentsRouter = router({
         and(
           eq(documents.id, input.id),
           eq(documents.workspaceId, workspaceId),
-          eq(documents.isDeleted, 0),
+          eq(documents.isDeleted, false),
         ),
       );
 
@@ -257,7 +257,7 @@ export const documentsRouter = router({
         and(
           eq(documents.id, input.id),
           eq(documents.workspaceId, workspaceId),
-          eq(documents.isDeleted, 0),
+          eq(documents.isDeleted, false),
         ),
       );
 
@@ -328,7 +328,7 @@ export const documentsRouter = router({
         and(
           eq(documents.id, input.id),
           eq(documents.workspaceId, workspaceId),
-          eq(documents.isDeleted, 0),
+          eq(documents.isDeleted, false),
         ),
       );
 
@@ -343,7 +343,7 @@ export const documentsRouter = router({
     await db.transaction(async (tx) => {
       await tx
         .update(documents)
-        .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
+        .set({ isDeleted: true, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
         .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)));
 
       if (current.fileHash) {
@@ -389,7 +389,7 @@ export const documentsRouter = router({
     .query(async ({ input, ctx }) => {
       const workspaceId = requireWorkspaceId(ctx);
 
-      const conditions = [eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 1)];
+      const conditions = [eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, true)];
       if (input.search) {
         const escaped = escapeLikePattern(input.search);
         conditions.push(
@@ -447,7 +447,7 @@ export const documentsRouter = router({
           and(
             eq(documents.id, input.id),
             eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 1),
+            eq(documents.isDeleted, true),
           ),
         );
 
@@ -458,7 +458,7 @@ export const documentsRouter = router({
       await db.transaction(async (tx) => {
         await tx
           .update(documents)
-          .set({ isDeleted: 0, deletedAt: null, updatedAt: new Date(), updatedBy: userId })
+          .set({ isDeleted: false, deletedAt: null, updatedAt: new Date(), updatedBy: userId })
           .where(and(eq(documents.id, input.id), eq(documents.workspaceId, workspaceId)));
 
         if (current.fileHash) {
@@ -492,7 +492,7 @@ export const documentsRouter = router({
         and(
           eq(documents.id, input.documentId),
           eq(documents.workspaceId, workspaceId),
-          eq(documents.isDeleted, 0),
+          eq(documents.isDeleted, false),
         ),
       );
 
@@ -537,7 +537,7 @@ export const documentsRouter = router({
         and(
           eq(documents.id, input.documentId),
           eq(documents.workspaceId, workspaceId),
-          eq(documents.isDeleted, 0),
+          eq(documents.isDeleted, false),
         ),
       );
 
@@ -579,7 +579,7 @@ export const documentsRouter = router({
         and(
           eq(documents.id, input.id),
           eq(documents.workspaceId, workspaceId),
-          eq(documents.isDeleted, 0),
+          eq(documents.isDeleted, false),
         ),
       );
 
@@ -627,7 +627,7 @@ export const documentsRouter = router({
           and(
             eq(documents.id, input.id),
             eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 0),
+            eq(documents.isDeleted, false),
           ),
         );
 
@@ -675,7 +675,7 @@ export const documentsRouter = router({
           and(
             eq(documents.fileHash, input.fileHash),
             eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 0),
+            eq(documents.isDeleted, false),
           ),
         )
         .limit(1);
@@ -705,7 +705,7 @@ export const documentsRouter = router({
           and(
             eq(documents.id, input.documentId),
             eq(documents.workspaceId, workspaceId),
-            eq(documents.isDeleted, 0),
+            eq(documents.isDeleted, false),
           ),
         );
 
@@ -834,7 +834,7 @@ export const documentsRouter = router({
 
           await tx
             .update(documents)
-            .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
+            .set({ isDeleted: true, deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId })
             .where(
               and(inArray(documents.id, processableIds), eq(documents.workspaceId, workspaceId)),
             );

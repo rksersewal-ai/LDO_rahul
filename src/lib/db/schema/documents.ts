@@ -1,4 +1,6 @@
 import {
+  bigint,
+  boolean,
   index,
   integer,
   pgEnum,
@@ -65,7 +67,7 @@ export const documents = pgTable(
     fileHash: varchar("file_hash", { length: 64 }),
     threePointHash: varchar("three_point_hash", { length: 64 }),
     filePath: text("file_path"),
-    fileSize: integer("file_size"),
+    fileSize: bigint("file_size", { mode: "number" }),
     mimeType: varchar("mime_type", { length: 128 }),
     originalFilename: varchar("original_filename", { length: 512 }),
     ocrStatus: ocrStatusEnum("ocr_status").notNull().default("not_required"),
@@ -77,7 +79,7 @@ export const documents = pgTable(
     section: varchar("section", { length: 128 }),
     tags: text("tags"),
     metadata: text("metadata"),
-    isDeleted: integer("is_deleted").notNull().default(0),
+    isDeleted: boolean("is_deleted").notNull().default(false),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdBy: text("created_by"),
     updatedBy: text("updated_by"),
@@ -97,5 +99,8 @@ export const documents = pgTable(
     index("idx_documents_three_point_hash").on(table.threePointHash),
     index("idx_documents_created_at").on(table.createdAt),
     index("idx_documents_ocr_status").on(table.ocrStatus),
+    index("idx_documents_workspace_id").on(table.workspaceId),
+    index("idx_documents_workspace_deleted").on(table.workspaceId, table.isDeleted),
+    index("idx_documents_workspace_status").on(table.workspaceId, table.status),
   ],
 );

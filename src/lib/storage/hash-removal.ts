@@ -28,7 +28,7 @@ export async function countActiveReferences(
   excludeDocumentId?: string,
   dbc: Db = defaultDb,
 ): Promise<number> {
-  const conditions = [eq(documents.fileHash, fileHash), eq(documents.isDeleted, 0)];
+  const conditions = [eq(documents.fileHash, fileHash), eq(documents.isDeleted, false)];
   if (excludeDocumentId) {
     conditions.push(ne(documents.id, excludeDocumentId));
   }

@@ -59,7 +59,7 @@ export const plNumbers = pgTable(
   "pl_numbers",
   {
     id: text("id").primaryKey(),
-    plNumber: varchar("pl_number", { length: 8 }).notNull().unique(),
+    plNumber: varchar("pl_number", { length: 8 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
     description: text("description"),
     category: plCategoryEnum("category").notNull(),
@@ -95,6 +95,7 @@ export const plNumbers = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    unique("uq_pl_numbers_workspace_pl").on(table.workspaceId, table.plNumber),
     index("idx_pl_numbers_pl_number").on(table.plNumber),
     index("idx_pl_numbers_category").on(table.category),
     index("idx_pl_numbers_status").on(table.status),

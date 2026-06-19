@@ -106,7 +106,7 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
         thumbnailPath: documents.thumbnailPath,
       })
       .from(documents)
-      .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, 0)));
+      .where(and(eq(documents.workspaceId, workspaceId), eq(documents.isDeleted, false)));
 
     // Fetch PL links for all documents
     const docIds = allDocs.map((d) => d.id);

@@ -494,7 +494,7 @@ export const governanceRouter = router({
         // Soft-delete the document — never a physical delete.
         await tx
           .update(documents)
-          .set({ isDeleted: 1, deletedAt: destroyedAt, updatedAt: destroyedAt, updatedBy: userId })
+          .set({ isDeleted: true, deletedAt: destroyedAt, updatedAt: destroyedAt, updatedBy: userId })
           .where(eq(documents.id, declaration.documentId));
 
         // Flag the file hash removed only if nothing live still references it.

@@ -38,5 +38,6 @@ export const approvals = pgTable(
     index("idx_approvals_document_id").on(table.documentId),
     index("idx_approvals_assigned_to").on(table.assignedTo),
     index("idx_approvals_status").on(table.status),
+    index("idx_approvals_workspace_id").on(table.workspaceId),
   ],
 );

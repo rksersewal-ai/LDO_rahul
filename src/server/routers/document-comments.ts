@@ -31,8 +31,8 @@ interface CommentNode {
   versionId: string | null;
   parentId: string | null;
   content: string;
-  isDeleted: number;
-  isResolved: number;
+  isDeleted: boolean;
+  isResolved: boolean;
   resolvedBy: string | null;
   resolvedAt: Date | null;
   createdBy: string;
@@ -260,7 +260,7 @@ export const documentCommentsRouter = router({
     // Soft delete
     await db
       .update(documentComments)
-      .set({ isDeleted: 1, updatedAt: new Date() })
+      .set({ isDeleted: true, updatedAt: new Date() })
       .where(eq(documentComments.id, input.commentId));
 
     await createAuditEntry(db, {
@@ -303,7 +303,7 @@ export const documentCommentsRouter = router({
       const [updated] = await db
         .update(documentComments)
         .set({
-          isResolved: 1,
+          isResolved: true,
           resolvedBy: userId,
           resolvedAt: now,
           updatedAt: now,

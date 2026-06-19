@@ -215,7 +215,7 @@ export const dedupRouter = router({
         // 4. Archive non-kept doc (soft delete — physical file is retained)
         const [archivedDoc] = await tx
           .update(documents)
-          .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date() })
+          .set({ isDeleted: true, deletedAt: new Date(), updatedAt: new Date() })
           .where(eq(documents.id, archivedId))
           .returning({ fileHash: documents.fileHash });
 
