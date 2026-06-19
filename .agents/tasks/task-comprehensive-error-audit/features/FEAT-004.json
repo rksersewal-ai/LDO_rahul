@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "fix",
   "description": "Phase 6: OCR Pipeline fixes. Create worker entry point script, add filePath validation, handle image OCR failure gracefully, fix stuck processing state on crash, batch PL inserts (already done), fix thumbnail path generation, add removeOnComplete/removeOnFail to queue options, and set default concurrency.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "1. Create scripts/start-worker.ts as a simple entry point that imports and runs src/workers/start-workers.ts. The file should just do: import '../src/workers/start-workers'; - This provides the 'scripts/start-worker.ts' path mentioned in the user instruction as the worker entry point.",
     "2. In src/workers/ocr-worker.ts processOcrJob function, add filePath validation at the top of the try block (before loading file from NAS). If job.data.filePath is empty/null/undefined, immediately fail the job with a clear error message and update ocrJobs status to 'failed'.",
@@ -26,5 +26,5 @@
     "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && ./node_modules/.bin/vitest run"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All changes applied cleanly. Build and all 105 tests pass. The stalledInterval option is set at the Worker level (30000ms) as BullMQ handles stalled job detection there."
 }
