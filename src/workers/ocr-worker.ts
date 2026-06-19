@@ -28,7 +28,7 @@ export async function processOcrJob(job: Job<OcrJobPayload>): Promise<void> {
         .set({ status: "failed", errorMessage: "No file path provided for OCR processing" })
         .where(eq(ocrJobs.id, job.data.jobId));
       await db.update(documents).set({ ocrStatus: "failed" }).where(eq(documents.id, documentId));
-      return;
+      throw new Error("No file path provided for OCR processing");
     }
 
     // Step a: Update documents to processing
