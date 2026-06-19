@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Phase 1 & 2: Zero-risk configuration fixes and TypeScript/build fixes. Includes package.json version changes, gitignore fixes, .env.example, drizzle config DB name, next.config serverExternalPackages, tsconfig target, trpc-provider localhost fix, and removing dead query-provider.tsx.",
+  "status": "in_progress",
+  "steps": [
+    "1. In package.json, change \"next\": \"16.2.9\" to \"next\": \"^15.3.4\" and \"lucide-react\": \"^1.17.0\" to \"lucide-react\": \"^0.474.0\". IMPORTANT: After changing, run `export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && npm install` to regenerate dependencies. If lucide-react 0.x breaks icon imports (the API changed between 0.x and 1.x), REVERT the lucide-react change back to \"^1.17.0\" and keep it at that. Similarly if next ^15.3.4 causes build failures, keep it at the version that works.",
+    "2. Delete package-lock.json if it exists (it should already not exist based on .gitignore). Verify package-lock.json is already in .gitignore (it is).",
+    "3. Verify .env is already in .gitignore (it is - confirmed at the bottom of .gitignore).",
+    "4. Verify .env.example already exists with documented placeholder values (it does - confirmed). No changes needed.",
+    "5. In drizzle.config.ts, change the fallback DB name from 'ldo2_edms' to 'ldo_edms' in the connection URL string: \"postgresql://postgres:postgres@localhost:5432/ldo2_edms\" -> \"postgresql://postgres:postgres@localhost:5432/ldo_edms\"",
+    "6. In next.config.ts, verify serverExternalPackages already contains pg, bullmq, ioredis, bcryptjs, pdf-parse, sharp. Currently it has: pg, bcryptjs, bullmq, ioredis, sharp, pdf-parse, tesseract.js, nodemailer - already satisfied. No change needed.",
+    "7. In tsconfig.json, change \"target\": \"ES2017\" to \"target\": \"ES2020\"",
+    "8. In src/components/providers/trpc-provider.tsx, fix the hardcoded localhost in getBaseUrl(). The server-side branch should use process.env.NEXT_PUBLIC_APP_URL or construct from headers instead of hardcoding 'http://localhost:3000'. Replace with: `return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';` (this still has a fallback for local dev but respects the env var in production).",
+    "9. Delete src/components/providers/query-provider.tsx (it is dead code - not imported anywhere).",
+    "10. Run the build and test commands to verify everything still works: export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && rm -rf .next && SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build && ./node_modules/.bin/vitest run"
+  ],
+  "acceptance_criteria": [
+    "Build passes: SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build succeeds",
+    "Tests pass: ./node_modules/.bin/vitest run succeeds",
+    "tsconfig.json has target ES2020",
+    "drizzle.config.ts fallback URL uses ldo_edms",
+    "trpc-provider.tsx getBaseUrl() uses env var for production",
+    "query-provider.tsx is deleted",
+    "No new lint errors introduced in modified files"
+  ],
+  "verification": [
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && rm -rf .next && SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build",
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && ./node_modules/.bin/vitest run"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

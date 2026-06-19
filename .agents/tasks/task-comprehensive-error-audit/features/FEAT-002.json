@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Phase 3 & 4: Authentication/session fixes and tRPC router/API fixes. Fix auth-related issues and router bugs.",
+  "status": "pending",
+  "steps": [
+    "1. Check src/components/layout/app-header.tsx or wherever UserMenu is defined. If signOut uses a manual fetch to /api/auth/signout, replace with next-auth's signOut() function from 'next-auth/react'. Ensure the UserMenu component correctly calls signOut({callbackUrl: '/login'}).",
+    "2. Check UserMenu or session display for session fields (role, department, designation). Ensure they are sourced from the session object and displayed properly. The session type should include these fields.",
+    "3. Check src/lib/types/auth.ts for UserRole type imports. Ensure all components importing UserRole get it from the correct path. If there's a mismatch between NextAuth session type and UserRole, fix the type declarations.",
+    "4. Check the auth router or admin user management for account lockout logic. If there's an auto-unlock after a timeout period, ensure it properly resets failedLoginAttempts and lockedUntil when the lockout period has expired. Look in src/lib/auth/auth-options.ts for the authorize function.",
+    "5. Check the protected layout at src/app/(protected)/layout.tsx for SSR session handling. It should not cause hydration mismatches. The current implementation is client-side ('use client') which is fine - verify there are no SSR issues.",
+    "6. In src/server/routers/auth.ts, the changePassword procedure already uses TRPCError correctly. Verify it works properly.",
+    "7. Look at src/server/routers/documents.ts for the upload procedure. Check if the uploadDocumentSchema has a mismatch between what the form sends and what the router expects. Fix any schema validation issues in the upload flow.",
+    "8. In src/server/routers/documents.ts, check the bulkAction handler. Ensure it validates the 'status' field properly and only allows valid status transitions (e.g., cannot bulk-approve if documents are already approved).",
+    "9. Check the OCR retrigger endpoint in src/server/routers/ocr.ts. Ensure it validates that the document exists and belongs to the workspace before retriggering.",
+    "10. In src/server/routers/document-share-links.ts, the viewCount race condition is already fixed with atomic SQL increment and WHERE clause checking maxViews. Verify this is correct (it already is based on code review).",
+    "11. Run build and tests to verify: export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && rm -rf .next && SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build && ./node_modules/.bin/vitest run"
+  ],
+  "acceptance_criteria": [
+    "Build passes successfully",
+    "Tests pass successfully",
+    "UserMenu signOut works correctly with next-auth signOut()",
+    "No TypeScript errors in auth-related files"
+  ],
+  "verification": [
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && rm -rf .next && SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build",
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && ./node_modules/.bin/vitest run"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -1,0 +1,7 @@
+{
+  "task_id": "task-comprehensive-error-audit",
+  "task_description": "Comprehensive error audit and fix across all layers of the LDO EDMS application: configuration, TypeScript, auth, routers, schema, OCR pipeline, UI wiring, performance, and lint.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null
+}

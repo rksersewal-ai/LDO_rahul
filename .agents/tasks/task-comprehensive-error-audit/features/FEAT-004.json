@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Phase 6: OCR Pipeline fixes. Create worker entry point script, add filePath validation, handle image OCR failure gracefully, fix stuck processing state on crash, batch PL inserts (already done), fix thumbnail path generation, add removeOnComplete/removeOnFail to queue options, and set default concurrency.",
+  "status": "pending",
+  "steps": [
+    "1. Create scripts/start-worker.ts as a simple entry point that imports and runs src/workers/start-workers.ts. The file should just do: import '../src/workers/start-workers'; - This provides the 'scripts/start-worker.ts' path mentioned in the user instruction as the worker entry point.",
+    "2. In src/workers/ocr-worker.ts processOcrJob function, add filePath validation at the top of the try block (before loading file from NAS). If job.data.filePath is empty/null/undefined, immediately fail the job with a clear error message and update ocrJobs status to 'failed'.",
+    "3. In the image OCR branch (mimeType.startsWith('image/')), the code already handles empty tesseract results gracefully (sets confidence to 0.3). Verify this is correct - it is. No change needed.",
+    "4. For stuck processing state: Add a startup recovery step. In src/workers/start-workers.ts, after creating workers, add a function that queries for documents with ocrStatus='processing' that have been stuck for more than 10 minutes (ocrJobs with status='processing' and no recent update) and resets them to 'queued'. OR, simpler: add the 'stalledInterval' option to the worker config in ocr-worker.ts so BullMQ handles stalled jobs automatically.",
+    "5. Batch PL inserts are already implemented in ocr-worker.ts (Step h uses a single insert with candidateRows array). Verify - confirmed. No change needed.",
+    "6. In src/workers/ocr-worker.ts, the thumbnail path generation (Step i) gets thumbnailPath before trying to generate it but falls back gracefully. Verify the getThumbnailPath function exists in nas-storage. The current code uses nasStorage.getThumbnailPath() as default and nasStorage.storeThumbnail() for the actual path. This seems correct.",
+    "7. In src/workers/ocr-queue.ts addOcrJob function, add removeOnComplete and removeOnFail options to the job options: removeOnComplete: { count: 1000 }, removeOnFail: { count: 5000 }. This prevents Redis from filling up with completed/failed job data.",
+    "8. In src/workers/ocr-worker.ts createOcrWorker, the concurrency is already configurable via OCR_WORKER_CONCURRENCY env var (default 2). The user instruction says set to 1 - change the default from '2' to '1': `const concurrency = Number(process.env.OCR_WORKER_CONCURRENCY ?? '1');`",
+    "9. Run build and tests: export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && rm -rf .next && SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build && ./node_modules/.bin/vitest run"
+  ],
+  "acceptance_criteria": [
+    "scripts/start-worker.ts exists and imports the worker starter",
+    "OCR worker validates filePath before processing",
+    "Queue jobs have removeOnComplete and removeOnFail options",
+    "Default OCR concurrency is 1",
+    "Build and tests pass"
+  ],
+  "verification": [
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && rm -rf .next && SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build",
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && ./node_modules/.bin/vitest run"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

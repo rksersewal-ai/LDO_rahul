@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Phase 5: Database schema fixes. HIGH RISK phase - changing isDeleted from integer to boolean requires updating every router that touches it. Also fix fileSize bigint, workspace indexes, pl_number per-workspace unique constraint, audit-log dedup columns, approvals/cases workspaceId, composite indexes, cabinets root uniqueness, and connection pool config.",
+  "status": "pending",
+  "steps": [
+    "1. In src/lib/db/schema/documents.ts: Change `fileSize: integer('file_size')` to `fileSize: text('file_size')` - actually, per the user instruction this should be bigint. Use `import { bigint } from 'drizzle-orm/pg-core'` and change to `fileSize: bigint('file_size', { mode: 'number' })`. This stores large file sizes correctly.",
+    "2. In src/lib/db/schema/documents.ts: Add a workspaceId index if not already present. Check the existing indexes - there is no idx_documents_workspace_id. Add: `index('idx_documents_workspace_id').on(table.workspaceId)` to the table's index array.",
+    "3. CRITICAL - isDeleted boolean migration: In src/lib/db/schema/documents.ts, change `isDeleted: integer('is_deleted').notNull().default(0)` to `isDeleted: boolean('is_deleted').notNull().default(false)`. Import `boolean` from 'drizzle-orm/pg-core'. Also do the same in src/lib/db/schema/document-comments.ts for its isDeleted field.",
+    "4. After changing isDeleted to boolean, update ALL routers that compare with `eq(documents.isDeleted, 0)` to use `eq(documents.isDeleted, false)` and `eq(documents.isDeleted, 1)` / `.set({ isDeleted: 1 })` to use `true`. Files to update: src/server/routers/documents.ts, src/server/routers/dashboard.ts, src/server/routers/dedup.ts, src/server/routers/document-comments.ts, src/server/routers/governance.ts, src/server/routers/pl.ts, src/lib/storage/hash-removal.ts, src/workers/dedup-worker.ts. Use grep to find all occurrences: grep -rn 'isDeleted.*[01]\\|isDeleted.*===\\|eq.*isDeleted' src/",
+    "5. In src/lib/db/schema/pl-numbers.ts: The plNumber is already globally unique. The user instruction says to make it per-workspace unique instead. Change the plNumbers table: remove the `.unique()` from plNumber column, and add a composite unique constraint: `unique('uq_pl_numbers_workspace_pl').on(table.workspaceId, table.plNumber)` in the table's constraints array.",
+    "6. In src/lib/db/schema/audit-log.ts: The user instruction mentions adding dedup columns. Check if hashChain and previousHash already exist (they do). No change needed unless something is missing.",
+    "7. In src/lib/db/schema/approvals.ts: workspaceId column already exists. Add an index for it: `index('idx_approvals_workspace_id').on(table.workspaceId)` in the constraints array.",
+    "8. In src/lib/db/schema/cases.ts: workspaceId and its index already exist. Verify this - it already has idx_cases_workspace_id. No change needed.",
+    "9. Add composite indexes where beneficial. In documents schema add: `index('idx_documents_workspace_deleted').on(table.workspaceId, table.isDeleted)` and `index('idx_documents_workspace_status').on(table.workspaceId, table.status)`. These already may exist - check first.",
+    "10. In src/lib/db/schema/cabinets.ts: Root cabinet uniqueness is already handled by the unique constraint on (workspaceId, parentId, name). Verify - it already has uq_cabinets_workspace_parent_name. No change needed.",
+    "11. In src/lib/db/index.ts: Connection pool config is already configurable via env vars (DB_POOL_MAX, DB_POOL_IDLE_TIMEOUT_MS, DB_POOL_CONNECTION_TIMEOUT_MS). Verify - confirmed. No change needed.",
+    "12. Run build and tests: export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && rm -rf .next && SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build && ./node_modules/.bin/vitest run"
+  ],
+  "acceptance_criteria": [
+    "Build passes with all isDeleted comparisons updated to boolean",
+    "Tests pass - especially dedup-worker.test.ts",
+    "No TypeScript errors: ./node_modules/.bin/tsc --noEmit -p tsconfig.json passes",
+    "All occurrences of eq(documents.isDeleted, 0) are changed to eq(documents.isDeleted, false)",
+    "All occurrences of .set({ isDeleted: 1 }) are changed to .set({ isDeleted: true })",
+    "fileSize uses bigint type in documents schema",
+    "plNumber has per-workspace unique constraint instead of global unique"
+  ],
+  "verification": [
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && rm -rf .next && SKIP_ENV_VALIDATION=1 ./node_modules/.bin/next build",
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && ./node_modules/.bin/vitest run",
+    "export PATH=\"$HOME/.nvm/versions/node/v24.16.0/bin:$PATH\" && ./node_modules/.bin/tsc --noEmit -p tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
