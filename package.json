@@ -13,7 +13,9 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "workers": "tsx src/workers/start-workers.ts",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "psql $DATABASE_URL -f drizzle/0011_schema_type_alignment.sql"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
