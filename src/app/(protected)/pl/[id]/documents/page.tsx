@@ -2,7 +2,8 @@
 
 import { ArrowLeft, BookText } from "lucide-react";
 import Link from "next/link";
-import { use } from "react";
+import { use, useState } from "react";
+import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
 import { DocumentAssociationEngine } from "@/components/pl/document-association-engine";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,18 @@ export default function PlDocumentsPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <PageHeader
-          title="Attach / Detach Documents"
-          subtitle={
-            pl ? `Associate technical documents with ${pl.plNumber} — ${pl.name}` : "Loading…"
+          title="Linked Documents"
+          subtitle={pl ? `Documents linked to ${pl.plNumber} - ${pl.name}` : "Loading..."}
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => toast.info("Link Document dialog coming soon. Use the Documents Hub to upload and link documents to this PL.")}
+            >
+              <Plus className="h-3 w-3" />
+              Link Document
+            </Button>
           }
         />
 

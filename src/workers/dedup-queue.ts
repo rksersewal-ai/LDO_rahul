@@ -1,4 +1,6 @@
 import { Queue } from "bullmq";
+import { logError } from "@/lib/logging/structured-logger";
+import { getRedisConnectionOptions } from "./redis-connection";
 
 export interface DedupJobPayload {
   workspaceId: string;
@@ -6,8 +8,6 @@ export interface DedupJobPayload {
   triggeredBy: string;
   batchSize?: number;
 }
-
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
 let dedupQueue: Queue | null = null;
 
@@ -17,11 +17,10 @@ let dedupQueue: Queue | null = null;
 export function getDedupQueue(): Queue {
   if (!dedupQueue) {
     dedupQueue = new Queue("dedup-scan", {
-      connection: {
-        host: new URL(redisUrl).hostname,
-        port: Number(new URL(redisUrl).port) || 6379,
-        maxRetriesPerRequest: null,
-      },
+      connection: getRedisConnectionOptions(),
+    });
+    dedupQueue.on("error", (err) => {
+      logError("[dedup-queue] Redis connection error", {}, err);
     });
   }
   return dedupQueue;

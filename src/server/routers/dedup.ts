@@ -1,31 +1,26 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, inArray, like, sql } from "drizzle-orm";
+import { and, count, desc, eq, like, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
 import {
   dedupScanHistory,
   documentPlLinks,
-  documentRelations,
   documents,
   duplicateDetections,
   settings,
 } from "@/lib/db/schema";
-import { DEDUP_THRESHOLD, type DocInput, scoreDocumentPair } from "@/lib/dedup/scorer";
-import { markHashRemovedIfOrphaned } from "@/lib/storage/hash-removal";
-import { addDedupJob } from "@/workers/dedup-queue";
+import { mergeDuplicateDetection } from "@/lib/dedup/merge";
 import { adminProcedure, protectedProcedure, router } from "@/server/trpc";
+import { addDedupJob } from "@/workers/dedup-queue";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId?: string | null } } }): string {
   const wsId = ctx.session.user.workspaceId;
-  if (!wsId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No workspace assigned." });
+  if (!wsId)
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No workspace assigned." });
   return wsId;
 }
-
-// Alias tables for self-join
-const docA = documents;
-const docB = documents;
 
 export const dedupRouter = router({
   /**
@@ -71,14 +66,8 @@ export const dedupRouter = router({
             docBCategory: sql<string>`db."category"`.as("doc_b_category"),
           })
           .from(duplicateDetections)
-          .innerJoin(
-            sql`"documents" as "da"`,
-            sql`"da"."id" = ${duplicateDetections.documentAId}`,
-          )
-          .innerJoin(
-            sql`"documents" as "db"`,
-            sql`"db"."id" = ${duplicateDetections.documentBId}`,
-          )
+          .innerJoin(sql`"documents" as "da"`, sql`"da"."id" = ${duplicateDetections.documentAId}`)
+          .innerJoin(sql`"documents" as "db"`, sql`"db"."id" = ${duplicateDetections.documentBId}`)
           .where(
             and(
               eq(duplicateDetections.status, "pending"),
@@ -162,6 +151,7 @@ export const dedupRouter = router({
 
   /**
    * Confirm a duplicate detection - keep one document, archive the other.
+   * Delegates to the shared `mergeDuplicateDetection` helper.
    */
   confirmDuplicate: adminProcedure
     .input(
@@ -175,116 +165,20 @@ export const dedupRouter = router({
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
 
-      // 1. Fetch the detection record
-      const [detection] = await db
-        .select()
-        .from(duplicateDetections)
-        .where(eq(duplicateDetections.id, input.detectionId));
-
-      if (!detection) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Detection not found." });
-      }
-
-      if (detection.status !== "pending") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Detection already resolved." });
-      }
-
-      // 2. Determine which document is being archived
-      const archivedId =
-        input.keepDocumentId === detection.documentAId
-          ? detection.documentBId
-          : detection.documentAId;
-
-      if (input.keepDocumentId !== detection.documentAId && input.keepDocumentId !== detection.documentBId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "keepDocumentId must be one of the pair." });
-      }
-
-      // 3-7 run in a single transaction so the relation, archival, PL-link
-      // redirect, detection status, hash flag and audit stay consistent.
-      await db.transaction(async (tx) => {
-        // 3. Create a document_relations entry (docA=kept, docB=archived)
-        const relationId = randomUUID();
-        await tx.insert(documentRelations).values({
-          id: relationId,
-          documentAId: input.keepDocumentId,
-          documentBId: archivedId,
-          relationType: "duplicate_of",
-          createdBy: userId,
-        });
-
-        // 4. Archive non-kept doc (soft delete — physical file is retained)
-        const [archivedDoc] = await tx
-          .update(documents)
-          .set({ isDeleted: 1, deletedAt: new Date(), updatedAt: new Date() })
-          .where(eq(documents.id, archivedId))
-          .returning({ fileHash: documents.fileHash });
-
-        // 5. Redirect PL links from archived to kept (handle collisions)
-        const keptPlLinks = await tx
-          .select({ plNumberId: documentPlLinks.plNumberId })
-          .from(documentPlLinks)
-          .where(eq(documentPlLinks.documentId, input.keepDocumentId));
-        const keptPlIds = new Set(keptPlLinks.map((l) => l.plNumberId));
-
-        // Delete colliding links from archived doc
-        if (keptPlIds.size > 0) {
-          await tx
-            .delete(documentPlLinks)
-            .where(
-              and(
-                eq(documentPlLinks.documentId, archivedId),
-                inArray(documentPlLinks.plNumberId, [...keptPlIds]),
-              ),
-            );
-        }
-
-        // Redirect remaining non-colliding links
-        await tx
-          .update(documentPlLinks)
-          .set({ documentId: input.keepDocumentId })
-          .where(eq(documentPlLinks.documentId, archivedId));
-
-        // 5b. No-hard-delete: flag the archived doc's file hash as removed only
-        // when no other live document still references it. The kept document
-        // commonly shares the same content, so this will usually be a no-op.
-        if (archivedDoc?.fileHash) {
-          await markHashRemovedIfOrphaned(
-            {
-              fileHash: archivedDoc.fileHash,
-              removedBy: userId,
-              workspaceId: detection.workspaceId,
-              lastDocumentId: archivedId,
-              reason: "dedup.confirmDuplicate",
-            },
-            tx,
-          );
-        }
-
-        // 6. Update detection status
-        await tx
-          .update(duplicateDetections)
-          .set({
-            status: "merged",
-            reviewedBy: userId,
-            reviewedAt: new Date(),
-            reviewNote: input.note ?? null,
-          })
-          .where(eq(duplicateDetections.id, input.detectionId));
-
-        // 7. Audit log
-        await createAuditEntry(tx, {
-          userId,
-          userName,
-          action: "DEDUP_CONFIRM",
-          resourceType: "duplicate_detection",
-          resourceId: input.detectionId,
-          resourceTitle: `Kept ${input.keepDocumentId}, archived ${archivedId}`,
-          details: `Confirmed duplicate. Kept document ${input.keepDocumentId}, archived ${archivedId}.${input.note ? ` Note: ${input.note}` : ""}`,
-          workspaceId: detection.workspaceId,
-        });
+      const result = await mergeDuplicateDetection({
+        detectionId: input.detectionId,
+        keepDocumentId: input.keepDocumentId,
+        note: input.note,
+        userId,
+        userName,
+        reason: "dedup.confirmDuplicate",
       });
 
-      return { success: true, archivedDocumentId: archivedId, keptDocumentId: input.keepDocumentId };
+      return {
+        success: true,
+        archivedDocumentId: result.archivedDocumentId,
+        keptDocumentId: result.keptDocumentId,
+      };
     }),
 
   /**
@@ -378,12 +272,7 @@ export const dedupRouter = router({
     const rows = await db
       .select({ key: settings.key, value: settings.value })
       .from(settings)
-      .where(
-        and(
-          eq(settings.scope, "system"),
-          like(settings.key, "dedup.scan.%"),
-        ),
-      );
+      .where(and(eq(settings.scope, "system"), like(settings.key, "dedup.scan.%")));
 
     const settingsMap: Record<string, string> = {};
     for (const row of rows) {
@@ -415,7 +304,11 @@ export const dedupRouter = router({
       const userName = ctx.session.user?.name ?? "System";
       const now = new Date();
 
-      const updates: Array<{ key: string; value: string; dataType: "string" | "number" | "boolean" }> = [];
+      const updates: Array<{
+        key: string;
+        value: string;
+        dataType: "string" | "number" | "boolean";
+      }> = [];
 
       if (input.schedule !== undefined) {
         updates.push({ key: "dedup.scan.schedule", value: input.schedule, dataType: "string" });
@@ -424,10 +317,18 @@ export const dedupRouter = router({
         updates.push({ key: "dedup.scan.type", value: input.type, dataType: "string" });
       }
       if (input.enabled !== undefined) {
-        updates.push({ key: "dedup.scan.enabled", value: String(input.enabled), dataType: "boolean" });
+        updates.push({
+          key: "dedup.scan.enabled",
+          value: String(input.enabled),
+          dataType: "boolean",
+        });
       }
       if (input.batchSize !== undefined) {
-        updates.push({ key: "dedup.scan.batchSize", value: String(input.batchSize), dataType: "number" });
+        updates.push({
+          key: "dedup.scan.batchSize",
+          value: String(input.batchSize),
+          dataType: "number",
+        });
       }
 
       for (const update of updates) {

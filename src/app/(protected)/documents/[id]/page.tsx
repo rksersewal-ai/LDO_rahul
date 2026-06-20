@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowRight,
   CheckCircle,
   Download,
   FileText,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { use, useState } from "react";
 import { toast } from "sonner";
 import { OcrStatusBadge } from "@/components/documents/ocr-status-badge";
@@ -33,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
+import { getValidTransitions, TRANSITION_LABELS } from "@/lib/fsm/document-fsm";
 import type { OcrStatus } from "@/lib/mock-data/documents";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -122,6 +125,7 @@ function generateRevisionHistory(doc: { revision: string | null; createdAt: Date
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { data: session } = useSession();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -173,7 +177,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   const rejectMutation = trpc.documents.reject.useMutation({
     onSuccess: () => {
-      toast.success("Document rejected and returned to draft");
+      toast.success("Document rejected");
       setRejectDialogOpen(false);
       refetch();
     },
@@ -188,6 +192,20 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       refetch();
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  // Transition mutation (FSM)
+  const [transitioningTo, setTransitioningTo] = useState<string | null>(null);
+  const transitionMutation = trpc.documents.transition.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Document status changed to ${(data.status ?? "").replace("_", " ")}`);
+      setTransitioningTo(null);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message);
+      setTransitioningTo(null);
+    },
   });
 
   // Loading state
@@ -320,6 +338,39 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
               </span>
             </div>
             <h2 className="text-base font-medium text-foreground">{doc.title}</h2>
+            {/* FSM Transition Buttons */}
+            {(() => {
+              const userRole = (session?.user?.role as string) ?? "viewer";
+              const validTransitions = getValidTransitions(doc.status ?? "draft", userRole);
+              if (validTransitions.length === 0) return null;
+              return (
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase mr-1">
+                    Transition:
+                  </span>
+                  {validTransitions.map((target) => (
+                    <Button
+                      key={target}
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[10px] gap-1"
+                      disabled={transitionMutation.isPending}
+                      onClick={() => {
+                        setTransitioningTo(target);
+                        transitionMutation.mutate({ id: doc.id, newStatus: target });
+                      }}
+                    >
+                      {transitionMutation.isPending && transitioningTo === target ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-3 w-3" />
+                      )}
+                      {TRANSITION_LABELS[target as keyof typeof TRANSITION_LABELS] ?? target.replace("_", " ")}
+                    </Button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Action buttons - contextually shown based on status */}

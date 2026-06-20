@@ -13,9 +13,12 @@ import {
   plNumbers,
   recordDeclarations,
 } from "@/lib/db/schema";
+import { canTransition, executeTransition } from "@/lib/fsm/document-fsm";
+import { isRoleAtLeast } from "@/lib/auth/permissions";
 import { sanitizeUserInput } from "@/lib/security/sanitize";
 import { markHashRemovedIfOrphaned, restoreHash } from "@/lib/storage/hash-removal";
 import { escapeLikePattern } from "@/lib/utils/escape-like";
+import type { UserRole } from "@/lib/types/auth";
 import {
   approveDocumentSchema,
   bulkActionSchema,
@@ -272,7 +275,17 @@ export const documentsRouter = router({
 
     if (input.title !== undefined) updateData.title = sanitizeUserInput(input.title);
     if (input.category !== undefined) updateData.category = input.category;
-    if (input.status !== undefined) updateData.status = input.status.toLowerCase();
+    if (input.status !== undefined) {
+      // Verify FSM transition is valid before applying status change
+      const userRole = (ctx.session.user?.role ?? "viewer") as string;
+      if (!canTransition(current.status, input.status.toLowerCase(), userRole)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Invalid status transition from ${current.status} to ${input.status.toLowerCase()}`,
+        });
+      }
+      updateData.status = input.status.toLowerCase();
+    }
     if (input.revision !== undefined) updateData.revision = input.revision;
     if (input.revisionDate !== undefined) {
       updateData.revisionDate = input.revisionDate ? new Date(input.revisionDate) : null;
@@ -571,6 +584,7 @@ export const documentsRouter = router({
     const workspaceId = requireWorkspaceId(ctx);
     const userId = ctx.session.user?.id ?? "unknown";
     const userName = ctx.session.user?.name ?? "Unknown User";
+    const userRole = (ctx.session.user?.role ?? "viewer") as string;
 
     const [current] = await db
       .select()
@@ -585,6 +599,14 @@ export const documentsRouter = router({
 
     if (!current) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+    }
+
+    // Verify FSM allows approval from current status
+    if (!canTransition(current.status, "approved", userRole)) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `Invalid status transition from ${current.status} to approved`,
+      });
     }
 
     const [updated] = await db
@@ -619,6 +641,7 @@ export const documentsRouter = router({
       const workspaceId = requireWorkspaceId(ctx);
       const userId = ctx.session.user?.id ?? "unknown";
       const userName = ctx.session.user?.name ?? "Unknown User";
+      const userRole = (ctx.session.user?.role ?? "viewer") as string;
 
       const [current] = await db
         .select()
@@ -635,10 +658,20 @@ export const documentsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
       }
 
+      // Reject transitions: under_review -> rejected is a valid FSM transition.
+      // The rejected state is a valid enum value. From rejected, the user can
+      // separately transition back to draft via the FSM (rejected -> draft).
+      if (!canTransition(current.status, "rejected", userRole)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Invalid status transition from ${current.status} to rejected`,
+        });
+      }
+
       const [updated] = await db
         .update(documents)
         .set({
-          status: "draft",
+          status: "rejected",
           updatedBy: userId,
           updatedAt: new Date(),
         })
@@ -652,11 +685,36 @@ export const documentsRouter = router({
         resourceType: "document",
         resourceId: input.id,
         resourceTitle: updated.title,
-        details: input.reason ?? "Document rejected and returned to draft",
+        details: input.reason ?? "Document rejected",
         workspaceId,
       });
 
       return updated;
+    }),
+
+  transition: engineerProcedure
+    .input(z.object({ id: z.string(), newStatus: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const workspaceId = requireWorkspaceId(ctx);
+      const userId = ctx.session.user?.id ?? "unknown";
+      const userName = ctx.session.user?.name ?? "Unknown User";
+      const userRole = (ctx.session.user?.role ?? "viewer") as UserRole;
+
+      // For "archived" transitions, verify supervisor+ role
+      if (input.newStatus === "archived" && !isRoleAtLeast(userRole, "supervisor")) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only supervisors and above can mark documents as obsolete/archived",
+        });
+      }
+
+      return executeTransition(input.id, input.newStatus, {
+        db,
+        userId,
+        userName,
+        workspaceId,
+        userRole,
+      });
     }),
 
   checkDuplicate: protectedProcedure

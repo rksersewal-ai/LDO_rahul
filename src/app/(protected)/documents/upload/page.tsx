@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Check, ClipboardList, Eye, FileUp, Hash } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ClipboardList, Eye, FileUp, Hash } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -13,6 +13,9 @@ import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { Progress } from "@/components/ui/progress";
+import { trpc } from "@/lib/trpc/client";
+import { computeSha256, uploadDocument } from "@/lib/upload/client";
 import { cn } from "@/lib/utils";
 import { type UploadFormValues, uploadFormSchema } from "@/lib/validators/documents-form";
 
@@ -25,27 +28,6 @@ const steps = [
   { step: 4, label: "Review", icon: Eye },
 ] as const;
 
-/**
- * Simulate computing hashes for the uploaded file.
- * In production, this would use Web Crypto API + the dedup service.
- */
-function simulateHashComputation(): DedupResult {
-  const randomHash = () =>
-    Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-
-  // 10% chance of duplicate for demo
-  const isDuplicate = Math.random() < 0.1;
-
-  return {
-    fullHash: randomHash(),
-    threePointHash: randomHash(),
-    isDuplicate,
-    existingDocumentNumber: isDuplicate ? "DRG-2024-0001" : undefined,
-    existingDocumentTitle: isDuplicate ? "Existing Document (duplicate detected)" : undefined,
-    existingDocumentId: isDuplicate ? "duplicate-placeholder" : undefined,
-  };
-}
-
 export default function UploadDocumentPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
@@ -54,6 +36,8 @@ export default function UploadDocumentPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dedupResult, setDedupResult] = useState<DedupResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const utils = trpc.useUtils();
 
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadFormSchema) as Resolver<UploadFormValues>,
@@ -82,29 +66,42 @@ export default function UploadDocumentPage() {
   const handleNextFromFile = useCallback(async () => {
     if (!selectedFile) return;
     setUploading(true);
-    setUploadProgress(0);
+    setUploadProgress(10);
+    setError(null);
 
-    // Simulate hash computation with progress
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 20;
+    try {
+      // Real SHA-256 hash of the file via Web Crypto.
+      const fullHash = await computeSha256(selectedFile);
+      setUploadProgress(60);
+
+      // Real duplicate pre-check against the workspace.
+      const dup = await utils.documents.checkDuplicate.fetch({ fileHash: fullHash });
+      setUploadProgress(100);
+
+      // The query result isn't a discriminated union, so read optional fields.
+      const existing = dup as {
+        existingDocumentId?: string;
+        existingDocumentNumber?: string;
+        existingDocumentTitle?: string;
+      };
+
+      setDedupResult({
+        fullHash,
+        // 3-point hash is computed server-side during dedup scans; reuse the
+        // full hash for the review display.
+        threePointHash: fullHash,
+        isDuplicate: dup.isDuplicate,
+        existingDocumentId: dup.isDuplicate ? existing.existingDocumentId : undefined,
+        existingDocumentNumber: dup.isDuplicate ? existing.existingDocumentNumber : undefined,
+        existingDocumentTitle: dup.isDuplicate ? existing.existingDocumentTitle : undefined,
       });
-    }, 200);
-
-    // Simulate async dedup check
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    clearInterval(interval);
-    setUploadProgress(100);
-    setUploading(false);
-
-    const result = simulateHashComputation();
-    setDedupResult(result);
-    setCurrentStep(2);
-  }, [selectedFile]);
+      setCurrentStep(2);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to process the file.");
+    } finally {
+      setUploading(false);
+    }
+  }, [selectedFile, utils]);
 
   const handleDedupLinkExisting = useCallback(() => {
     if (dedupResult?.existingDocumentId) {
@@ -129,14 +126,37 @@ export default function UploadDocumentPage() {
 
   const handleSubmit = useCallback(async () => {
     const valid = await form.trigger();
-    if (!valid) return;
+    if (!valid || !selectedFile) return;
 
     setSubmitting(true);
-    // Simulate submission
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSubmitting(false);
-    router.push("/documents");
-  }, [form, router]);
+    setError(null);
+    setUploadProgress(0);
+
+    try {
+      const values = form.getValues();
+      const res = await uploadDocument({
+        file: selectedFile,
+        metadata: {
+          documentNumber: values.documentNumber,
+          title: values.title,
+          category: values.category,
+          revision: values.revision,
+          revisionDate: values.revisionDate ?? null,
+          agency: values.agency,
+          tags: values.tags,
+          linkedPlIds: values.linkedPlIds,
+        },
+        onProgress: setUploadProgress,
+      });
+
+      // Refresh the documents list cache, then navigate to the new document.
+      await utils.documents.list.invalidate();
+      router.push(`/documents/${res.documentId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed. Please try again.");
+      setSubmitting(false);
+    }
+  }, [form, selectedFile, router, utils]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 1) {
@@ -203,6 +223,7 @@ export default function UploadDocumentPage() {
                 onClear={handleFileClear}
                 uploading={uploading}
                 uploadProgress={uploadProgress}
+                error={currentStep === 1 ? error : null}
               />
               <div className="flex justify-end">
                 <Button
@@ -339,6 +360,22 @@ export default function UploadDocumentPage() {
                   </div>
                 </div>
               </div>
+
+              {submitting && (
+                <div>
+                  <Progress value={uploadProgress} className="h-1.5" />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Uploading... {uploadProgress}%
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  {error}
+                </div>
+              )}
 
               <div className="flex justify-between">
                 <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleBack}>

@@ -15,6 +15,7 @@ import { governanceRouter } from "./governance";
 import { notificationsRouter } from "./notifications";
 import { ocrRouter } from "./ocr";
 import { plRouter } from "./pl";
+import { reportsRouter } from "./reports";
 import { rollingStockRouter } from "./rolling-stock";
 import { searchRouter } from "./search";
 import { settingsRouter } from "./settings";
@@ -39,6 +40,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   ocr: ocrRouter,
   pl: plRouter,
+  reports: reportsRouter,
   rollingStock: rollingStockRouter,
   search: searchRouter,
   settings: settingsRouter,

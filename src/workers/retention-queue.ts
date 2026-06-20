@@ -1,12 +1,12 @@
 import { Queue } from "bullmq";
+import { logError } from "@/lib/logging/structured-logger";
+import { getRedisConnectionOptions } from "./redis-connection";
 
 export interface RetentionScanPayload {
   /** Optional: limit the scan to a single workspace. Omit to scan all. */
   workspaceId?: string;
   triggeredBy?: string;
 }
-
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
 /** How often the recurring retention scan runs (default: every 24h). */
 export const RETENTION_SCAN_INTERVAL_MS = Number(
@@ -21,11 +21,10 @@ let retentionQueue: Queue | null = null;
 export function getRetentionQueue(): Queue {
   if (!retentionQueue) {
     retentionQueue = new Queue("retention-scan", {
-      connection: {
-        host: new URL(redisUrl).hostname,
-        port: Number(new URL(redisUrl).port) || 6379,
-        maxRetriesPerRequest: null,
-      },
+      connection: getRedisConnectionOptions(),
+    });
+    retentionQueue.on("error", (err) => {
+      logError("[retention-queue] Redis connection error", {}, err);
     });
   }
   return retentionQueue;
