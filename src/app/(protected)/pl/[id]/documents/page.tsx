@@ -1,41 +1,42 @@
 "use client";
 
-import { ArrowLeft, Link2, Plus } from "lucide-react";
+import { ArrowLeft, BookText } from "lucide-react";
 import Link from "next/link";
 import { use, useState } from "react";
 import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
-import { Badge } from "@/components/ui/badge";
+import { DocumentAssociationEngine } from "@/components/pl/document-association-engine";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import { LoadingState } from "@/components/ui/loading-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { trpc } from "@/lib/trpc/client";
 
 export default function PlDocumentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [page, setPage] = useState(1);
-  const pageSize = 25;
-
   const { data: pl } = trpc.pl.getById.useQuery({ id });
-  const { data, isLoading, error } = trpc.pl.getDocuments.useQuery({
-    plId: id,
-    page,
-    pageSize,
-  });
 
   return (
     <PageFrame size="xl">
       <div className="flex flex-col gap-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-fit h-7 text-xs gap-1 -ml-2"
-          render={<Link href={`/pl/${id}`} />}
-        >
-          <ArrowLeft className="h-3 w-3" />
-          Back to {pl?.plNumber ?? "PL Detail"}
-        </Button>
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-7 w-fit gap-1 text-xs"
+            render={<Link href={`/pl/${id}`} />}
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Back to {pl?.plNumber ?? "PL Detail"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1 text-xs"
+            render={<Link href="/pl/ledger" />}
+          >
+            <BookText className="h-3 w-3" />
+            Association Ledger
+          </Button>
+        </div>
 
         <PageHeader
           title="Linked Documents"
@@ -53,114 +54,14 @@ export default function PlDocumentsPage({ params }: { params: Promise<{ id: stri
           }
         />
 
-        {isLoading ? (
-          <LoadingState variant="table" rows={8} />
-        ) : error ? (
-          <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
-            <p className="text-sm text-destructive">Failed to load documents: {error.message}</p>
-          </div>
-        ) : !data || data.data.length === 0 ? (
-          <EmptyState
-            icon={<Link2 className="h-5 w-5" />}
-            title="No linked documents"
-            description="Link documents to this PL number to track related engineering documentation."
-          />
-        ) : (
-          <>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                {data.totalCount} document{data.totalCount !== 1 ? "s" : ""} linked
-              </p>
-            </div>
+        <p className="text-xs text-muted-foreground">
+          Search the document database and drag results into a category, or use the “Link” menu.
+          Documents can belong to multiple PLs, and each PL can hold many documents. Use the
+          dedicated columns for Technical Evaluation, Prototype Approval, and Queries &
+          Correspondence.
+        </p>
 
-            <div className="rounded-md border">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-                      Document #
-                    </th>
-                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-                      Title
-                    </th>
-                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-                      Category
-                    </th>
-                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-                      Link Type
-                    </th>
-                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-                      Confidence
-                    </th>
-                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider">
-                      Linked At
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.data.map((doc) => (
-                    <tr key={doc.linkId} className="border-b last:border-b-0 hover:bg-muted/30">
-                      <td className="px-3 py-2 font-mono font-medium">{doc.documentNumber}</td>
-                      <td className="px-3 py-2 truncate max-w-[250px]">{doc.title}</td>
-                      <td className="px-3 py-2">
-                        <Badge variant="secondary" className="text-[10px]">
-                          {doc.category}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant="outline" className="text-[10px]">
-                          {doc.status}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant="outline" className="text-[10px]">
-                          {doc.linkType.replace(/_/g, " ")}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {doc.confidence != null ? `${Math.round(doc.confidence * 100)}%` : "-"}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {doc.linkedAt ? new Date(doc.linkedAt).toLocaleDateString() : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {Math.ceil(data.totalCount / pageSize) > 1 && (
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Page {page} of {Math.ceil(data.totalCount / pageSize)}
-                </p>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-6 text-xs"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-6 text-xs"
-                    disabled={page * pageSize >= data.totalCount}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        <DocumentAssociationEngine plId={id} />
       </div>
     </PageFrame>
   );

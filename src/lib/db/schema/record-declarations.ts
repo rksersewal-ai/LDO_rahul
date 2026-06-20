@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { index, integer, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const recordDeclarations = pgTable(
@@ -19,5 +20,9 @@ export const recordDeclarations = pgTable(
   (table) => [
     index("idx_record_declarations_workspace_id").on(table.workspaceId),
     index("idx_record_declarations_document_id").on(table.documentId),
+    // Performance: disposition-review queue (expired + not yet destroyed).
+    index("idx_record_declarations_ws_expires")
+      .on(table.workspaceId, table.retentionExpiresAt)
+      .where(sql`${table.destroyedAt} IS NULL`),
   ],
 );

@@ -26,5 +26,7 @@ export const auditLog = pgTable(
     index("idx_audit_log_user_id").on(table.userId),
     index("idx_audit_log_action").on(table.action),
     index("idx_audit_log_created_at").on(table.createdAt),
+    // Performance: workspace activity feed ordered newest-first (schema-owned).
+    index("idx_audit_log_ws_created").on(table.workspaceId, table.createdAt),
   ],
 );

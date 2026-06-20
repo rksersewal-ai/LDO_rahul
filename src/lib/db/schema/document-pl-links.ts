@@ -1,4 +1,13 @@
-import { index, pgEnum, pgTable, real, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  pgEnum,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  unique,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { documents } from "./documents";
 import { plNumbers } from "./pl-numbers";
 
@@ -21,6 +30,13 @@ export const documentPlLinks = pgTable(
       .notNull()
       .references(() => plNumbers.id),
     linkType: documentPlLinkTypeEnum("link_type").notNull().default("manual"),
+    /**
+     * Semantic role of this association, used by the Document Association Ledger
+     * to group links: 'general' | 'te' (technical evaluation) |
+     * 'prototype_approval' | 'correspondence'. Nullable for legacy rows
+     * (treated as 'general').
+     */
+    linkRole: varchar("link_role", { length: 32 }),
     confidence: real("confidence"),
     linkedBy: text("linked_by"),
     linkedAt: timestamp("linked_at", { withTimezone: true }).notNull().defaultNow(),

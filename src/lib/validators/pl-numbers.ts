@@ -1,8 +1,20 @@
 import { z } from "zod";
 
 export const plCategoryEnum = z.enum(["CAT-A", "CAT-B", "CAT-C", "CAT-D"]);
-export const plStatusEnum = z.enum(["active", "inactive", "deprecated", "under_review", "obsolete"]);
-export const lifecycleStageEnum = z.enum(["draft", "active", "restricted", "obsolete", "deprecated"]);
+export const plStatusEnum = z.enum([
+  "active",
+  "inactive",
+  "deprecated",
+  "under_review",
+  "obsolete",
+]);
+export const lifecycleStageEnum = z.enum([
+  "draft",
+  "active",
+  "restricted",
+  "obsolete",
+  "deprecated",
+]);
 
 export const plItemTypeEnum = z.enum(["VD", "NVD"]);
 export const inspectionAgencyEnum = z.enum(["RDSO", "ZONAL", "WORKSHOP", "STORES"]);
@@ -22,6 +34,14 @@ export const plDocumentLinkTypeEnum = z.enum([
   "ocr_accepted",
   "bom_inferred",
   "work_record_inferred",
+]);
+
+/** Semantic role of a PL<->document association in the ledger. */
+export const plLinkRoleEnum = z.enum([
+  "general",
+  "te", // technical evaluation
+  "prototype_approval",
+  "correspondence",
 ]);
 
 export const paginationSchema = z.object({
@@ -127,8 +147,15 @@ export const plLinkDocumentSchema = z.object({
   plId: z.string().min(1),
   documentId: z.string().min(1),
   linkType: plDocumentLinkTypeEnum.default("manual"),
+  linkRole: plLinkRoleEnum.default("general"),
   confidence: z.number().min(0).max(1).optional(),
   notes: z.string().optional(),
+});
+
+export const plLedgerSchema = z.object({
+  search: z.string().optional(),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(25),
 });
 
 export const plBulkImportSchema = z.object({
@@ -172,6 +199,8 @@ export type UpdatePlInput = z.infer<typeof updatePlSchema>;
 export type PlAliasInput = z.infer<typeof plAliasSchema>;
 export type PlRelationshipInput = z.infer<typeof plRelationshipSchema>;
 export type PlLinkDocumentInput = z.infer<typeof plLinkDocumentSchema>;
+export type PlLinkRole = z.infer<typeof plLinkRoleEnum>;
+export type PlLedgerInput = z.infer<typeof plLedgerSchema>;
 export type PlBulkImportInput = z.infer<typeof plBulkImportSchema>;
 export type PlChangeStatusInput = z.infer<typeof plChangeStatusSchema>;
 export type SearchDocumentsForLinkingInput = z.infer<typeof searchDocumentsForLinkingSchema>;
