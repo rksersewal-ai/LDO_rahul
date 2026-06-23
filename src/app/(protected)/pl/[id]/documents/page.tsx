@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, BookText } from "lucide-react";
+import { ArrowLeft, BookText, Plus } from "lucide-react";
 import Link from "next/link";
 import { use, useState } from "react";
 import { toast } from "sonner";
