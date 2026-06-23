@@ -1,4 +1,13 @@
-import { foreignKey, index, pgTable, primaryKey, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import {
+  foreignKey,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { documents } from "./documents";
 
 export const cabinets = pgTable(

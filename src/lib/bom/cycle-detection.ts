@@ -29,7 +29,7 @@ export interface CycleDetectionDb {
  * @returns true if a cycle would be created, false otherwise.
  */
 export async function detectCycle(
-  bomProductId: string,
+  _bomProductId: string,
   proposedParentId: string | null,
   entryId: string,
   dbInstance: CycleDetectionDb,
@@ -51,10 +51,10 @@ export async function detectCycle(
   while (currentId !== null && iterations < MAX_ITERATIONS) {
     iterations++;
 
-    const [row] = await dbInstance
+    const [row] = (await dbInstance
       .select({ id: bomEntries.id, parentId: bomEntries.parentId })
       .from(bomEntries)
-      .where(eq(bomEntries.id, currentId)) as Array<{ id: string; parentId: string | null }>;
+      .where(eq(bomEntries.id, currentId))) as Array<{ id: string; parentId: string | null }>;
 
     if (!row) {
       // Parent not found - chain is broken, no cycle

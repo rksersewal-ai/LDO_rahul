@@ -17,7 +17,9 @@ export default function PlTraceabilityPage({ params }: { params: Promise<{ id: s
   const utils = trpc.useUtils();
 
   const { data: pl } = trpc.pl.getById.useQuery({ id });
-  const { data: summary, isLoading: summaryLoading } = trpc.pl.getTraceabilitySummary.useQuery({ plId: id });
+  const { data: summary, isLoading: summaryLoading } = trpc.pl.getTraceabilitySummary.useQuery({
+    plId: id,
+  });
   const { data: ocrHits, isLoading: ocrLoading } = trpc.pl.getOcrHits.useQuery({ plId: id });
 
   const acceptMutation = trpc.ocr.acceptCandidate.useMutation({
@@ -168,11 +170,11 @@ export default function PlTraceabilityPage({ params }: { params: Promise<{ id: s
                       </td>
                       <td className="px-3 py-2 font-mono">{hit.plNumber}</td>
                       <td className="px-3 py-2">
-                        {hit.confidence != null ? `${Math.round(Number(hit.confidence) * 100)}%` : "-"}
+                        {hit.confidence != null
+                          ? `${Math.round(Number(hit.confidence) * 100)}%`
+                          : "-"}
                       </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {hit.pageNumber ?? "-"}
-                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{hit.pageNumber ?? "-"}</td>
                       <td className="px-3 py-2">
                         <Badge
                           variant={hit.mod11Valid ? "default" : "secondary"}

@@ -8,7 +8,7 @@ import { settings } from "@/lib/db/schema";
 import type { Banner } from "@/lib/mock-data/admin";
 import { MOCK_BANNERS } from "@/lib/mock-data/admin";
 import { getEffectiveSetting, invalidateSettingsCache } from "@/lib/settings/get-effective-setting";
-import { adminProcedure, protectedProcedure, router, supervisorProcedure } from "@/server/trpc";
+import { protectedProcedure, router } from "@/server/trpc";
 
 const scopeValues = ["system", "organization", "workspace", "user"] as const;
 const dataTypeValues = ["string", "number", "boolean", "json"] as const;

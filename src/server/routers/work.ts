@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, gte, ilike, lte, or, sql, asc } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
@@ -54,7 +54,12 @@ export const workRouter = router({
         CLOSED: "completed",
       };
       const mappedStatus = statusMap[input.status] ?? input.status.toLowerCase();
-      conditions.push(eq(workRecords.status, mappedStatus as "open" | "in_progress" | "completed" | "on_hold" | "cancelled"));
+      conditions.push(
+        eq(
+          workRecords.status,
+          mappedStatus as "open" | "in_progress" | "completed" | "on_hold" | "cancelled",
+        ),
+      );
     }
 
     if (input.priority) {
@@ -63,10 +68,7 @@ export const workRouter = router({
 
     if (input.userId) {
       conditions.push(
-        or(
-          eq(workRecords.assignedTo, input.userId),
-          eq(workRecords.createdBy, input.userId),
-        )!,
+        or(eq(workRecords.assignedTo, input.userId), eq(workRecords.createdBy, input.userId))!,
       );
     }
 
@@ -98,10 +100,7 @@ export const workRouter = router({
         .orderBy(orderFn(sortCol))
         .limit(input.limit)
         .offset(input.offset),
-      db
-        .select({ total: count() })
-        .from(workRecords)
-        .where(whereClause),
+      db.select({ total: count() }).from(workRecords).where(whereClause),
     ]);
 
     return {
@@ -219,7 +218,10 @@ export const workRouter = router({
       updatedAt: new Date(),
     };
 
-    if (input.description !== undefined) updateData.description = input.description ? sanitizeUserInput(input.description) : input.description;
+    if (input.description !== undefined)
+      updateData.description = input.description
+        ? sanitizeUserInput(input.description)
+        : input.description;
     if (input.priority !== undefined) updateData.priority = input.priority.toLowerCase();
     if (input.remarks !== undefined) updateData.disposalNotes = input.remarks;
 
@@ -381,7 +383,9 @@ export const workRouter = router({
       const [current] = await db
         .select()
         .from(workRecords)
-        .where(and(eq(workRecords.id, input.workRecordId), eq(workRecords.workspaceId, workspaceId)));
+        .where(
+          and(eq(workRecords.id, input.workRecordId), eq(workRecords.workspaceId, workspaceId)),
+        );
 
       if (!current) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Work record not found" });
@@ -428,14 +432,8 @@ export const workRouter = router({
       .where(
         and(
           eq(workRecords.workspaceId, workspaceId),
-          or(
-            eq(workRecords.assignedTo, userId),
-            eq(workRecords.createdBy, userId),
-          ),
-          or(
-            eq(workRecords.status, "open"),
-            eq(workRecords.status, "in_progress"),
-          ),
+          or(eq(workRecords.assignedTo, userId), eq(workRecords.createdBy, userId)),
+          or(eq(workRecords.status, "open"), eq(workRecords.status, "in_progress")),
         ),
       )
       .orderBy(asc(workRecords.priority), desc(workRecords.createdAt));
@@ -481,7 +479,8 @@ export const workRouter = router({
         userName: r.userId ?? "Unknown",
         totalRecords: r.totalRecords,
         completedRecords: Number(r.completedRecords),
-        onTimePercentage: r.totalRecords > 0 ? Math.round((Number(r.completedRecords) / r.totalRecords) * 100) : 0,
+        onTimePercentage:
+          r.totalRecords > 0 ? Math.round((Number(r.completedRecords) / r.totalRecords) * 100) : 0,
       }));
     }),
 
@@ -492,10 +491,7 @@ export const workRouter = router({
 
     if (input.userId) {
       conditions.push(
-        or(
-          eq(workRecords.assignedTo, input.userId),
-          eq(workRecords.createdBy, input.userId),
-        )!,
+        or(eq(workRecords.assignedTo, input.userId), eq(workRecords.createdBy, input.userId))!,
       );
     }
     if (input.dateFrom) {
@@ -579,11 +575,16 @@ export const workRouter = router({
       if (input.resolution === "keep_client" && input.clientPayload) {
         // Apply validated fields from clientPayload
         if (input.clientPayload.title !== undefined) updateData.title = input.clientPayload.title;
-        if (input.clientPayload.description !== undefined) updateData.description = input.clientPayload.description;
-        if (input.clientPayload.priority !== undefined) updateData.priority = input.clientPayload.priority;
-        if (input.clientPayload.section !== undefined) updateData.section = input.clientPayload.section;
-        if (input.clientPayload.workshop !== undefined) updateData.workshop = input.clientPayload.workshop;
-        if (input.clientPayload.locoNumber !== undefined) updateData.locoNumber = input.clientPayload.locoNumber;
+        if (input.clientPayload.description !== undefined)
+          updateData.description = input.clientPayload.description;
+        if (input.clientPayload.priority !== undefined)
+          updateData.priority = input.clientPayload.priority;
+        if (input.clientPayload.section !== undefined)
+          updateData.section = input.clientPayload.section;
+        if (input.clientPayload.workshop !== undefined)
+          updateData.workshop = input.clientPayload.workshop;
+        if (input.clientPayload.locoNumber !== undefined)
+          updateData.locoNumber = input.clientPayload.locoNumber;
       }
 
       const [updated] = await db
@@ -612,12 +613,7 @@ export const workRouter = router({
     const records = await db
       .select()
       .from(workRecords)
-      .where(
-        and(
-          eq(workRecords.workspaceId, workspaceId),
-          eq(workRecords.syncStatus, "conflict"),
-        ),
-      )
+      .where(and(eq(workRecords.workspaceId, workspaceId), eq(workRecords.syncStatus, "conflict")))
       .orderBy(desc(workRecords.updatedAt));
 
     return records;

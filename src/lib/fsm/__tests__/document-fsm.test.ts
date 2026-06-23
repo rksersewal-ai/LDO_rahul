@@ -63,7 +63,14 @@ describe("document-fsm", () => {
     });
 
     it("admin can transition to archived from any non-archived status", () => {
-      const statuses = ["draft", "pending_review", "under_review", "approved", "rejected", "superseded"];
+      const statuses = [
+        "draft",
+        "pending_review",
+        "under_review",
+        "approved",
+        "rejected",
+        "superseded",
+      ];
       for (const status of statuses) {
         const result = getValidTransitions(status, "admin");
         expect(result).toContain("archived");

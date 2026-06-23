@@ -18,7 +18,5 @@ export const classificationLabels = pgTable(
     description: text("description"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    index("idx_classification_labels_workspace_id").on(table.workspaceId),
-  ],
+  (table) => [index("idx_classification_labels_workspace_id").on(table.workspaceId)],
 );

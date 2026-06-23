@@ -13,10 +13,7 @@ const TIMEOUT_MS = 120_000; // 120 seconds
  * Returns extracted text, average confidence, and per-word confidences.
  * Never throws - on any error or timeout, returns a degraded result.
  */
-export async function recognizeImage(
-  imageBuffer: Buffer,
-  _mimeType: string
-): Promise<OcrResult> {
+export async function recognizeImage(imageBuffer: Buffer, _mimeType: string): Promise<OcrResult> {
   let worker: TesseractWorker | null = null;
 
   try {
@@ -44,8 +41,7 @@ export async function recognizeImage(
 
         const avgConfidence =
           wordConfidences.length > 0
-            ? wordConfidences.reduce((sum, w) => sum + w.confidence, 0) /
-              wordConfidences.length
+            ? wordConfidences.reduce((sum, w) => sum + w.confidence, 0) / wordConfidences.length
             : 0;
 
         return {
@@ -55,7 +51,7 @@ export async function recognizeImage(
         };
       })(),
       new Promise<OcrResult>((_, reject) =>
-        setTimeout(() => reject(new Error("Tesseract OCR timed out")), TIMEOUT_MS)
+        setTimeout(() => reject(new Error("Tesseract OCR timed out")), TIMEOUT_MS),
       ),
     ]);
 

@@ -38,20 +38,20 @@ export const dashboardRouter = router({
       const compareRange = input?.compareRange ?? "week";
 
       return getCached(`dashboard_metrics_${workspaceId}_${compareRange}`, 15_000, async () => {
-          const now = new Date();
-          const deltaMs =
-            compareRange === "month" ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-          const periodStart = new Date(now.getTime() - deltaMs);
-          const periodLabel = compareRange === "month" ? "this month" : "this week";
+        const now = new Date();
+        const deltaMs =
+          compareRange === "month" ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+        const periodStart = new Date(now.getTime() - deltaMs);
+        const periodLabel = compareRange === "month" ? "this month" : "this week";
 
-          const [
-            totalDocsResult,
-            docsThisWeekResult,
-            pendingApprovalsResult,
-            ocrQueueResult,
-            openCasesResult,
-            pendingDuplicatesResult,
-          ] = await Promise.all([
+        const [
+          totalDocsResult,
+          docsThisWeekResult,
+          pendingApprovalsResult,
+          ocrQueueResult,
+          openCasesResult,
+          pendingDuplicatesResult,
+        ] = await Promise.all([
           // Total non-deleted documents in workspace
           // Index: documents(workspace_id, is_deleted)
           db
@@ -783,11 +783,11 @@ export const dashboardRouter = router({
       return {
         total: totalResult[0]?.total ?? 0,
         byStatus: {
-          active: byStatus["active"] ?? 0,
-          under_overhaul: byStatus["under_overhaul"] ?? 0,
-          condemned: byStatus["condemned"] ?? 0,
-          transferred: byStatus["transferred"] ?? 0,
-          awaiting_commissioning: byStatus["awaiting_commissioning"] ?? 0,
+          active: byStatus.active ?? 0,
+          under_overhaul: byStatus.under_overhaul ?? 0,
+          condemned: byStatus.condemned ?? 0,
+          transferred: byStatus.transferred ?? 0,
+          awaiting_commissioning: byStatus.awaiting_commissioning ?? 0,
         },
         byProductType,
       };

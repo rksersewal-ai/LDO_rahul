@@ -1,6 +1,14 @@
 "use client";
 
-import { ArrowLeft, Book, ExternalLink, Headphones, Keyboard, MessageCircle, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  Book,
+  ExternalLink,
+  Headphones,
+  Keyboard,
+  MessageCircle,
+  Search,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { SHORTCUTS } from "@/components/shared/keyboard-shortcuts";
@@ -111,7 +119,13 @@ export function HelpCenter({ open, onOpenChange }: HelpCenterProps) {
 
         {/* Tabs */}
         <div className="flex border-b px-4">
-          <TabButton active={activeTab === "guide"} onClick={() => { setActiveTab("guide"); setSelectedTopic(null); }}>
+          <TabButton
+            active={activeTab === "guide"}
+            onClick={() => {
+              setActiveTab("guide");
+              setSelectedTopic(null);
+            }}
+          >
             <Book className="size-3" />
             Guide
           </TabButton>

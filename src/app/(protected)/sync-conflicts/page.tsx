@@ -109,7 +109,8 @@ export default function SyncConflictsPage() {
                   {conflicts.map((conflict) => {
                     const isExpanded = expandedId === conflict.id;
                     const payload = parsePayload(conflict.conflictPayload);
-                    const isResolving = resolveMutation.isPending && resolveMutation.variables?.id === conflict.id;
+                    const isResolving =
+                      resolveMutation.isPending && resolveMutation.variables?.id === conflict.id;
 
                     return (
                       <ConflictRow
@@ -143,7 +144,14 @@ function ConflictRow({
   onToggle,
   onResolve,
 }: {
-  conflict: { id: string; workOrderNumber: string; title: string; syncStatus: string; conflictPayload: string | null; updatedAt: Date | string | null };
+  conflict: {
+    id: string;
+    workOrderNumber: string;
+    title: string;
+    syncStatus: string;
+    conflictPayload: string | null;
+    updatedAt: Date | string | null;
+  };
   isExpanded: boolean;
   isResolving: boolean;
   payload: ConflictPayload;
@@ -152,10 +160,7 @@ function ConflictRow({
 }) {
   return (
     <>
-      <TableRow
-        className="cursor-pointer hover:bg-accent/40"
-        onClick={onToggle}
-      >
+      <TableRow className="cursor-pointer hover:bg-accent/40" onClick={onToggle}>
         <TableCell className="font-mono text-xs">{conflict.workOrderNumber}</TableCell>
         <TableCell className="font-medium">{conflict.title}</TableCell>
         <TableCell className="text-sm text-muted-foreground">

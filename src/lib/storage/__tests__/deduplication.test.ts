@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { computeFullHash } from "../deduplication";
 import { createHash } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import { computeFullHash } from "../deduplication";
 
 describe("computeFullHash", () => {
   it("computes the correct SHA-256 hash for a known string buffer", () => {

@@ -80,14 +80,22 @@ export async function exportToExcel(
 ): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(title.slice(0, 31) || "Sheet1");
-  ws.columns = headers.map((h) => ({ header: h, key: h, width: Math.max(16, Math.min(42, h.length + 8)) }));
+  ws.columns = headers.map((h) => ({
+    header: h,
+    key: h,
+    width: Math.max(16, Math.min(42, h.length + 8)),
+  }));
   for (const row of rows) {
     const obj: Record<string, string | number> = {};
-    headers.forEach((h, i) => { obj[h] = row[i] ?? ""; });
+    headers.forEach((h, i) => {
+      obj[h] = row[i] ?? "";
+    });
     ws.addRow(obj);
   }
   const buffer = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
   downloadBlob(blob, `${filenamePrefix}-${getDateSuffix()}.xlsx`);
 }
 
@@ -136,10 +144,12 @@ export function exportToCSV(
   filenamePrefix: string,
 ): void {
   const lines = [headers, ...rows].map((row) =>
-    row.map((cell) => {
-      const v = String(cell ?? "");
-      return /[,"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-    }).join(","),
+    row
+      .map((cell) => {
+        const v = String(cell ?? "");
+        return /[,"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+      })
+      .join(","),
   );
   const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
   downloadBlob(blob, `${filenamePrefix}-${getDateSuffix()}.csv`);

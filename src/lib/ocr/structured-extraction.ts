@@ -40,8 +40,7 @@ const RDSO_SPEC_PATTERN =
   /\bRDSO\/\d{4}\/[A-Z]{2,4}\/(?:SPEC|STD|DRG|TCD|CAMTECH|SPN)\/\d{3,5}(?:\/[A-Za-z0-9]+)?\b/g;
 
 /** Loco/rolling stock unit numbers: WAP-7 30001, WAG-9HC 31501, WDP-4D 40201, etc. */
-const LOCO_NUMBER_PATTERN =
-  /\b(W[A-Z]{2,3}-\d[A-Z]{0,2})\s+(\d{5})\b/g;
+const LOCO_NUMBER_PATTERN = /\b(W[A-Z]{2,3}-\d[A-Z]{0,2})\s+(\d{5})\b/g;
 
 // --- Extraction Functions ---
 
@@ -139,11 +138,12 @@ export function extractRdsoSpecNumbers(text: string): string[] {
  */
 export function extractLocoNumbers(text: string): string[] {
   const results: string[] = [];
-  let match: RegExpExecArray | null;
   // Reset lastIndex before use
   LOCO_NUMBER_PATTERN.lastIndex = 0;
-  while ((match = LOCO_NUMBER_PATTERN.exec(text)) !== null) {
+  let match = LOCO_NUMBER_PATTERN.exec(text);
+  while (match !== null) {
     results.push(`${match[1]} ${match[2]}`);
+    match = LOCO_NUMBER_PATTERN.exec(text);
   }
   return [...new Set(results)];
 }
@@ -157,7 +157,7 @@ export function extractRailwayIdentifiers(text: string): {
   locoNumbers: string[];
   drawingNumbers: string[];
 } {
-  const drawingNumber = extractDrawingNumber(text);
+  const _drawingNumber = extractDrawingNumber(text);
   // Also get all drawing number matches (not just first)
   const drawingMatches = text.match(DRAWING_NUMBER_PATTERN);
   const drawingNumbers = drawingMatches ? [...new Set(drawingMatches)] : [];

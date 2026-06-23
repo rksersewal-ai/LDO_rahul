@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type OcrJobStatus, type OcrQueueJob } from "@/lib/mock-data/admin";
+import type { OcrJobStatus, OcrQueueJob } from "@/lib/mock-data/admin";
 import { trpc } from "@/lib/trpc/client";
 
 const statusBadge: Record<
@@ -38,10 +38,13 @@ const statusBadge: Record<
 };
 
 export default function OcrMonitorPage() {
-  const { data: ocrData, isLoading, isError, error, refetch } = trpc.admin.getOcrQueue.useQuery(
-    undefined,
-    { staleTime: 15_000, refetchInterval: 30_000 },
-  );
+  const {
+    data: ocrData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = trpc.admin.getOcrQueue.useQuery(undefined, { staleTime: 15_000, refetchInterval: 30_000 });
   const { data: systemLoad } = trpc.admin.getSystemLoad.useQuery(undefined, {
     refetchInterval: 10_000,
     staleTime: 5_000,
@@ -142,9 +145,7 @@ export default function OcrMonitorPage() {
         </div>
 
         {/* Error State */}
-        {isError && !isLoading && (
-          <QueryErrorState error={error} retry={() => refetch()} />
-        )}
+        {isError && !isLoading && <QueryErrorState error={error} retry={() => refetch()} />}
 
         {/* Jobs Table */}
         <div className="rounded-lg border">
@@ -288,10 +289,7 @@ interface SystemLoad {
   state: "healthy" | "elevated" | "throttling";
 }
 
-const LOAD_STATE_META: Record<
-  SystemLoad["state"],
-  { label: string; dot: string; text: string }
-> = {
+const LOAD_STATE_META: Record<SystemLoad["state"], { label: string; dot: string; text: string }> = {
   healthy: { label: "Healthy", dot: "bg-emerald-500", text: "text-emerald-600" },
   elevated: { label: "Elevated", dot: "bg-amber-500", text: "text-amber-600" },
   throttling: { label: "Throttling", dot: "bg-red-500", text: "text-red-600" },
@@ -314,7 +312,9 @@ function SystemLoadBar({ load }: { load: SystemLoad }) {
           </span>
         </div>
         <Badge variant="outline" className="text-[10px] h-5">
-          {load.gateEnabled ? `Auto-throttle @ ${Math.round(load.threshold * 100)}%/core` : "Throttle disabled"}
+          {load.gateEnabled
+            ? `Auto-throttle @ ${Math.round(load.threshold * 100)}%/core`
+            : "Throttle disabled"}
         </Badge>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">

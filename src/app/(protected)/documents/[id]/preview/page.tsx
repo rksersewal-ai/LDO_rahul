@@ -108,13 +108,7 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
   const [isReindexing, setIsReindexing] = useState(false);
 
   // Fetch document
-  const {
-    data: doc,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = trpc.documents.getById.useQuery({ id });
+  const { data: doc, isLoading, isError, error, refetch } = trpc.documents.getById.useQuery({ id });
 
   // Fetch linked PLs
   const { data: linkedPls } = trpc.documents.getLinkedPls.useQuery(
@@ -268,10 +262,7 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                 <Badge variant="outline" className="text-[10px] font-medium uppercase">
                   {fileType}
                 </Badge>
-                <StatusBadge
-                  status={mapDocStatus(docStatus)}
-                  label={docStatus.replace("_", " ")}
-                />
+                <StatusBadge status={mapDocStatus(docStatus)} label={docStatus.replace("_", " ")} />
               </div>
               {/* Title */}
               <h1 className="truncate text-xl font-semibold text-foreground">{doc.title}</h1>
@@ -378,14 +369,14 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs text-muted-foreground">Revision</span>
-                      <span className="font-mono text-xs text-foreground">{doc.revision ?? "A"}</span>
+                      <span className="font-mono text-xs text-foreground">
+                        {doc.revision ?? "A"}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs text-muted-foreground">Linked PL</span>
                       <span className="text-xs text-foreground">
-                        {(linkedPls?.length ?? 0) > 0
-                          ? `${linkedPls!.length} linked`
-                          : "Unlinked"}
+                        {(linkedPls?.length ?? 0) > 0 ? `${linkedPls?.length} linked` : "Unlinked"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">

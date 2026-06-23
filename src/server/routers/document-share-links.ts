@@ -167,90 +167,88 @@ export const documentShareLinksRouter = router({
       return { success: true };
     }),
 
-  resolveShareToken: publicProcedure
-    .input(resolveShareTokenSchema)
-    .query(async ({ input }) => {
-      // Find the share link by token - NO workspace filter (public)
-      const [link] = await db
-        .select()
-        .from(documentShareLinks)
-        .where(eq(documentShareLinks.token, input.token));
+  resolveShareToken: publicProcedure.input(resolveShareTokenSchema).query(async ({ input }) => {
+    // Find the share link by token - NO workspace filter (public)
+    const [link] = await db
+      .select()
+      .from(documentShareLinks)
+      .where(eq(documentShareLinks.token, input.token));
 
-      if (!link) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Share link not found" });
+    if (!link) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Share link not found" });
+    }
+
+    // Check if revoked
+    if (link.isRevoked === 1) {
+      return { status: "revoked" as const, document: null };
+    }
+
+    // Check if expired
+    if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
+      return { status: "expired" as const, document: null };
+    }
+
+    // Check max views
+    if (link.maxViews !== null && link.viewCount >= link.maxViews) {
+      return { status: "expired" as const, document: null };
+    }
+
+    // Check password
+    if (link.passwordHash) {
+      if (!input.password) {
+        return { status: "password_required" as const, document: null };
       }
-
-      // Check if revoked
-      if (link.isRevoked === 1) {
-        return { status: "revoked" as const, document: null };
+      const valid = await bcrypt.compare(input.password, link.passwordHash);
+      if (!valid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
       }
+    }
 
-      // Check if expired
-      if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
-        return { status: "expired" as const, document: null };
-      }
+    // Fetch document info before incrementing the view count so that a
+    // deleted document does not consume a view slot without showing anything.
+    const [doc] = await db
+      .select({
+        id: documents.id,
+        documentNumber: documents.documentNumber,
+        title: documents.title,
+        description: documents.description,
+        category: documents.category,
+        status: documents.status,
+        revision: documents.revision,
+        mimeType: documents.mimeType,
+        originalFilename: documents.originalFilename,
+        pageCount: documents.pageCount,
+        createdAt: documents.createdAt,
+      })
+      .from(documents)
+      .where(eq(documents.id, link.documentId));
 
-      // Check max views
-      if (link.maxViews !== null && link.viewCount >= link.maxViews) {
-        return { status: "expired" as const, document: null };
-      }
+    if (!doc) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+    }
 
-      // Check password
-      if (link.passwordHash) {
-        if (!input.password) {
-          return { status: "password_required" as const, document: null };
-        }
-        const valid = await bcrypt.compare(input.password, link.passwordHash);
-        if (!valid) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
-        }
-      }
+    // Atomically increment view count, respecting max_views constraint
+    const [updated] = await db
+      .update(documentShareLinks)
+      .set({ viewCount: sql`${documentShareLinks.viewCount} + 1` })
+      .where(
+        and(
+          eq(documentShareLinks.id, link.id),
+          sql`(${documentShareLinks.maxViews} IS NULL OR ${documentShareLinks.viewCount} < ${documentShareLinks.maxViews})`,
+        ),
+      )
+      .returning({ viewCount: documentShareLinks.viewCount });
 
-      // Fetch document info before incrementing the view count so that a
-      // deleted document does not consume a view slot without showing anything.
-      const [doc] = await db
-        .select({
-          id: documents.id,
-          documentNumber: documents.documentNumber,
-          title: documents.title,
-          description: documents.description,
-          category: documents.category,
-          status: documents.status,
-          revision: documents.revision,
-          mimeType: documents.mimeType,
-          originalFilename: documents.originalFilename,
-          pageCount: documents.pageCount,
-          createdAt: documents.createdAt,
-        })
-        .from(documents)
-        .where(eq(documents.id, link.documentId));
+    // If no rows updated, the link has been exhausted by a concurrent request
+    if (!updated) {
+      return { status: "expired" as const, document: null };
+    }
 
-      if (!doc) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
-      }
-
-      // Atomically increment view count, respecting max_views constraint
-      const [updated] = await db
-        .update(documentShareLinks)
-        .set({ viewCount: sql`${documentShareLinks.viewCount} + 1` })
-        .where(
-          and(
-            eq(documentShareLinks.id, link.id),
-            sql`(${documentShareLinks.maxViews} IS NULL OR ${documentShareLinks.viewCount} < ${documentShareLinks.maxViews})`,
-          ),
-        )
-        .returning({ viewCount: documentShareLinks.viewCount });
-
-      // If no rows updated, the link has been exhausted by a concurrent request
-      if (!updated) {
-        return { status: "expired" as const, document: null };
-      }
-
-      return {
-        status: "valid" as const,
-        document: doc,
-        allowDownload: link.allowDownload === 1,
-        versionId: link.versionId,
-      };
-    }),
+    return {
+      status: "valid" as const,
+      document: doc,
+      allowDownload: link.allowDownload === 1,
+      versionId: link.versionId,
+    };
+  }),
 });

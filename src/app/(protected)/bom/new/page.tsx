@@ -178,7 +178,12 @@ export default function NewProductPage() {
             </div>
 
             <div className="flex items-center gap-2 pt-2">
-              <Button type="submit" size="sm" className="h-8 text-xs" disabled={createProduct.isPending}>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={createProduct.isPending}
+              >
                 {createProduct.isPending ? "Creating..." : "Create Product"}
               </Button>
               <Button

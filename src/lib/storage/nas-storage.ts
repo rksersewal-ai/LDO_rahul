@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile, unlink, stat, readdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 /**
  * NAS-backed file storage service with workspace isolation,
@@ -20,10 +20,7 @@ export function getBasePath(): string {
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 
-async function withRetry<T>(
-  operation: () => Promise<T>,
-  operationName: string,
-): Promise<T> {
+async function withRetry<T>(operation: () => Promise<T>, operationName: string): Promise<T> {
   let lastError: Error | undefined;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -33,7 +30,7 @@ async function withRetry<T>(
       lastError = error instanceof Error ? error : new Error(String(error));
 
       if (attempt < MAX_RETRIES - 1) {
-        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        const delay = BASE_DELAY_MS * 2 ** attempt;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -50,11 +47,7 @@ async function withRetry<T>(
  * Get the content-addressed storage path for a file.
  * Pattern: {NAS_PATH}/originals/{workspace_id}/{sha256[0:2]}/{sha256[2:4]}/{full_hash}.{ext}
  */
-function getContentAddressedFilePath(
-  hash: string,
-  workspaceId: string,
-  ext: string,
-): string {
+function getContentAddressedFilePath(hash: string, workspaceId: string, ext: string): string {
   const dir1 = hash.substring(0, 2);
   const dir2 = hash.substring(2, 4);
   return join(getNasPath(), "originals", workspaceId, dir1, dir2, `${hash}.${ext}`);
@@ -133,7 +126,12 @@ export async function fileExists(path: string): Promise<boolean> {
     await stat(path);
     return true;
   } catch (error: unknown) {
-    if (error && typeof error === "object" && "code" in error && (error as { code: string }).code === "ENOENT") {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code: string }).code === "ENOENT"
+    ) {
       return false;
     }
     // Transient I/O error - retry
@@ -142,7 +140,12 @@ export async function fileExists(path: string): Promise<boolean> {
         await stat(path);
         return true;
       } catch (retryError: unknown) {
-        if (retryError && typeof retryError === "object" && "code" in retryError && (retryError as { code: string }).code === "ENOENT") {
+        if (
+          retryError &&
+          typeof retryError === "object" &&
+          "code" in retryError &&
+          (retryError as { code: string }).code === "ENOENT"
+        ) {
           return false;
         }
         throw retryError;

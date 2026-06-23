@@ -7,7 +7,7 @@ import { detectCycle } from "../cycle-detection";
  *
  * The entries map defines the tree structure: key = entry id, value = parentId (or null for root).
  */
-function createMockDb(entries: Record<string, string | null>) {
+function _createMockDb(entries: Record<string, string | null>) {
   return {
     select: () => ({
       from: () => ({
@@ -43,7 +43,7 @@ function extractIdFromCondition(condition: any): string | null {
 
 // Since the actual drizzle eq() output shape can vary, let us mock at a higher level
 // by intercepting the chain with a custom approach.
-function createTreeDb(entries: Record<string, string | null>) {
+function _createTreeDb(entries: Record<string, string | null>) {
   let queriedId: string | null = null;
 
   const whereHandler = () => {
@@ -54,7 +54,7 @@ function createTreeDb(entries: Record<string, string | null>) {
   };
 
   const fromHandler = () => ({
-    where: (condition: any) => {
+    where: (_condition: any) => {
       // The eq function from drizzle-orm produces an SQL chunk.
       // For testing we use a proxy approach to capture the ID being looked up.
       return whereHandler();
@@ -78,13 +78,13 @@ function createTreeDb(entries: Record<string, string | null>) {
 
 // Better approach: mock the entire module behavior by creating a mock that
 // intercepts the actual call pattern used in cycle-detection.ts
-function buildMockDb(tree: Record<string, string | null>) {
+function _buildMockDb(_tree: Record<string, string | null>) {
   // tree: { entryId: parentId | null }
   // When detectCycle queries for an entry by ID, return {id, parentId}
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockImplementation((condition: any) => {
+    where: vi.fn().mockImplementation((_condition: any) => {
       // We need to figure out which ID was queried
       // The condition is eq(bomEntries.id, currentId) - drizzle returns a SQL object
       // Since we can't easily parse it, we'll use a different approach

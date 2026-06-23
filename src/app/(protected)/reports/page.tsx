@@ -43,9 +43,7 @@ export default function ReportsPage() {
   const generateMutation = trpc.reports.generateReport.useMutation();
 
   const [formats, setFormats] = useState<Record<string, "csv" | "xlsx">>({});
-  const [dateRanges, setDateRanges] = useState<
-    Record<string, { from?: string; to?: string }>
-  >({});
+  const [dateRanges, setDateRanges] = useState<Record<string, { from?: string; to?: string }>>({});
   const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   const handleGenerate = async (reportId: string) => {
@@ -79,9 +77,7 @@ export default function ReportsPage() {
 
       toast.success(`${result.filename} downloaded successfully`);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to generate report",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to generate report");
     } finally {
       setGeneratingId(null);
     }
@@ -113,12 +109,8 @@ export default function ReportsPage() {
                     <IconComponent className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <CardTitle className="text-sm font-semibold">
-                      {report.title}
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs">
-                      {report.description}
-                    </CardDescription>
+                    <CardTitle className="text-sm font-semibold">{report.title}</CardTitle>
+                    <CardDescription className="mt-1 text-xs">{report.description}</CardDescription>
                   </div>
                 </div>
               </CardHeader>

@@ -151,7 +151,7 @@ export function Sidebar() {
 
   const allHrefs = visibleSections.flatMap((s) => s.items.map((i) => i.href));
   const matches = allHrefs.filter(
-    (href) => pathname === href || (href !== "/" && pathname.startsWith(href + "/")),
+    (href) => pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)),
   );
   const bestMatch = matches.sort((a, b) => b.length - a.length)[0] || "/";
 

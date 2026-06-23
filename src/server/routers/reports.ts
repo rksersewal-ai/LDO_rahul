@@ -8,7 +8,6 @@ import {
   bomProducts,
   documentPlLinks,
   documents,
-  ocrJobs,
   plNumbers,
   workRecords,
 } from "@/lib/db/schema";
@@ -27,7 +26,7 @@ function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | nu
  */
 function escapeCsvField(value: string): string {
   if (/[,"\n\r]/.test(value) || /^[=+\-@]/.test(value)) {
-    return '"' + value.replace(/"/g, '""') + '"';
+    return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
 }
@@ -66,8 +65,7 @@ const REPORT_TYPES = [
   {
     id: "pl-coverage",
     title: "PL Coverage",
-    description:
-      "PL number utilization and linkage coverage across documents and BOM",
+    description: "PL number utilization and linkage coverage across documents and BOM",
     icon: "Layers",
   },
   {
@@ -455,8 +453,7 @@ export const reportsRouter = router({
       return {
         data,
         filename: `${input.type}-report.xlsx`,
-        mimeType:
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" as const,
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" as const,
       };
     }),
 });

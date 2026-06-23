@@ -1,4 +1,14 @@
-import { boolean, index, integer, pgTable, real, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  unique,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { documents } from "./documents";
 
 export const duplicateDetections = pgTable(

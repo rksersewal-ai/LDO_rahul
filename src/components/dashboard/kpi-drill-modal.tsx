@@ -1,14 +1,9 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Search,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -19,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -198,9 +192,7 @@ function getColumnsForMetric(metricId: string): ColumnDef<DrillDownRow, unknown>
           header: "Case #",
           size: 120,
           cell: ({ row }) => (
-            <span className="font-medium text-primary">
-              {row.original.caseNumber as string}
-            </span>
+            <span className="font-medium text-primary">{row.original.caseNumber as string}</span>
           ),
         },
         {
@@ -400,10 +392,7 @@ export function KpiDrillModal({ open, onOpenChange, metricId, metricTitle }: Kpi
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const columns = useMemo(
-    () => getColumnsForMetric(effectiveMetricId),
-    [effectiveMetricId],
-  );
+  const columns = useMemo(() => getColumnsForMetric(effectiveMetricId), [effectiveMetricId]);
 
   const exportHeaders = getExportHeaders(effectiveMetricId);
   const exportRows = getExportRows(effectiveMetricId, items);
@@ -470,8 +459,8 @@ export function KpiDrillModal({ open, onOpenChange, metricId, metricTitle }: Kpi
         {/* Pagination footer */}
         <div className="flex items-center justify-between border-t pt-2">
           <div className="text-xs text-muted-foreground tabular-nums">
-            Showing {total > 0 ? page * pageSize + 1 : 0}-
-            {Math.min((page + 1) * pageSize, total)} of {total}
+            Showing {total > 0 ? page * pageSize + 1 : 0}-{Math.min((page + 1) * pageSize, total)}{" "}
+            of {total}
           </div>
           <div className="flex items-center gap-3">
             {/* Rows per page */}

@@ -1,4 +1,13 @@
-import { index, integer, pgTable, real, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  unique,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { documents, ocrStatusEnum } from "./documents";
 
 export const documentVersions = pgTable(

@@ -555,7 +555,11 @@ export const adminRouter = router({
 
     // Throttling kicks in once the per-core load exceeds the configured ceiling.
     const state: "healthy" | "elevated" | "throttling" =
-      loadPerCore > threshold ? "throttling" : loadPerCore > threshold * 0.75 ? "elevated" : "healthy";
+      loadPerCore > threshold
+        ? "throttling"
+        : loadPerCore > threshold * 0.75
+          ? "elevated"
+          : "healthy";
 
     return {
       cores,

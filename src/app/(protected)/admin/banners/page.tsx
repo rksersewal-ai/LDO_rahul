@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type Banner, type BannerType } from "@/lib/mock-data/admin";
+import type { Banner, BannerType } from "@/lib/mock-data/admin";
 import { trpc } from "@/lib/trpc/client";
 
 const typeConfig: Record<
@@ -38,10 +38,11 @@ const typeConfig: Record<
 };
 
 export default function BannerManagementPage() {
-  const { data: bannersData, isLoading, refetch } = trpc.admin.getBanners.useQuery(
-    undefined,
-    { staleTime: 15_000 },
-  );
+  const {
+    data: bannersData,
+    isLoading,
+    refetch,
+  } = trpc.admin.getBanners.useQuery(undefined, { staleTime: 15_000 });
   const createBannerMutation = trpc.admin.createBanner.useMutation({ onSuccess: () => refetch() });
   const deleteBannerMutation = trpc.admin.deleteBanner.useMutation({ onSuccess: () => refetch() });
 

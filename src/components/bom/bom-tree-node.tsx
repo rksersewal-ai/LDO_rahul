@@ -72,10 +72,7 @@ export function BomTreeNode({
     transition,
   };
 
-  const { data: plData } = trpc.pl.list.useQuery(
-    { pageSize: 100 },
-    { staleTime: 60_000 },
-  );
+  const { data: plData } = trpc.pl.list.useQuery({ pageSize: 100 }, { staleTime: 60_000 });
 
   const plNumbers = plData?.data ?? [];
   const linkedPl = entry.plId ? plNumbers.find((p) => p.id === entry.plId) : null;

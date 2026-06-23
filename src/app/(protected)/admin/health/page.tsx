@@ -13,10 +13,14 @@ export default function SystemHealthPage() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const { data: healthData, isLoading, refetch } = trpc.admin.getHealth.useQuery(
-    undefined,
-    { staleTime: 15_000, refetchInterval: autoRefresh ? 30_000 : false },
-  );
+  const {
+    data: healthData,
+    isLoading,
+    refetch,
+  } = trpc.admin.getHealth.useQuery(undefined, {
+    staleTime: 15_000,
+    refetchInterval: autoRefresh ? 30_000 : false,
+  });
 
   const metrics = healthData?.metrics ?? {
     cpuUsage: 0,
@@ -137,7 +141,9 @@ export default function SystemHealthPage() {
                       );
                     })}
                   </div>
-                  <p className="text-[10px] font-semibold mt-1">{(service.responseTime as number) ?? 0}ms</p>
+                  <p className="text-[10px] font-semibold mt-1">
+                    {(service.responseTime as number) ?? 0}ms
+                  </p>
                 </div>
               ))}
             </div>

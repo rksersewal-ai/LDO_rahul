@@ -2,7 +2,7 @@
 
 import { ArrowLeft, BookText, Plus } from "lucide-react";
 import Link from "next/link";
-import { use, useState } from "react";
+import { use } from "react";
 import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
 import { DocumentAssociationEngine } from "@/components/pl/document-association-engine";
@@ -46,7 +46,11 @@ export default function PlDocumentsPage({ params }: { params: Promise<{ id: stri
               variant="outline"
               size="sm"
               className="h-7 text-xs gap-1"
-              onClick={() => toast.info("Link Document dialog coming soon. Use the Documents Hub to upload and link documents to this PL.")}
+              onClick={() =>
+                toast.info(
+                  "Link Document dialog coming soon. Use the Documents Hub to upload and link documents to this PL.",
+                )
+              }
             >
               <Plus className="h-3 w-3" />
               Link Document

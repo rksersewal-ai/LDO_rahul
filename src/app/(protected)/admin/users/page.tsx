@@ -42,10 +42,11 @@ const roleBadgeVariant: Record<UserRole, "default" | "secondary" | "outline" | "
 };
 
 export default function UserManagementPage() {
-  const { data: usersData, isLoading, refetch } = trpc.admin.getUsers.useQuery(
-    undefined,
-    { staleTime: 15_000 },
-  );
+  const {
+    data: usersData,
+    isLoading,
+    refetch,
+  } = trpc.admin.getUsers.useQuery(undefined, { staleTime: 15_000 });
 
   const users = (usersData ?? []) as Array<Record<string, unknown>>;
   const [search, setSearch] = useState("");
@@ -153,11 +154,15 @@ export default function UserManagementPage() {
 
   // Password reset handlers
   const openPasswordReset = (user: Record<string, unknown>) => {
-    setPasswordResetUser({ id: user.id as string, name: user.name as string, username: user.username as string });
+    setPasswordResetUser({
+      id: user.id as string,
+      name: user.name as string,
+      username: user.username as string,
+    });
     setPasswordResetOpen(true);
   };
 
-  const handlePasswordReset = (userId: string, _newPassword: string, _forceChange: boolean) => {
+  const handlePasswordReset = (_userId: string, _newPassword: string, _forceChange: boolean) => {
     // Password reset should call admin.resetPassword mutation
     refetch();
   };
@@ -168,13 +173,13 @@ export default function UserManagementPage() {
     setSecurityDialogOpen(true);
   };
 
-  const handleLockAccount = (userId: string, _reason: string) => {
+  const handleLockAccount = (_userId: string, _reason: string) => {
     // Would call admin.lockUser mutation
     refetch();
     setSecurityDialogOpen(false);
   };
 
-  const handleUnlockAccount = (userId: string) => {
+  const handleUnlockAccount = (_userId: string) => {
     // Would call admin.unlockUser mutation
     refetch();
     setSecurityDialogOpen(false);

@@ -44,7 +44,7 @@ export async function GET(_request: Request) {
       if (!sseRegistry.has(safeUserId)) {
         sseRegistry.set(safeUserId, new Set());
       }
-      sseRegistry.get(safeUserId)!.add(controller);
+      sseRegistry.get(safeUserId)?.add(controller);
 
       // Send initial connection comment
       controller.enqueue(encoder.encode(": connected\n\n"));

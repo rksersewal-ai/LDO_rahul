@@ -120,8 +120,6 @@ export default function LoginPage() {
         <Suspense fallback={<div className="h-40" />}>
           <LoginForm />
         </Suspense>
-
-
       </div>
     </div>
   );

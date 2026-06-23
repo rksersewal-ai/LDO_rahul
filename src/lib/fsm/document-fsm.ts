@@ -1,9 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
-import type { Database } from "@/lib/db";
-import { documents } from "@/lib/db/schema";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { isRoleAtLeast } from "@/lib/auth/permissions";
+import type { Database } from "@/lib/db";
+import { documents } from "@/lib/db/schema";
 import type { UserRole } from "@/lib/types/auth";
 
 /**

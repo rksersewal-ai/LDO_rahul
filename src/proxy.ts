@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 /**
  * Next.js 16 proxy (renamed from middleware.ts).
@@ -14,9 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
  */
 
 const SESSION_COOKIE =
-  process.env.NODE_ENV === "production"
-    ? "__Secure-authjs.session-token"
-    : "authjs.session-token";
+  process.env.NODE_ENV === "production" ? "__Secure-authjs.session-token" : "authjs.session-token";
 
 function isSafeRedirect(url: string): boolean {
   return url.startsWith("/") && !url.startsWith("//") && !url.includes("://");
@@ -44,14 +42,7 @@ export default function proxy(req: NextRequest) {
   }
 
   // Public paths — always allow
-  if (
-    isLoginPage ||
-    isAuthApi ||
-    isTrpcApi ||
-    isHealthApi ||
-    isSharePage ||
-    isChangePasswordPage
-  ) {
+  if (isLoginPage || isAuthApi || isTrpcApi || isHealthApi || isSharePage || isChangePasswordPage) {
     return NextResponse.next();
   }
 

@@ -49,7 +49,8 @@ export async function awaitLoadHeadroom(options: LoadGateOptions = {}): Promise<
 
   const threshold = options.threshold ?? Number(process.env.WORKER_LOAD_GATE_THRESHOLD ?? "0.9");
   const stepMs = options.stepMs ?? Number(process.env.WORKER_LOAD_GATE_STEP_MS ?? "1000");
-  const maxWaitMs = options.maxWaitMs ?? Number(process.env.WORKER_LOAD_GATE_MAX_WAIT_MS ?? "30000");
+  const maxWaitMs =
+    options.maxWaitMs ?? Number(process.env.WORKER_LOAD_GATE_MAX_WAIT_MS ?? "30000");
   const label = options.label ?? "worker";
 
   let waited = 0;
@@ -57,7 +58,9 @@ export async function awaitLoadHeadroom(options: LoadGateOptions = {}): Promise<
 
   while (getLoadPerCore() > threshold && waited < maxWaitMs) {
     if (!warned) {
-      logWarn(`[${label}] Host under load (${getLoadPerCore().toFixed(2)}/core); throttling job start`);
+      logWarn(
+        `[${label}] Host under load (${getLoadPerCore().toFixed(2)}/core); throttling job start`,
+      );
       warned = true;
     }
     const delay = Math.min(stepMs, maxWaitMs - waited);

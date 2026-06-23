@@ -74,7 +74,13 @@ export function PlWorkTab({ plId }: PlWorkTabProps) {
     return (
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val ?? ""); setPage(1); }}>
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => {
+              setStatusFilter(val ?? "");
+              setPage(1);
+            }}
+          >
             <SelectTrigger size="sm" className="w-[140px] text-xs">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -101,7 +107,13 @@ export function PlWorkTab({ plId }: PlWorkTabProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val ?? ""); setPage(1); }}>
+        <Select
+          value={statusFilter}
+          onValueChange={(val) => {
+            setStatusFilter(val ?? "");
+            setPage(1);
+          }}
+        >
           <SelectTrigger size="sm" className="w-[140px] text-xs">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -150,7 +162,9 @@ export function PlWorkTab({ plId }: PlWorkTabProps) {
                 <td className="px-3 py-2">
                   <StatusBadge
                     status={mapWorkStatus(record.status)}
-                    label={record.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    label={record.status
+                      .replace(/_/g, " ")
+                      .replace(/\b\w/g, (c) => c.toUpperCase())}
                   />
                 </td>
                 <td className="px-3 py-2">

@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
+import { isRoleAtLeast } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import {
   documentCabinets,
@@ -14,11 +15,10 @@ import {
   recordDeclarations,
 } from "@/lib/db/schema";
 import { canTransition, executeTransition } from "@/lib/fsm/document-fsm";
-import { isRoleAtLeast } from "@/lib/auth/permissions";
 import { sanitizeUserInput } from "@/lib/security/sanitize";
 import { markHashRemovedIfOrphaned, restoreHash } from "@/lib/storage/hash-removal";
-import { escapeLikePattern } from "@/lib/utils/escape-like";
 import type { UserRole } from "@/lib/types/auth";
+import { escapeLikePattern } from "@/lib/utils/escape-like";
 import {
   approveDocumentSchema,
   bulkActionSchema,

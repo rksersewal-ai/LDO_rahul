@@ -5,12 +5,7 @@ import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { isRoleAtLeast } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
-import {
-  approvalChainTemplates,
-  approvals,
-  approvalSteps,
-  documents,
-} from "@/lib/db/schema";
+import { approvalChainTemplates, approvalSteps, approvals, documents } from "@/lib/db/schema";
 import { createAndPushNotification } from "@/lib/notifications/push-notification";
 import type { UserRole } from "@/lib/types/auth";
 import { adminProcedure, protectedProcedure, router } from "@/server/trpc";
@@ -47,11 +42,13 @@ export const approvalsRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const workspaceId = requireWorkspaceId(ctx as { session: { user: { workspaceId: string | null } } });
+      const workspaceId = requireWorkspaceId(
+        ctx as { session: { user: { workspaceId: string | null } } },
+      );
 
       // Find the chain template
       let templateId = input.chainTemplateId;
-      let templateRow;
+      let templateRow: typeof approvalChainTemplates.$inferSelect | undefined;
 
       if (templateId) {
         [templateRow] = await db
@@ -157,12 +154,7 @@ export const approvalsRouter = router({
       const [firstStep] = await db
         .select()
         .from(approvalSteps)
-        .where(
-          and(
-            eq(approvalSteps.requestId, requestId),
-            eq(approvalSteps.stepOrder, 1),
-          ),
-        )
+        .where(and(eq(approvalSteps.requestId, requestId), eq(approvalSteps.stepOrder, 1)))
         .limit(1);
 
       if (firstStep?.assignedTo) {
@@ -555,7 +547,9 @@ export const approvalsRouter = router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const workspaceId = requireWorkspaceId(ctx as { session: { user: { workspaceId: string | null } } });
+      const workspaceId = requireWorkspaceId(
+        ctx as { session: { user: { workspaceId: string | null } } },
+      );
 
       const conditions = input.status
         ? and(eq(approvals.workspaceId, workspaceId), eq(approvals.status, input.status))
@@ -584,35 +578,37 @@ export const approvalsRouter = router({
    * Get a single approval request by ID with its steps.
    * Verifies the request belongs to the caller's workspace.
    */
-  getById: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const workspaceId = requireWorkspaceId(ctx as { session: { user: { workspaceId: string | null } } });
+  getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(
+      ctx as { session: { user: { workspaceId: string | null } } },
+    );
 
-      const [request] = await db
-        .select()
-        .from(approvals)
-        .where(and(eq(approvals.id, input.id), eq(approvals.workspaceId, workspaceId)))
-        .limit(1);
+    const [request] = await db
+      .select()
+      .from(approvals)
+      .where(and(eq(approvals.id, input.id), eq(approvals.workspaceId, workspaceId)))
+      .limit(1);
 
-      if (!request) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Approval request not found" });
-      }
+    if (!request) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Approval request not found" });
+    }
 
-      const steps = await db
-        .select()
-        .from(approvalSteps)
-        .where(eq(approvalSteps.requestId, input.id))
-        .orderBy(approvalSteps.stepOrder);
+    const steps = await db
+      .select()
+      .from(approvalSteps)
+      .where(eq(approvalSteps.requestId, input.id))
+      .orderBy(approvalSteps.stepOrder);
 
-      return { ...request, steps };
-    }),
+    return { ...request, steps };
+  }),
 
   /**
    * Get count of pending approval requests for the caller's workspace.
    */
   getPendingCount: protectedProcedure.query(async ({ ctx }) => {
-    const workspaceId = requireWorkspaceId(ctx as { session: { user: { workspaceId: string | null } } });
+    const workspaceId = requireWorkspaceId(
+      ctx as { session: { user: { workspaceId: string | null } } },
+    );
 
     const [result] = await db
       .select({ count: sql<number>`count(*)::int` })

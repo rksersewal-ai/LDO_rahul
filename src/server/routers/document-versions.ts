@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, max } from "drizzle-orm";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
-import { documentVersions, documents } from "@/lib/db/schema";
+import { documents, documentVersions } from "@/lib/db/schema";
 import {
   getDiffSchema,
   getVersionHistorySchema,

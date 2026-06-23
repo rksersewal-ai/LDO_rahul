@@ -204,7 +204,9 @@ function PlDetailTabs({ pl }: { pl: PlDetailData }) {
 
 // Inline traceability tab for the detail page
 function TraceabilityTab({ plId }: { plId: string }) {
-  const { data: summary, isLoading: summaryLoading } = trpc.pl.getTraceabilitySummary.useQuery({ plId });
+  const { data: summary, isLoading: summaryLoading } = trpc.pl.getTraceabilitySummary.useQuery({
+    plId,
+  });
 
   if (summaryLoading) {
     return <LoadingState variant="card" rows={2} />;

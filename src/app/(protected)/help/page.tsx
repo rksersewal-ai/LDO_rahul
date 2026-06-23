@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  BookOpen,
-  Command,
-  FileText,
-  Keyboard,
-  LifeBuoy,
-  Mail,
-  Search,
-} from "lucide-react";
+import { BookOpen, Command, FileText, Keyboard, LifeBuoy, Mail, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -154,8 +146,8 @@ export default function HelpCenterPage() {
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">
               For issues or feature requests, contact your system administrator or reach out to the
-              development team. Include relevant document IDs, error messages, and steps to reproduce
-              when reporting issues.
+              development team. Include relevant document IDs, error messages, and steps to
+              reproduce when reporting issues.
             </p>
           </CardContent>
         </Card>

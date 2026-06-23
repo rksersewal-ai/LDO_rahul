@@ -48,7 +48,9 @@ function getCategoryBadgeColor(category: string): string {
 
 export function PlDocumentsTab({ plId }: PlDocumentsTabProps) {
   const [page, setPage] = useState(1);
-  const [unlinkTarget, setUnlinkTarget] = useState<{ documentId: string; title: string } | null>(null);
+  const [unlinkTarget, setUnlinkTarget] = useState<{ documentId: string; title: string } | null>(
+    null,
+  );
   const pageSize = 10;
 
   const utils = trpc.useUtils();
@@ -194,7 +196,9 @@ export function PlDocumentsTab({ plId }: PlDocumentsTabProps) {
                       variant="ghost"
                       size="sm"
                       className="h-5 text-[10px] px-1.5 text-destructive hover:text-destructive"
-                      onClick={() => setUnlinkTarget({ documentId: doc.documentId, title: doc.title })}
+                      onClick={() =>
+                        setUnlinkTarget({ documentId: doc.documentId, title: doc.title })
+                      }
                     >
                       <Trash2 className="h-3 w-3" />
                       Unlink

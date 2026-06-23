@@ -44,10 +44,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 }
 
 export function BomNodeDetail({ entry, onLinkPl }: BomNodeDetailProps) {
-  const { data: plData } = trpc.pl.list.useQuery(
-    { pageSize: 100 },
-    { staleTime: 60_000 },
-  );
+  const { data: plData } = trpc.pl.list.useQuery({ pageSize: 100 }, { staleTime: 60_000 });
 
   const plNumbers = plData?.data ?? [];
   const linkedPl = entry.plId ? plNumbers.find((p) => p.id === entry.plId) : null;

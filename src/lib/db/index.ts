@@ -23,7 +23,7 @@ function getConnectionString(): string {
   if (!url) {
     console.warn(
       "[db] Neither DATABASE_URL nor POSTGRES_URL is set — falling back to local " +
-      "development default. Set DATABASE_URL explicitly to silence this warning.",
+        "development default. Set DATABASE_URL explicitly to silence this warning.",
     );
   }
   return url || "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
@@ -46,9 +46,7 @@ const pool =
     // Milliseconds to wait for a new client before throwing an error.
     connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECTION_TIMEOUT_MS ?? "5000"),
     // SSL for Supabase - must disable cert validation for self-signed certs
-    ssl: getConnectionString().includes("supabase") 
-      ? { rejectUnauthorized: false }
-      : undefined,
+    ssl: getConnectionString().includes("supabase") ? { rejectUnauthorized: false } : undefined,
   });
 
 // Always persist the pool on globalThis so that module re-evaluations in

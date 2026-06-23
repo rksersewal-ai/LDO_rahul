@@ -59,10 +59,7 @@ export const workspacesRouter = router({
       .from(workspaces)
       .innerJoin(
         userWorkspaces,
-        and(
-          eq(userWorkspaces.workspaceId, workspaces.id),
-          eq(userWorkspaces.userId, userId),
-        ),
+        and(eq(userWorkspaces.workspaceId, workspaces.id), eq(userWorkspaces.userId, userId)),
       )
       .where(eq(workspaces.id, input.id));
 
