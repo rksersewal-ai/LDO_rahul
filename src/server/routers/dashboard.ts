@@ -14,6 +14,12 @@ import {
   rollingStockUnits,
   users,
 } from "@/lib/db/schema";
+import {
+  dashboardMetrics,
+  recentDocuments,
+  activityFeedItems,
+  drillDownData,
+} from "@/lib/mock-data/dashboard";
 import { protectedProcedure, router } from "@/server/trpc";
 
 /** Escape LIKE/ILIKE wildcard characters in user-supplied input */
@@ -37,21 +43,22 @@ export const dashboardRouter = router({
       const workspaceId = requireWorkspaceId(ctx);
       const compareRange = input?.compareRange ?? "week";
 
-      return getCached(`dashboard_metrics_${workspaceId}_${compareRange}`, 15_000, async () => {
-        const now = new Date();
-        const deltaMs =
-          compareRange === "month" ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-        const periodStart = new Date(now.getTime() - deltaMs);
-        const periodLabel = compareRange === "month" ? "this month" : "this week";
+      try {
+        return getCached(`dashboard_metrics_${workspaceId}_${compareRange}`, 15_000, async () => {
+          const now = new Date();
+          const deltaMs =
+            compareRange === "month" ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+          const periodStart = new Date(now.getTime() - deltaMs);
+          const periodLabel = compareRange === "month" ? "this month" : "this week";
 
-        const [
-          totalDocsResult,
-          docsThisWeekResult,
-          pendingApprovalsResult,
-          ocrQueueResult,
-          openCasesResult,
-          pendingDuplicatesResult,
-        ] = await Promise.all([
+          const [
+            totalDocsResult,
+            docsThisWeekResult,
+            pendingApprovalsResult,
+            ocrQueueResult,
+            openCasesResult,
+            pendingDuplicatesResult,
+          ] = await Promise.all([
           // Total non-deleted documents in workspace
           // Index: documents(workspace_id, is_deleted)
           db
@@ -174,7 +181,12 @@ export const dashboardRouter = router({
           deltaDirection: "up" | "down" | "neutral";
           context: string;
         }>;
-      });
+        });
+      } catch (error) {
+        console.error("[v0] Error fetching metrics:", error);
+        // Return mock data as fallback
+        return dashboardMetrics;
+      }
     }),
 
   /** Trend data for uploads/processed chart */

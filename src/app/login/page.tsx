@@ -83,20 +83,60 @@ function LoginForm() {
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="flex h-[30px] w-full items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground text-xs font-semibold transition-colors hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {loading ? (
-          <>
-            <Loader2 className="size-3 animate-spin" />
-            Signing in...
-          </>
-        ) : (
-          "Sign in"
-        )}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={loading}
+          className="flex h-[30px] flex-1 items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground text-xs font-semibold transition-colors hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="size-3 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            "Sign in"
+          )}
+        </button>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={async () => {
+            setUsername("admin");
+            setPassword("password123");
+            setError("");
+            setLoading(true);
+            try {
+              const result = await signIn("credentials", {
+                username: "admin",
+                password: "password123",
+                redirect: false,
+              });
+              if (result?.error) {
+                setError("Demo login failed: " + (result.error || "Unknown error"));
+                setLoading(false);
+                return;
+              }
+              if (result?.ok) {
+                router.push(callbackUrl);
+                router.refresh();
+              }
+            } catch (err) {
+              setError("An unexpected error occurred: " + String(err));
+              setLoading(false);
+            }
+          }}
+          className="flex h-[30px] flex-1 items-center justify-center gap-2 rounded-md bg-secondary text-secondary-foreground text-xs font-semibold transition-colors hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="size-3 animate-spin" />
+            </>
+          ) : (
+            "Demo"
+          )}
+        </button>
+      </div>
     </form>
   );
 }
