@@ -12,6 +12,7 @@ import { type HybridOcrResult, runHybridOcr } from "@/lib/ocr/hybrid-pipeline";
 import { extractPlCandidates, isValidModulo11 } from "@/lib/pl/validation";
 import * as nasStorage from "@/lib/storage/nas-storage";
 import { withJobTimeout } from "./job-timeout";
+import { awaitLoadHeadroom } from "./load-gate";
 import type { OcrJobPayload } from "./ocr-queue";
 import { getRedisConnectionOptions } from "./redis-connection";
 
@@ -236,7 +237,13 @@ export function createOcrWorker(): Worker<OcrJobPayload> {
 
   const worker = new Worker<OcrJobPayload>(
     "ocr-pipeline",
-    (job) => withJobTimeout(processOcrJob(job), jobTimeoutMs, `OCR job ${job.id}`),
+    async (job) => {
+      // Adaptive backpressure: if the host is already saturated, briefly delay
+      // the start of this CPU-bound job rather than piling onto a struggling
+      // machine. Bounded by WORKER_LOAD_GATE_MAX_WAIT_MS so jobs never starve.
+      await awaitLoadHeadroom({ label: "ocr-worker" });
+      return withJobTimeout(processOcrJob(job), jobTimeoutMs, `OCR job ${job.id}`);
+    },
     {
       connection: getRedisConnectionOptions(),
       concurrency,

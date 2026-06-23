@@ -8,6 +8,7 @@ import { DEDUP_THRESHOLD, type DocInput, scoreDocumentPair } from "@/lib/dedup/s
 import { logError } from "@/lib/logging/structured-logger";
 import type { DedupJobPayload } from "./dedup-queue";
 import { withJobTimeout } from "./job-timeout";
+import { awaitLoadHeadroom } from "./load-gate";
 import { getRedisConnectionOptions } from "./redis-connection";
 
 /**
@@ -430,7 +431,12 @@ export function createDedupWorker(): Worker<DedupJobPayload> {
 
   const worker = new Worker<DedupJobPayload>(
     "dedup-scan",
-    (job) => withJobTimeout(processDedupJob(job), jobTimeoutMs, `Dedup scan job ${job.id}`),
+    async (job) => {
+      // Same adaptive backpressure as the OCR worker: dedup scans are
+      // image-hash heavy, so defer the start when the host is saturated.
+      await awaitLoadHeadroom({ label: "dedup-worker" });
+      return withJobTimeout(processDedupJob(job), jobTimeoutMs, `Dedup scan job ${job.id}`);
+    },
     {
       connection: getRedisConnectionOptions(),
       concurrency,
