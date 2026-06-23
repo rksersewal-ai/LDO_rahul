@@ -1,10 +1,12 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { usePlCreate } from "@/hooks/use-pl-data";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +44,7 @@ const statuses = [
 
 export default function CreatePlPage() {
   const router = useRouter();
+  const createPl = usePlCreate();
   const form = useForm<PlFormInput>({
     resolver: zodResolver(plFormSchema),
     defaultValues: {
@@ -70,9 +73,29 @@ export default function CreatePlPage() {
   const showSafetyFields = watchCategory === "CAT-A" || watchCategory === "CAT-B";
 
   function onSubmit(data: PlFormInput) {
-    // In production this would use tRPC mutation
-    console.log("Create PL:", data);
-    router.push("/pl");
+    createPl.mutate(
+      {
+        plNumber: data.plNumber,
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        status: data.status,
+        safetyCritical: data.safetyCritical,
+        drawingRef: data.drawingRef || null,
+        specification: data.specification || null,
+        unit: data.unit,
+        workshop: data.workshop,
+      },
+      {
+        onSuccess: (created) => {
+          toast.success(`PL number ${data.plNumber} created`);
+          router.push(created?.id ? `/pl/${created.id}` : "/pl");
+        },
+        onError: (err) => {
+          toast.error(err.message || "Failed to create PL number");
+        },
+      },
+    );
   }
 
   return (
@@ -406,10 +429,17 @@ export default function CreatePlPage() {
 
             {/* Submit */}
             <div className="flex items-center gap-3 pt-4 border-t">
-              <Button type="submit" size="sm">
-                Create PL Number
+              <Button type="submit" size="sm" disabled={createPl.isPending}>
+                {createPl.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                {createPl.isPending ? "Creating..." : "Create PL Number"}
               </Button>
-              <Button type="button" variant="outline" size="sm" render={<Link href="/pl" />}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={createPl.isPending}
+                render={<Link href="/pl" />}
+              >
                 Cancel
               </Button>
             </div>
