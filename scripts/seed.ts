@@ -18,13 +18,18 @@ import { users } from "../src/lib/db/schema/users";
 import { workspaces } from "../src/lib/db/schema/workspaces";
 
 const DATABASE_URL =
-  process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
 
 async function seed() {
   console.log("Connecting to database...");
   console.log(`  URL: ${DATABASE_URL.replace(/:[^:@]+@/, ":****@")}`);
 
-  const pool = new Pool({ connectionString: DATABASE_URL });
+  const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
   const db = drizzle(pool);
 
   try {

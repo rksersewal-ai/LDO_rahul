@@ -29,7 +29,9 @@ export const authConfig: NextAuthConfig = {
             .where(or(eq(users.username, username), eq(users.email, username)))
             .limit(1);
 
-          if (!user?.isActive) return null;
+          if (!user) return null;
+
+          if (!user.isActive) return null;
 
           // Check if account is locked
           if (user.lockedAt) {
