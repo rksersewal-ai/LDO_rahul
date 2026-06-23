@@ -78,7 +78,8 @@ export const authConfig: NextAuthConfig = {
             clearanceLevel: user.clearanceLevel,
             forcePasswordChange: user.forcePasswordChange,
           };
-        } catch {
+        } catch (err) {
+          console.error("[auth] authorize error:", err);
           return null;
         }
       },

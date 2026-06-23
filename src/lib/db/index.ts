@@ -6,18 +6,24 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 function getConnectionString(): string {
-  const url = process.env.DATABASE_URL;
+  // Prefer DATABASE_URL, but fall back to POSTGRES_URL which is the variable
+  // provided by the Supabase/Vercel Postgres integration. This keeps the app
+  // working whether the connection string is configured manually or supplied
+  // automatically by the connected integration.
+  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
   if (
     !url &&
     process.env.NODE_ENV === "production" &&
     process.env.NEXT_PHASE !== "phase-production-build"
   ) {
-    throw new Error("DATABASE_URL environment variable is required in production");
+    throw new Error(
+      "DATABASE_URL (or POSTGRES_URL) environment variable is required in production",
+    );
   }
   if (!url) {
     console.warn(
-      "[db] DATABASE_URL is not set — falling back to local development default. " +
-      "Set DATABASE_URL explicitly to silence this warning.",
+      "[db] Neither DATABASE_URL nor POSTGRES_URL is set — falling back to local " +
+      "development default. Set DATABASE_URL explicitly to silence this warning.",
     );
   }
   return url || "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
