@@ -1,3 +1,6 @@
+// Initialize TLS settings before any database connections
+import "@/lib/tls-init";
+
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
@@ -36,6 +39,10 @@ const pool =
     idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_TIMEOUT_MS ?? "30000"),
     // Milliseconds to wait for a new client before throwing an error.
     connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECTION_TIMEOUT_MS ?? "5000"),
+    // SSL for Supabase - must disable cert validation for self-signed certs
+    ssl: getConnectionString().includes("supabase") 
+      ? { rejectUnauthorized: false }
+      : undefined,
   });
 
 // Always persist the pool on globalThis so that module re-evaluations in
