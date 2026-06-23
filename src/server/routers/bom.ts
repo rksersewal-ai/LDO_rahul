@@ -628,6 +628,7 @@ export const bomRouter = router({
 
         // Insert all entries with new IDs, mapping parentId through the ID map
         for (const entry of originalEntries) {
+          // biome-ignore lint/style/noNonNullAssertion: every entry.id was inserted into idMap in the prior loop, so get() is always defined
           const newId = idMap.get(entry.id)!;
           const newParentId = entry.parentId ? (idMap.get(entry.parentId) ?? null) : null;
 

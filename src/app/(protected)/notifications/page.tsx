@@ -11,7 +11,6 @@ import {
   Shield,
 } from "lucide-react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Button } from "@/components/ui/button";
@@ -75,7 +74,6 @@ const statusColors: Record<string, string> = {
 };
 
 export default function NotificationsPage() {
-  const { data: session } = useSession();
   const { items, markRead, markAllRead, dismiss } = useNotificationStore();
   const [filter, setFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"notifications" | "pending">("notifications");

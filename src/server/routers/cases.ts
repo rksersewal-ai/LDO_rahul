@@ -123,6 +123,7 @@ export const casesRouter = router({
     if (input.search) {
       const escaped = escapeLikePattern(input.search);
       conditions.push(
+        // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
         or(
           ilike(cases.title, `%${escaped}%`),
           ilike(cases.caseNumber, `%${escaped}%`),

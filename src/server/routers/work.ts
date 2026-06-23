@@ -38,6 +38,7 @@ export const workRouter = router({
     if (input.search) {
       const escaped = escapeLikePattern(input.search);
       conditions.push(
+        // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
         or(
           ilike(workRecords.title, `%${escaped}%`),
           ilike(workRecords.workOrderNumber, `%${escaped}%`),
@@ -68,6 +69,7 @@ export const workRouter = router({
 
     if (input.userId) {
       conditions.push(
+        // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
         or(eq(workRecords.assignedTo, input.userId), eq(workRecords.createdBy, input.userId))!,
       );
     }
@@ -491,6 +493,7 @@ export const workRouter = router({
 
     if (input.userId) {
       conditions.push(
+        // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
         or(eq(workRecords.assignedTo, input.userId), eq(workRecords.createdBy, input.userId))!,
       );
     }

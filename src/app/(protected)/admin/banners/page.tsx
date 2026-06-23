@@ -38,11 +38,9 @@ const typeConfig: Record<
 };
 
 export default function BannerManagementPage() {
-  const {
-    data: bannersData,
-    isLoading,
-    refetch,
-  } = trpc.admin.getBanners.useQuery(undefined, { staleTime: 15_000 });
+  const { data: bannersData, refetch } = trpc.admin.getBanners.useQuery(undefined, {
+    staleTime: 15_000,
+  });
   const createBannerMutation = trpc.admin.createBanner.useMutation({ onSuccess: () => refetch() });
   const deleteBannerMutation = trpc.admin.deleteBanner.useMutation({ onSuccess: () => refetch() });
 

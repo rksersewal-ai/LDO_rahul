@@ -38,6 +38,7 @@ function NotificationItem({
             <button
               type="button"
               className="text-primary font-medium hover:underline text-[10px]"
+              // biome-ignore lint/style/noNonNullAssertion: this branch only renders when `item.actionHref` is truthy (guarded above)
               onClick={() => onAction(item.id, item.actionHref!)}
             >
               {item.actionLabel}

@@ -62,9 +62,13 @@ export default function SystemHealthPage() {
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs gap-1"
-                onClick={() => setLastRefresh(new Date())}
+                onClick={() => {
+                  setLastRefresh(new Date());
+                  refetch();
+                }}
+                disabled={isLoading}
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
             </div>

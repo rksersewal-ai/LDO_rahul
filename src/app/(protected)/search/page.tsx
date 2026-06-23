@@ -30,7 +30,12 @@ import { useSearch } from "@/hooks/use-search";
 import { useSearchHistory } from "@/hooks/use-search-history";
 import { cn } from "@/lib/utils";
 import type { EntityType } from "@/lib/validators/search";
-import { type SearchScope, type SortField, useSearchStore } from "@/stores/search-store";
+import {
+  type SearchScope,
+  type SortDirection,
+  type SortField,
+  useSearchStore,
+} from "@/stores/search-store";
 
 const SCOPE_OPTIONS: Array<{ label: string; scope: SearchScope; entityType: EntityType }> = [
   { label: "All", scope: "ALL", entityType: "all" },
@@ -93,11 +98,8 @@ function SearchPageContent() {
     search,
     offset,
     setOffset,
-    sortBy,
     setSortBy,
-    sortOrder,
     setSortOrder,
-    filters,
     setFilters,
   } = useSearch({ entityType: activeEntityType, limit: 20 });
 
@@ -224,19 +226,26 @@ function SearchPageContent() {
   };
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("desc");
-    }
-    // Also sync with the useSearch hook
-    if (field === "relevance" || field === "date") {
-      setSortBy(field);
+    // Clicking the active field toggles direction; a new field resets to desc.
+    // Compute the next direction once so the store (display) and the search
+    // query hook stay in lockstep — previously the hook read the stale store
+    // value and could sort in the opposite direction from the highlighted icon.
+    const nextDirection: SortDirection =
+      sortField === field ? (sortDirection === "asc" ? "desc" : "asc") : "desc";
+
+    setSortField(field);
+    setSortDirection(nextDirection);
+
+    // Map the display field onto the backend's sort enum (relevance|date|name).
+    // "type" has no server-side sort equivalent, so fall back to relevance.
+    if (field === "date") {
+      setSortBy("date");
     } else if (field === "title") {
       setSortBy("name");
+    } else {
+      setSortBy("relevance");
     }
-    setSortOrder(sortDirection === "asc" ? "desc" : "asc");
+    setSortOrder(nextDirection);
   };
 
   const totalResults = results?.total || 0;

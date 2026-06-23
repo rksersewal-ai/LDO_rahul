@@ -31,6 +31,7 @@ export const rollingStockRouter = router({
     if (input.search) {
       const searchTerm = `%${input.search}%`;
       conditions.push(
+        // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
         or(
           ilike(rollingStockUnits.unitNumber, searchTerm),
           ilike(rollingStockUnits.serialNumber, searchTerm),

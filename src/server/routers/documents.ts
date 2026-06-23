@@ -50,6 +50,7 @@ export const documentsRouter = router({
     if (input.search) {
       const escaped = escapeLikePattern(input.search);
       conditions.push(
+        // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
         or(
           ilike(documents.documentNumber, `%${escaped}%`),
           ilike(documents.title, `%${escaped}%`),
@@ -406,6 +407,7 @@ export const documentsRouter = router({
       if (input.search) {
         const escaped = escapeLikePattern(input.search);
         conditions.push(
+          // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
           or(
             ilike(documents.documentNumber, `%${escaped}%`),
             ilike(documents.title, `%${escaped}%`),

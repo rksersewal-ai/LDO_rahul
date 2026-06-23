@@ -51,6 +51,7 @@ function buildTree(
   }
 
   for (const item of items) {
+    // biome-ignore lint/style/noNonNullAssertion: every item.id was inserted into `map` in the prior loop, so get() is always defined
     const node = map.get(item.id)!;
     if (item.parentId && map.has(item.parentId)) {
       map.get(item.parentId)?.children.push(node);
