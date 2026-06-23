@@ -14,12 +14,6 @@ import {
   rollingStockUnits,
   users,
 } from "@/lib/db/schema";
-import {
-  dashboardMetrics,
-  recentDocuments,
-  activityFeedItems,
-  drillDownData,
-} from "@/lib/mock-data/dashboard";
 import { protectedProcedure, router } from "@/server/trpc";
 
 /** Escape LIKE/ILIKE wildcard characters in user-supplied input */
@@ -43,8 +37,7 @@ export const dashboardRouter = router({
       const workspaceId = requireWorkspaceId(ctx);
       const compareRange = input?.compareRange ?? "week";
 
-      try {
-        return getCached(`dashboard_metrics_${workspaceId}_${compareRange}`, 15_000, async () => {
+      return getCached(`dashboard_metrics_${workspaceId}_${compareRange}`, 15_000, async () => {
           const now = new Date();
           const deltaMs =
             compareRange === "month" ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
@@ -181,12 +174,7 @@ export const dashboardRouter = router({
           deltaDirection: "up" | "down" | "neutral";
           context: string;
         }>;
-        });
-      } catch (error) {
-        console.error("[v0] Error fetching metrics:", error);
-        // Return mock data as fallback
-        return dashboardMetrics;
-      }
+      });
     }),
 
   /** Trend data for uploads/processed chart */

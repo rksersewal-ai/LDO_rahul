@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { detectCycle } from "@/lib/bom/cycle-detection";
@@ -578,10 +578,13 @@ export const bomRouter = router({
         Remarks: e.remarks ?? "",
       }));
 
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(sheetData);
-      XLSX.utils.book_append_sheet(workbook, worksheet, "BOM");
-      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("BOM");
+      if (sheetData.length > 0) {
+        worksheet.columns = Object.keys(sheetData[0]).map((key) => ({ header: key, key, width: 20 }));
+        for (const row of sheetData) worksheet.addRow(row);
+      }
+      const buffer = await workbook.xlsx.writeBuffer();
       const data = Buffer.from(buffer).toString("base64");
 
       return {

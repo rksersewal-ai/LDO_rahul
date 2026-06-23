@@ -21,21 +21,6 @@ export const authConfig: NextAuthConfig = {
 
         if (!username || !password) return null;
 
-        // Demo credentials for preview mode - always allow
-        if (username === "admin" && password === "password123") {
-          return {
-            id: "demo-admin-user",
-            name: "Demo Admin",
-            email: "admin@demo.ldo2edms.com",
-            role: "admin",
-            department: "Engineering",
-            designation: "System Administrator",
-            workspaceId: "demo-workspace",
-            clearanceLevel: "top-secret",
-            forcePasswordChange: false,
-          };
-        }
-
         // Query user by username or email, must be active
         try {
           const [user] = await db
@@ -91,22 +76,7 @@ export const authConfig: NextAuthConfig = {
             clearanceLevel: user.clearanceLevel,
             forcePasswordChange: user.forcePasswordChange,
           };
-        } catch (error) {
-          // If database is unavailable, allow demo login
-          console.error("[v0] Database auth error:", error);
-          if (username === "admin" && password === "password123") {
-            return {
-              id: "demo-admin-user",
-              name: "Demo Admin",
-              email: "admin@demo.ldo2edms.com",
-              role: "admin",
-              department: "Engineering",
-              designation: "System Administrator",
-              workspaceId: "demo-workspace",
-              clearanceLevel: "top-secret",
-              forcePasswordChange: false,
-            };
-          }
+        } catch {
           return null;
         }
       },

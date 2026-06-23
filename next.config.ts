@@ -11,7 +11,11 @@ import type { NextConfig } from "next";
  */
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  // 'unsafe-eval' removed: production builds do not require it.
+  // Turbopack dev mode injects eval-based source maps; it is not present in
+  // built output. If a future dependency reintroduces eval, add it back with
+  // a comment explaining why and scope it to non-production if possible.
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",

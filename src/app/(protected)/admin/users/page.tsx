@@ -110,7 +110,7 @@ export default function UserManagementPage() {
       username: values.username,
       email: values.email,
       name: values.name,
-      password: values.password || "password123",
+      password: values.password,
       role: values.role as "admin" | "supervisor" | "reviewer" | "engineer" | "viewer",
       designation: values.designation,
       department: values.department,

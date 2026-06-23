@@ -49,14 +49,17 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
     .where(eq(documents.id, id));
 
   // Hide soft-deleted / non-existent documents behind a single 404.
-  if (!doc || doc.isDeleted === 1) {
+  // isDeleted is stored as integer(0/1); compare to 0 to handle both integer
+  // and boolean coercions until a migration canonicalises the column type.
+  if (!doc || doc.isDeleted !== 0) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
   const isAdmin = session.user.role === "admin";
+  const parsedClearance = Number.parseInt(String(session.user.clearanceLevel ?? "1"), 10);
   const userClearance = isAdmin
     ? Number.MAX_SAFE_INTEGER
-    : Number.parseInt(String(session.user.clearanceLevel ?? "1"), 10) || 1;
+    : Number.isFinite(parsedClearance) && parsedClearance > 0 ? parsedClearance : 1;
 
   const access = checkDocumentAccess({
     userWorkspaceId: session.user.workspaceId ?? "",

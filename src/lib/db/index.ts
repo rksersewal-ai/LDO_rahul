@@ -11,6 +11,12 @@ function getConnectionString(): string {
   ) {
     throw new Error("DATABASE_URL environment variable is required in production");
   }
+  if (!url) {
+    console.warn(
+      "[db] DATABASE_URL is not set — falling back to local development default. " +
+      "Set DATABASE_URL explicitly to silence this warning.",
+    );
+  }
   return url || "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
 }
 
@@ -32,9 +38,10 @@ const pool =
     connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECTION_TIMEOUT_MS ?? "5000"),
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.pgPool = pool;
-}
+// Always persist the pool on globalThis so that module re-evaluations in
+// production (e.g. Next.js route segment caching) reuse the same pool
+// instead of creating a new one and exhausting available connections.
+globalForDb.pgPool = pool;
 
 export const db = drizzle(pool, { schema });
 

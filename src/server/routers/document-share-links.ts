@@ -206,24 +206,8 @@ export const documentShareLinksRouter = router({
         }
       }
 
-      // Atomically increment view count, respecting max_views constraint
-      const [updated] = await db
-        .update(documentShareLinks)
-        .set({ viewCount: sql`${documentShareLinks.viewCount} + 1` })
-        .where(
-          and(
-            eq(documentShareLinks.id, link.id),
-            sql`(${documentShareLinks.maxViews} IS NULL OR ${documentShareLinks.viewCount} < ${documentShareLinks.maxViews})`,
-          ),
-        )
-        .returning({ viewCount: documentShareLinks.viewCount });
-
-      // If no rows updated, the link has been exhausted by a concurrent request
-      if (!updated) {
-        return { status: "expired" as const, document: null };
-      }
-
-      // Fetch document info
+      // Fetch document info before incrementing the view count so that a
+      // deleted document does not consume a view slot without showing anything.
       const [doc] = await db
         .select({
           id: documents.id,
@@ -243,6 +227,23 @@ export const documentShareLinksRouter = router({
 
       if (!doc) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+      }
+
+      // Atomically increment view count, respecting max_views constraint
+      const [updated] = await db
+        .update(documentShareLinks)
+        .set({ viewCount: sql`${documentShareLinks.viewCount} + 1` })
+        .where(
+          and(
+            eq(documentShareLinks.id, link.id),
+            sql`(${documentShareLinks.maxViews} IS NULL OR ${documentShareLinks.viewCount} < ${documentShareLinks.maxViews})`,
+          ),
+        )
+        .returning({ viewCount: documentShareLinks.viewCount });
+
+      // If no rows updated, the link has been exhausted by a concurrent request
+      if (!updated) {
+        return { status: "expired" as const, document: null };
       }
 
       return {
