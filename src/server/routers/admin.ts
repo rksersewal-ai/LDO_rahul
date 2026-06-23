@@ -539,6 +539,38 @@ export const adminRouter = router({
       return { jobs, summary };
     }),
 
+  // Live host-load snapshot used by the OCR monitor to visualise the adaptive
+  // backpressure ("live load tracking") that throttles CPU-bound workers.
+  getSystemLoad: adminProcedure.query(async () => {
+    const os = await import("node:os");
+    const cores = os.cpus().length || 1;
+    const [load1, load5, load15] = os.loadavg();
+    const loadPerCore = (load1 ?? 0) / cores;
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMemPct = totalMem > 0 ? Math.round(((totalMem - freeMem) / totalMem) * 100) : 0;
+
+    const gateEnabled = process.env.WORKER_LOAD_GATE_ENABLED !== "false";
+    const threshold = Number(process.env.WORKER_LOAD_GATE_THRESHOLD ?? "0.9");
+
+    // Throttling kicks in once the per-core load exceeds the configured ceiling.
+    const state: "healthy" | "elevated" | "throttling" =
+      loadPerCore > threshold ? "throttling" : loadPerCore > threshold * 0.75 ? "elevated" : "healthy";
+
+    return {
+      cores,
+      load1: Number((load1 ?? 0).toFixed(2)),
+      load5: Number((load5 ?? 0).toFixed(2)),
+      load15: Number((load15 ?? 0).toFixed(2)),
+      loadPerCore: Number(loadPerCore.toFixed(2)),
+      usedMemPct,
+      gateEnabled,
+      threshold,
+      state,
+      uptimeSeconds: Math.round(os.uptime()),
+    };
+  }),
+
   retryOcrJob: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {

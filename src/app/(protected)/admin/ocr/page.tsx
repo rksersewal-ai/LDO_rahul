@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Loader2, Play, RefreshCw } from "lucide-react";
+import { Activity, Ban, Loader2, Play, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { QueryErrorState } from "@/components/shared/query-error-state";
@@ -42,6 +42,10 @@ export default function OcrMonitorPage() {
     undefined,
     { staleTime: 15_000, refetchInterval: 30_000 },
   );
+  const { data: systemLoad } = trpc.admin.getSystemLoad.useQuery(undefined, {
+    refetchInterval: 10_000,
+    staleTime: 5_000,
+  });
   const retryMutation = trpc.admin.retryOcrJob.useMutation({ onSuccess: () => refetch() });
   const cancelMutation = trpc.admin.cancelOcrJob.useMutation({ onSuccess: () => refetch() });
 
@@ -89,9 +93,13 @@ export default function OcrMonitorPage() {
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs gap-1"
-                onClick={() => setLastRefresh(new Date())}
+                onClick={() => {
+                  setLastRefresh(new Date());
+                  refetch();
+                }}
+                disabled={isLoading}
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
             </div>
@@ -109,6 +117,9 @@ export default function OcrMonitorPage() {
           />
           <SummaryCard label="Failed" value={summary.failed} color="text-red-600" />
         </div>
+
+        {/* Live system load — drives the workers' adaptive throttling */}
+        {systemLoad && <SystemLoadBar load={systemLoad} />}
 
         {/* Filter */}
         <div className="flex items-center gap-3">
@@ -263,6 +274,73 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
     <div className="rounded-lg border bg-card p-4 text-center">
       <p className="text-[11px] text-muted-foreground mb-1">{label}</p>
       <p className={`text-2xl font-bold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+interface SystemLoad {
+  cores: number;
+  load1: number;
+  loadPerCore: number;
+  usedMemPct: number;
+  gateEnabled: boolean;
+  threshold: number;
+  state: "healthy" | "elevated" | "throttling";
+}
+
+const LOAD_STATE_META: Record<
+  SystemLoad["state"],
+  { label: string; dot: string; text: string }
+> = {
+  healthy: { label: "Healthy", dot: "bg-emerald-500", text: "text-emerald-600" },
+  elevated: { label: "Elevated", dot: "bg-amber-500", text: "text-amber-600" },
+  throttling: { label: "Throttling", dot: "bg-red-500", text: "text-red-600" },
+};
+
+function SystemLoadBar({ load }: { load: SystemLoad }) {
+  const meta = LOAD_STATE_META[load.state];
+  // loadPerCore of 1.0 = fully saturated; clamp the bar to 100% for display.
+  const loadPct = Math.min(Math.round(load.loadPerCore * 100), 100);
+
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-xs font-semibold">Live System Load</h2>
+          <span className="inline-flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${meta.dot} animate-pulse`} />
+            <span className={`text-[11px] font-medium ${meta.text}`}>{meta.label}</span>
+          </span>
+        </div>
+        <Badge variant="outline" className="text-[10px] h-5">
+          {load.gateEnabled ? `Auto-throttle @ ${Math.round(load.threshold * 100)}%/core` : "Throttle disabled"}
+        </Badge>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] text-muted-foreground">CPU load / core</span>
+            <span className="text-[11px] font-medium">{loadPct}%</span>
+          </div>
+          <Progress value={loadPct} className="h-1.5" />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] text-muted-foreground">Memory used</span>
+            <span className="text-[11px] font-medium">{load.usedMemPct}%</span>
+          </div>
+          <Progress value={load.usedMemPct} className="h-1.5" />
+        </div>
+        <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+          <span>
+            <span className="font-medium text-foreground">{load.cores}</span> cores
+          </span>
+          <span>
+            load1 <span className="font-medium text-foreground">{load.load1}</span>
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
