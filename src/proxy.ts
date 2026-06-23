@@ -1,60 +1,80 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 
-export default async function proxy(req: NextRequest) {
-  // Wrap with NextAuth to get session (async)
-  const session = await auth();
-  
-  const { nextUrl } = req;
-  const isAuthenticated = !!session;
+/**
+ * Next.js 16 proxy (renamed from middleware.ts).
+ *
+ * Uses a lightweight cookie-presence check instead of calling auth() on every
+ * request — the full JWT verification happens in the RSC layer via auth().
+ * This keeps the proxy fast and prevents static-asset requests from being
+ * redirected to login.
+ *
+ * The `config.matcher` below excludes _next/static, _next/image, and all
+ * common static file extensions so they are always served without running
+ * this proxy function.
+ */
 
-  // Allow public paths
-  const isLoginPage = nextUrl.pathname === "/login";
-  const isAuthApi = nextUrl.pathname.startsWith("/api/auth");
-  const isTrpcApi = nextUrl.pathname.startsWith("/api/trpc");
-  const isChangePasswordPage = nextUrl.pathname === "/change-password";
+const SESSION_COOKIE =
+  process.env.NODE_ENV === "production"
+    ? "__Secure-authjs.session-token"
+    : "authjs.session-token";
 
-  if (isLoginPage || isAuthApi) {
-    // Redirect authenticated users away from login
-    if (isAuthenticated && isLoginPage) {
-      return NextResponse.redirect(new URL("/", nextUrl));
-    }
+function isSafeRedirect(url: string): boolean {
+  return url.startsWith("/") && !url.startsWith("//") && !url.includes("://");
+}
+
+export default function proxy(req: NextRequest) {
+  const { nextUrl, cookies } = req;
+  const pathname = nextUrl.pathname;
+
+  // Lightweight session check — presence only; NextAuth verifies the signature
+  // in RSC layouts via auth().
+  const isAuthenticated = !!cookies.get(SESSION_COOKIE)?.value;
+
+  // Always allow: login page, auth API, health-check, change-password
+  const isLoginPage = pathname === "/login";
+  const isAuthApi = pathname.startsWith("/api/auth");
+  const isTrpcApi = pathname.startsWith("/api/trpc");
+  const isHealthApi = pathname === "/api/health";
+  const isSharePage = pathname.startsWith("/share");
+  const isChangePasswordPage = pathname === "/change-password";
+
+  // Redirect authenticated users away from /login
+  if (isAuthenticated && isLoginPage) {
+    return NextResponse.redirect(new URL("/", nextUrl));
+  }
+
+  // Public paths — always allow
+  if (
+    isLoginPage ||
+    isAuthApi ||
+    isTrpcApi ||
+    isHealthApi ||
+    isSharePage ||
+    isChangePasswordPage
+  ) {
     return NextResponse.next();
   }
 
-  // Allow tRPC calls (they handle their own auth via context)
-  if (isTrpcApi) {
-    return NextResponse.next();
-  }
-
-  // Allow health-check endpoint so monitoring tools and load balancers
-  // can reach it without a session cookie.
-  const isHealthApi = nextUrl.pathname === "/api/health";
-  if (isHealthApi) {
-    return NextResponse.next();
-  }
-
-  function isSafeRedirect(url: string): boolean {
-    return url.startsWith("/") && !url.startsWith("//") && !url.includes("://");
-  }
-
-  // Protect all other routes
+  // Protect everything else
   if (!isAuthenticated) {
     const loginUrl = new URL("/login", nextUrl);
-    const safePath = isSafeRedirect(nextUrl.pathname) ? nextUrl.pathname : "/";
+    const safePath = isSafeRedirect(pathname) ? pathname : "/";
     loginUrl.searchParams.set("callbackUrl", safePath);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Force password change redirect
-  const forcePasswordChange = session?.user?.forcePasswordChange;
-  if (
-    forcePasswordChange &&
-    nextUrl.pathname !== "/change-password" &&
-    !isAuthApi
-  ) {
-    return NextResponse.redirect(new URL("/change-password", nextUrl));
-  }
-
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: [
+    /*
+     * Match all paths EXCEPT:
+     *   - _next/static  (JS/CSS chunks, fonts)
+     *   - _next/image   (image optimisation)
+     *   - favicon.ico
+     *   - Static file extensions (svg, png, jpg, woff2, etc.)
+     */
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|eot)$).*)",
+  ],
+};

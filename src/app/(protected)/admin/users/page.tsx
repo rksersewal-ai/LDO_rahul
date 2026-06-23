@@ -106,6 +106,7 @@ export default function UserManagementPage() {
   const updateUserMutation = trpc.admin.updateUser.useMutation({ onSuccess: () => refetch() });
 
   const handleCreate = (values: UserFormValues) => {
+    if (!values.password) return; // password is required on creation; schema enforces min-length
     createUserMutation.mutate({
       username: values.username,
       email: values.email,
