@@ -128,8 +128,14 @@ export default function SettingsPage() {
     documentRetention: { defaultRetentionYears: 25, reviewCycleDays: 365, autoArchive: true },
   } as unknown as ComplianceSettings);
 
-  // Sync from server data - use server data when available
-  const effectiveFeatures = (featuresData as FeatureToggle[] | undefined) ?? features;
+  // Sync from server data - use server data when available.
+  // Guard with Array.isArray so a malformed payload can never crash the tabs
+  // with "features.filter is not a function" (the server already normalizes,
+  // but this keeps the client resilient regardless of payload shape).
+  const featuresFromServer = Array.isArray(featuresData)
+    ? (featuresData as FeatureToggle[])
+    : undefined;
+  const effectiveFeatures = featuresFromServer ?? features;
   const effectiveSecurity = (securityData as SecurityPolicies | undefined) ?? security;
   const effectiveRolePerms = (rolePermsData as RolePermissionMatrix | undefined) ?? rolePerms;
   const effectiveSysConfig = (sysConfigData as SystemConfiguration | undefined) ?? sysConfig;
