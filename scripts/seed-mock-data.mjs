@@ -179,7 +179,7 @@ async function seed() {
         pl_number_id: p.pl,
         created_by: ADMIN,
         workspace_id: WS,
-        approval_status: i % 3 === 0 ? "approved" : "draft",
+        approval_status: i % 3 === 0 ? "approved" : "pending",
         product_type: p.type,
         gauge: p.gauge,
         created_at: daysAgo(70 - i * 4),
