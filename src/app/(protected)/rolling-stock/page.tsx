@@ -110,7 +110,11 @@ export default function RollingStockPage() {
                 <RefreshCw className="h-3 w-3" />
                 Refresh
               </Button>
-              <Button size="sm" className="h-7 text-xs gap-1" render={<Link href="/rolling-stock/new" />}>
+              <Button
+                size="sm"
+                className="h-7 text-xs gap-1"
+                render={<Link href="/rolling-stock/new" />}
+              >
                 <Plus className="h-3 w-3" />
                 Add Unit
               </Button>
@@ -218,11 +222,7 @@ export default function RollingStockPage() {
                 </TableRow>
               </TableHeader>
             </Table>
-            <div
-              ref={virtualParentRef}
-              className="overflow-auto"
-              style={{ height: "500px" }}
-            >
+            <div ref={virtualParentRef} className="overflow-auto" style={{ height: "500px" }}>
               <div
                 style={{
                   height: `${virtualizer.getTotalSize()}px`,

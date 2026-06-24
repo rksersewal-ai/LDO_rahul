@@ -761,7 +761,10 @@ export const dashboardRouter = router({
         // By product type (via bom_products join)
         db
           .select({
-            productType: sql<string>`COALESCE(bp."product_type", 'unclassified')`,
+            // product_type is a Postgres enum (bom_product_type); cast to text
+            // before COALESCE so the 'unclassified' fallback literal isn't coerced
+            // into the enum (which errors: invalid input value for enum).
+            productType: sql<string>`COALESCE(bp."product_type"::text, 'unclassified')`,
             total: sql<number>`COALESCE(${count()}, 0)`,
           })
           .from(rollingStockUnits)
@@ -783,11 +786,11 @@ export const dashboardRouter = router({
       return {
         total: totalResult[0]?.total ?? 0,
         byStatus: {
-          active: byStatus["active"] ?? 0,
-          under_overhaul: byStatus["under_overhaul"] ?? 0,
-          condemned: byStatus["condemned"] ?? 0,
-          transferred: byStatus["transferred"] ?? 0,
-          awaiting_commissioning: byStatus["awaiting_commissioning"] ?? 0,
+          active: byStatus.active ?? 0,
+          under_overhaul: byStatus.under_overhaul ?? 0,
+          condemned: byStatus.condemned ?? 0,
+          transferred: byStatus.transferred ?? 0,
+          awaiting_commissioning: byStatus.awaiting_commissioning ?? 0,
         },
         byProductType,
       };

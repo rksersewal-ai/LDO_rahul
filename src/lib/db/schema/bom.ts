@@ -1,4 +1,14 @@
-import { boolean, index, integer, pgEnum, pgTable, real, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { plNumbers } from "./pl-numbers";
 
 export const bomProductTypeEnum = pgEnum("bom_product_type", [
@@ -10,11 +20,7 @@ export const bomProductTypeEnum = pgEnum("bom_product_type", [
   "component",
 ]);
 
-export const bomGaugeEnum = pgEnum("bom_gauge", [
-  "broad_gauge",
-  "metre_gauge",
-  "narrow_gauge",
-]);
+export const bomGaugeEnum = pgEnum("bom_gauge", ["broad_gauge", "metre_gauge", "narrow_gauge"]);
 
 export const bomProducts = pgTable(
   "bom_products",

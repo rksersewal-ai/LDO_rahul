@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { and, count, eq, gte, lte, sql } from "drizzle-orm";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
@@ -8,7 +8,6 @@ import {
   bomProducts,
   documentPlLinks,
   documents,
-  ocrJobs,
   plNumbers,
   workRecords,
 } from "@/lib/db/schema";
@@ -27,7 +26,7 @@ function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | nu
  */
 function escapeCsvField(value: string): string {
   if (/[,"\n\r]/.test(value) || /^[=+\-@]/.test(value)) {
-    return '"' + value.replace(/"/g, '""') + '"';
+    return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
 }
@@ -66,8 +65,7 @@ const REPORT_TYPES = [
   {
     id: "pl-coverage",
     title: "PL Coverage",
-    description:
-      "PL number utilization and linkage coverage across documents and BOM",
+    description: "PL number utilization and linkage coverage across documents and BOM",
     icon: "Layers",
   },
   {
@@ -376,19 +374,16 @@ function encodeAsCsv(headers: string[], rows: ReportRow[]): string {
   return [headerLine, ...dataLines].join("\n");
 }
 
-function encodeAsXlsx(headers: string[], rows: ReportRow[]): Buffer {
-  const sheetData = rows.map((row) => {
-    const obj: Record<string, string | number | null> = {};
-    for (const h of headers) {
-      obj[h] = row[h] ?? "";
-    }
-    return obj;
-  });
-
-  const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
-  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+async function encodeAsXlsx(headers: string[], rows: ReportRow[]): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Report");
+  worksheet.columns = headers.map((h) => ({ header: h, key: h, width: 20 }));
+  for (const row of rows) {
+    const mapped: Record<string, string | number | null> = {};
+    for (const h of headers) mapped[h] = (row[h] ?? "") as string | number | null;
+    worksheet.addRow(mapped);
+  }
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
 const REPORT_GENERATORS: Record<
@@ -453,13 +448,12 @@ export const reportsRouter = router({
       }
 
       // XLSX format
-      const buffer = encodeAsXlsx(headers, rows);
-      const data = Buffer.from(buffer).toString("base64");
+      const buffer = await encodeAsXlsx(headers, rows);
+      const data = buffer.toString("base64");
       return {
         data,
         filename: `${input.type}-report.xlsx`,
-        mimeType:
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" as const,
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" as const,
       };
     }),
 });

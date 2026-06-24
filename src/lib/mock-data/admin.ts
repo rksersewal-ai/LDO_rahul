@@ -925,8 +925,7 @@ export interface Banner {
 export const MOCK_BANNERS: Banner[] = [
   {
     id: "banner-001",
-    message:
-      "Scheduled maintenance on Saturday, 10 PM to 2 AM IST. System may be unavailable.",
+    message: "Scheduled maintenance on Saturday, 10 PM to 2 AM IST. System may be unavailable.",
     type: "warning",
     isActive: true,
     startDate: "2025-01-01T00:00:00Z",

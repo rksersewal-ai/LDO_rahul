@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 /**
  * Multi-format export service supporting Excel, Word, PDF (print), and CSV.
@@ -72,19 +72,31 @@ function getDateSuffix(): string {
 /**
  * Export data to Excel (.xlsx) format and trigger download.
  */
-export function exportToExcel(
+export async function exportToExcel(
   title: string,
   headers: string[],
   rows: Array<Array<string | number>>,
   filenamePrefix: string,
-): void {
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  ws["!cols"] = headers.map((header) => ({
-    wch: Math.max(16, Math.min(42, header.length + 8)),
+): Promise<void> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(title.slice(0, 31) || "Sheet1");
+  ws.columns = headers.map((h) => ({
+    header: h,
+    key: h,
+    width: Math.max(16, Math.min(42, h.length + 8)),
   }));
-  XLSX.utils.book_append_sheet(wb, ws, title.slice(0, 31) || "Sheet1");
-  XLSX.writeFile(wb, `${filenamePrefix}-${getDateSuffix()}.xlsx`);
+  for (const row of rows) {
+    const obj: Record<string, string | number> = {};
+    headers.forEach((h, i) => {
+      obj[h] = row[i] ?? "";
+    });
+    ws.addRow(obj);
+  }
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  downloadBlob(blob, `${filenamePrefix}-${getDateSuffix()}.xlsx`);
 }
 
 /**
@@ -124,15 +136,21 @@ export function exportToPdf(
 }
 
 /**
- * Export data to CSV format using xlsx library and trigger download.
+ * Export data to CSV format and trigger download.
  */
 export function exportToCSV(
   headers: string[],
   rows: Array<Array<string | number>>,
   filenamePrefix: string,
 ): void {
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  const csv = XLSX.utils.sheet_to_csv(ws);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const lines = [headers, ...rows].map((row) =>
+    row
+      .map((cell) => {
+        const v = String(cell ?? "");
+        return /[,"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+      })
+      .join(","),
+  );
+  const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
   downloadBlob(blob, `${filenamePrefix}-${getDateSuffix()}.csv`);
 }

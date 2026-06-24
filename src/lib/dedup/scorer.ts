@@ -4,7 +4,7 @@
  * to detect potential duplicate documents.
  */
 
-export const DEDUP_THRESHOLD = 0.70;
+export const DEDUP_THRESHOLD = 0.7;
 
 export interface DocInput {
   id: string;
@@ -106,8 +106,8 @@ const WEIGHTS: Record<string, number> = {
   exact_hash: 0.25,
   doc_number: 0.25,
   title_trigram: 0.15,
-  ocr_text_trigram: 0.20,
-  pl_overlap: 0.20,
+  ocr_text_trigram: 0.2,
+  pl_overlap: 0.2,
   metadata: 0.05,
   phash: 0.05,
 };
@@ -144,7 +144,14 @@ export function scoreDocumentPair(docA: DocInput, docB: DocInput): ScoreResult {
 
   // Metadata: 1.0 if all 3 match, 0.5 if 2/3 match, 0.0 otherwise
   let metadata: number | null = null;
-  if (docA.workshop || docA.section || docA.category || docB.workshop || docB.section || docB.category) {
+  if (
+    docA.workshop ||
+    docA.section ||
+    docA.category ||
+    docB.workshop ||
+    docB.section ||
+    docB.category
+  ) {
     let matchCount = 0;
     if (docA.workshop && docB.workshop && docA.workshop === docB.workshop) matchCount++;
     if (docA.section && docB.section && docA.section === docB.section) matchCount++;

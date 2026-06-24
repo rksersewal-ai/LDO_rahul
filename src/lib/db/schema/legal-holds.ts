@@ -1,9 +1,6 @@
 import { index, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
-export const legalHoldStatusEnum = pgEnum("legal_hold_status", [
-  "active",
-  "released",
-]);
+export const legalHoldStatusEnum = pgEnum("legal_hold_status", ["active", "released"]);
 
 export const legalHolds = pgTable(
   "legal_holds",

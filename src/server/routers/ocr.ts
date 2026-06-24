@@ -13,8 +13,8 @@ import {
   plNumbers,
   users,
 } from "@/lib/db/schema";
-import { addOcrJob } from "@/workers/ocr-queue";
 import { engineerProcedure, protectedProcedure, router } from "@/server/trpc";
+import { addOcrJob } from "@/workers/ocr-queue";
 
 function requireWorkspaceId(ctx: { session: { user?: { workspaceId?: string | null } } }): string {
   const wsId = ctx.session?.user?.workspaceId;
@@ -43,7 +43,9 @@ export const ocrRouter = router({
 
       const conditions = [eq(documents.workspaceId, workspaceId)];
       if (input?.status) {
-        conditions.push(eq(ocrJobs.status, input.status as typeof ocrJobs.status.enumValues[number]));
+        conditions.push(
+          eq(ocrJobs.status, input.status as (typeof ocrJobs.status.enumValues)[number]),
+        );
       }
 
       const [jobs, totalResult] = await Promise.all([
@@ -114,7 +116,9 @@ export const ocrRouter = router({
         .select()
         .from(ocrJobs)
         .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
-        .where(and(eq(ocrJobs.documentId, input.documentId), eq(documents.workspaceId, workspaceId)))
+        .where(
+          and(eq(ocrJobs.documentId, input.documentId), eq(documents.workspaceId, workspaceId)),
+        )
         .orderBy(desc(ocrJobs.createdAt))
         .limit(1);
 
@@ -169,10 +173,7 @@ export const ocrRouter = router({
         .select()
         .from(plNumbers)
         .where(
-          and(
-            eq(plNumbers.plNumber, candidate.plNumber),
-            eq(plNumbers.workspaceId, workspaceId),
-          ),
+          and(eq(plNumbers.plNumber, candidate.plNumber), eq(plNumbers.workspaceId, workspaceId)),
         )
         .limit(1);
 
@@ -358,11 +359,7 @@ export const ocrRouter = router({
       });
 
       // Return the new job
-      const [newJob] = await db
-        .select()
-        .from(ocrJobs)
-        .where(eq(ocrJobs.id, jobId))
-        .limit(1);
+      const [newJob] = await db.select().from(ocrJobs).where(eq(ocrJobs.id, jobId)).limit(1);
 
       return newJob;
     }),
@@ -382,7 +379,9 @@ export const ocrRouter = router({
         })
         .from(ocrJobs)
         .innerJoin(documents, eq(ocrJobs.documentId, documents.id))
-        .where(and(eq(ocrJobs.documentId, input.documentId), eq(documents.workspaceId, workspaceId)))
+        .where(
+          and(eq(ocrJobs.documentId, input.documentId), eq(documents.workspaceId, workspaceId)),
+        )
         .orderBy(desc(ocrJobs.createdAt))
         .limit(1);
 

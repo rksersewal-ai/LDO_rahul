@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge, type StatusType } from "@/components/ui/status-badge";
-import { type BomEntry } from "@/lib/mock-data/bom";
+import type { BomEntry } from "@/lib/mock-data/bom";
 import { trpc } from "@/lib/trpc/client";
 import { exportToExcel } from "@/lib/utils/export-service";
 
@@ -46,10 +46,7 @@ export default function ProductBomPage({ params }: { params: Promise<{ productId
     { staleTime: 30_000 },
   );
 
-  const { data: plData } = trpc.pl.list.useQuery(
-    { pageSize: 100 },
-    { staleTime: 60_000 },
-  );
+  const { data: plData } = trpc.pl.list.useQuery({ pageSize: 100 }, { staleTime: 60_000 });
 
   const plNumbers = plData?.data ?? [];
   const product = productData?.product ?? null;
@@ -184,10 +181,13 @@ export default function ProductBomPage({ params }: { params: Promise<{ productId
 
   const plResults =
     plSearch.length >= 2
-      ? plNumbers.filter(
-          (p) =>
-            p.plNumber.includes(plSearch) || p.name.toLowerCase().includes(plSearch.toLowerCase()),
-        ).slice(0, 8)
+      ? plNumbers
+          .filter(
+            (p) =>
+              p.plNumber.includes(plSearch) ||
+              p.name.toLowerCase().includes(plSearch.toLowerCase()),
+          )
+          .slice(0, 8)
       : [];
 
   if (productLoading) {
@@ -234,7 +234,10 @@ export default function ProductBomPage({ params }: { params: Promise<{ productId
             <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
               v{product.version}
             </Badge>
-            <StatusBadge status={mapProductStatus(product.approvalStatus)} label={product.approvalStatus} />
+            <StatusBadge
+              status={mapProductStatus(product.approvalStatus)}
+              label={product.approvalStatus}
+            />
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button

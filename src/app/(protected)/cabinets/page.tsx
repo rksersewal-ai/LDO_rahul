@@ -51,9 +51,10 @@ function buildTree(
   }
 
   for (const item of items) {
+    // biome-ignore lint/style/noNonNullAssertion: every item.id was inserted into `map` in the prior loop, so get() is always defined
     const node = map.get(item.id)!;
     if (item.parentId && map.has(item.parentId)) {
-      map.get(item.parentId)!.children.push(node);
+      map.get(item.parentId)?.children.push(node);
     } else {
       roots.push(node);
     }
@@ -94,10 +95,7 @@ function CabinetTreeItem({
         ) : (
           <span className="h-4 w-4" />
         )}
-        <Folder
-          className="h-4 w-4 shrink-0"
-          style={{ color: node.color ?? "currentColor" }}
-        />
+        <Folder className="h-4 w-4 shrink-0" style={{ color: node.color ?? "currentColor" }} />
         <Link
           href={`/cabinets/${node.id}`}
           className="flex-1 truncate text-sm font-medium hover:underline"
@@ -106,12 +104,7 @@ function CabinetTreeItem({
         </Link>
         <span className="text-xs text-muted-foreground">{node.docCount} docs</span>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            onClick={() => onEdit(node)}
-          >
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => onEdit(node)}>
             <Pencil className="h-3 w-3" />
           </Button>
           <Button
@@ -147,8 +140,18 @@ export default function CabinetsPage() {
   const [formParentId, setFormParentId] = useState<string | undefined>(undefined);
 
   const { data, isLoading, error, refetch } = trpc.cabinets.list.useQuery();
-  const createMutation = trpc.cabinets.create.useMutation({ onSuccess: () => { refetch(); closeDialog(); } });
-  const updateMutation = trpc.cabinets.update.useMutation({ onSuccess: () => { refetch(); closeDialog(); } });
+  const createMutation = trpc.cabinets.create.useMutation({
+    onSuccess: () => {
+      refetch();
+      closeDialog();
+    },
+  });
+  const updateMutation = trpc.cabinets.update.useMutation({
+    onSuccess: () => {
+      refetch();
+      closeDialog();
+    },
+  });
   const deleteMutation = trpc.cabinets.delete.useMutation({ onSuccess: () => refetch() });
 
   const tree = data ? buildTree(data) : [];
@@ -218,9 +221,7 @@ export default function CabinetsPage() {
           <LoadingState variant="table" rows={6} />
         ) : error ? (
           <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
-            <p className="text-sm text-destructive">
-              Failed to load cabinets: {error.message}
-            </p>
+            <p className="text-sm text-destructive">Failed to load cabinets: {error.message}</p>
           </div>
         ) : tree.length === 0 ? (
           <EmptyState

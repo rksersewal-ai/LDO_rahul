@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV !== "production";
+
 /**
  * Content Security Policy.
  *
@@ -8,10 +10,16 @@ import type { NextConfig } from "next";
  * Next.js' inline bootstrap script and for Tailwind/inline styles (a nonce-based
  * strict CSP would require wiring nonces through the app and is deferred). All
  * other directives are locked down to 'self'.
+ *
+ * 'unsafe-eval' is included in development only: React dev mode uses eval() for
+ * error callstack reconstruction and Turbopack uses it for source maps. It is
+ * intentionally absent from production builds.
  */
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  isDev
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",

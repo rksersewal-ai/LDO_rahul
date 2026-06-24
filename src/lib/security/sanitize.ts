@@ -21,7 +21,10 @@ export function sanitizeUserInput(input: string): string {
   sanitized = sanitized.replace(/\s*on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, "");
 
   // 3. Remove javascript: URLs (in href, src, action, etc.)
-  sanitized = sanitized.replace(/(?:href|src|action)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi, "");
+  sanitized = sanitized.replace(
+    /(?:href|src|action)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi,
+    "",
+  );
   // Also handle standalone javascript: protocol references
   sanitized = sanitized.replace(/javascript\s*:/gi, "");
 

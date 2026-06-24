@@ -15,31 +15,40 @@ import { trpc } from "@/lib/trpc/client";
 type FilterTab = "all" | ApprovalType;
 
 export default function ApprovalsPage() {
-  const { data: approvalsData, isLoading, isError, error, refetch } = trpc.approvals.list.useQuery(
-    { status: "pending", limit: 100 },
-    { staleTime: 15_000 },
-  );
+  const {
+    data: approvalsData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = trpc.approvals.list.useQuery({ status: "pending", limit: 100 }, { staleTime: 15_000 });
 
-  const approvals: MockApproval[] = (approvalsData?.items ?? []).map((item: Record<string, unknown>) => ({
-    id: item.id as string,
-    title: (item.entityType as string) ?? "Approval Request",
-    description: `Approval for ${(item.entityType as string) ?? "item"} - ${(item.entityId as string) ?? ""}`,
-    type: ((item.entityType as string) === "document" ? "document_release" : (item.entityType as string) === "bom" ? "bom_change" : "work_verification") as ApprovalType,
-    status: ((item.status as string) ?? "pending").toUpperCase() as MockApproval["status"],
-    urgency: "NORMAL" as MockApproval["urgency"],
-    requesterId: (item.requestedBy as string) ?? "",
-    requesterName: (item.requestedBy as string) ?? "Unknown",
-    approverId: "",
-    approverName: "",
-    linkedEntityId: (item.entityId as string) ?? "",
-    linkedEntityType: (item.entityType as string) ?? "",
-    linkedEntityLabel: (item.entityId as string) ?? "",
-    dueDate: (item.createdAt as string) ?? new Date().toISOString(),
-    decisionNotes: null,
-    decidedAt: null,
-    createdAt: (item.createdAt as string) ?? new Date().toISOString(),
-    updatedAt: (item.updatedAt as string) ?? new Date().toISOString(),
-  }));
+  const approvals: MockApproval[] = (approvalsData?.items ?? []).map(
+    (item: Record<string, unknown>) => ({
+      id: item.id as string,
+      title: (item.entityType as string) ?? "Approval Request",
+      description: `Approval for ${(item.entityType as string) ?? "item"} - ${(item.entityId as string) ?? ""}`,
+      type: ((item.entityType as string) === "document"
+        ? "document_release"
+        : (item.entityType as string) === "bom"
+          ? "bom_change"
+          : "work_verification") as ApprovalType,
+      status: ((item.status as string) ?? "pending").toUpperCase() as MockApproval["status"],
+      urgency: "NORMAL" as MockApproval["urgency"],
+      requesterId: (item.requestedBy as string) ?? "",
+      requesterName: (item.requestedBy as string) ?? "Unknown",
+      approverId: "",
+      approverName: "",
+      linkedEntityId: (item.entityId as string) ?? "",
+      linkedEntityType: (item.entityType as string) ?? "",
+      linkedEntityLabel: (item.entityId as string) ?? "",
+      dueDate: (item.createdAt as string) ?? new Date().toISOString(),
+      decisionNotes: null,
+      decidedAt: null,
+      createdAt: (item.createdAt as string) ?? new Date().toISOString(),
+      updatedAt: (item.updatedAt as string) ?? new Date().toISOString(),
+    }),
+  );
 
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -95,9 +104,7 @@ export default function ApprovalsPage() {
         />
 
         {/* Error State */}
-        {isError && !isLoading && (
-          <QueryErrorState error={error} retry={() => refetch()} />
-        )}
+        {isError && !isLoading && <QueryErrorState error={error} retry={() => refetch()} />}
 
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as FilterTab)}>
           <TabsList>

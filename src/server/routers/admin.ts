@@ -104,6 +104,39 @@ async function upsertSettingValue(key: string, value: unknown, updatedBy: string
 }
 
 /**
+ * Returns the feature toggles as a normalized FeatureToggle[] regardless of how
+ * the value was historically persisted. Older seeds stored a flat
+ * { [key]: boolean } map, which crashed the admin UI (features.filter is not a
+ * function). This tolerates:
+ *   - the correct FeatureToggle[] array shape (returned as-is)
+ *   - a legacy { key: boolean } map (merged onto the defaults by `key`)
+ *   - anything else (falls back to the defaults)
+ */
+async function getFeatureTogglesValue(): Promise<FeatureToggle[]> {
+  const raw = await getSettingValue<unknown>(FEATURE_TOGGLES_KEY, MOCK_FEATURE_TOGGLES);
+
+  // Correct shape: an array of toggle objects.
+  if (Array.isArray(raw)) {
+    const valid = raw.filter(
+      (item): item is FeatureToggle =>
+        !!item && typeof item === "object" && "id" in item && "key" in item,
+    );
+    return valid.length > 0 ? valid : MOCK_FEATURE_TOGGLES;
+  }
+
+  // Legacy flat map { key: boolean }: apply the stored enabled flags onto the
+  // canonical toggle definitions so admin choices are preserved, not lost.
+  if (raw && typeof raw === "object") {
+    const flags = raw as Record<string, unknown>;
+    return MOCK_FEATURE_TOGGLES.map((ft) =>
+      typeof flags[ft.key] === "boolean" ? { ...ft, enabled: flags[ft.key] as boolean } : ft,
+    );
+  }
+
+  return MOCK_FEATURE_TOGGLES;
+}
+
+/**
  * Verify the tamper-evident audit hash chain from GENESIS.
  *
  * The chain is anchored at the first entry, so verification must start from the
@@ -538,6 +571,42 @@ export const adminRouter = router({
 
       return { jobs, summary };
     }),
+
+  // Live host-load snapshot used by the OCR monitor to visualise the adaptive
+  // backpressure ("live load tracking") that throttles CPU-bound workers.
+  getSystemLoad: adminProcedure.query(async () => {
+    const os = await import("node:os");
+    const cores = os.cpus().length || 1;
+    const [load1, load5, load15] = os.loadavg();
+    const loadPerCore = (load1 ?? 0) / cores;
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMemPct = totalMem > 0 ? Math.round(((totalMem - freeMem) / totalMem) * 100) : 0;
+
+    const gateEnabled = process.env.WORKER_LOAD_GATE_ENABLED !== "false";
+    const threshold = Number(process.env.WORKER_LOAD_GATE_THRESHOLD ?? "0.9");
+
+    // Throttling kicks in once the per-core load exceeds the configured ceiling.
+    const state: "healthy" | "elevated" | "throttling" =
+      loadPerCore > threshold
+        ? "throttling"
+        : loadPerCore > threshold * 0.75
+          ? "elevated"
+          : "healthy";
+
+    return {
+      cores,
+      load1: Number((load1 ?? 0).toFixed(2)),
+      load5: Number((load5 ?? 0).toFixed(2)),
+      load15: Number((load15 ?? 0).toFixed(2)),
+      loadPerCore: Number(loadPerCore.toFixed(2)),
+      usedMemPct,
+      gateEnabled,
+      threshold,
+      state,
+      uptimeSeconds: Math.round(os.uptime()),
+    };
+  }),
 
   retryOcrJob: adminProcedure
     .input(z.object({ id: z.string() }))
@@ -1146,7 +1215,7 @@ export const adminRouter = router({
 
   // --- Feature Toggles (DB-backed via settings table) ---
   getFeatureToggles: adminProcedure.query(async () => {
-    return await getSettingValue<FeatureToggle[]>(FEATURE_TOGGLES_KEY, MOCK_FEATURE_TOGGLES);
+    return await getFeatureTogglesValue();
   }),
 
   updateFeatureToggle: adminProcedure
@@ -1159,10 +1228,7 @@ export const adminRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user?.id ?? "system";
       const userName = ctx.session.user?.name ?? "System";
-      const featureToggles = await getSettingValue<FeatureToggle[]>(
-        FEATURE_TOGGLES_KEY,
-        MOCK_FEATURE_TOGGLES,
-      );
+      const featureToggles = await getFeatureTogglesValue();
       const idx = featureToggles.findIndex((f) => f.id === input.id);
       if (idx === -1) return null;
       featureToggles[idx].enabled = input.enabled;
@@ -1489,8 +1555,8 @@ export const adminRouter = router({
       complianceSettings,
       legacySettings,
     ] = await Promise.all([
-      getSettingValue<FeatureToggle[]>(FEATURE_TOGGLES_KEY, MOCK_FEATURE_TOGGLES),
-      getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES),
+        getFeatureTogglesValue(),
+        getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES),
       getSettingValue<RolePermissionMatrix>(ROLE_PERMISSIONS_KEY, MOCK_ROLE_PERMISSIONS),
       getSettingValue<SystemConfiguration>(SYSTEM_CONFIG_KEY, MOCK_SYSTEM_CONFIGURATION),
       getSettingValue<ComplianceSettings>(COMPLIANCE_SETTINGS_KEY, MOCK_COMPLIANCE_SETTINGS),
@@ -1560,10 +1626,7 @@ export const adminRouter = router({
               importedAt: new Date().toISOString(),
             };
           }
-          const featureToggles = await getSettingValue<FeatureToggle[]>(
-            FEATURE_TOGGLES_KEY,
-            MOCK_FEATURE_TOGGLES,
-          );
+          const featureToggles = await getFeatureTogglesValue();
           for (const ft of validated.data) {
             const idx = featureToggles.findIndex((f) => f.id === ft.id);
             if (idx !== -1) {

@@ -54,6 +54,7 @@ export const plRouter = router({
     if (input.search) {
       const searchTerm = `%${input.search}%`;
       conditions.push(
+        // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
         or(
           ilike(plNumbers.plNumber, searchTerm),
           ilike(plNumbers.name, searchTerm),
@@ -1259,6 +1260,7 @@ export const plRouter = router({
     const conditions = [eq(plNumbers.workspaceId, workspaceId)];
     if (input.search) {
       const term = `%${input.search.trim()}%`;
+      // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
       conditions.push(or(ilike(plNumbers.plNumber, term), ilike(plNumbers.name, term))!);
     }
     const whereClause = and(...conditions);

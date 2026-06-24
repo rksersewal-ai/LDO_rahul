@@ -6,8 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { type DocumentFilterState, DocumentFilters } from "@/components/documents/document-filters";
 import { DocumentGrid } from "@/components/documents/document-grid";
 import { DocumentTable } from "@/components/documents/document-table";
-import { VirtualDocumentList } from "@/components/documents/virtual-document-list";
 import { type ViewMode, ViewToggle } from "@/components/documents/view-toggle";
+import { VirtualDocumentList } from "@/components/documents/virtual-document-list";
 import { PageFrame } from "@/components/layout/page-frame";
 import { EmptyStateFallback } from "@/components/shared/empty-state-fallback";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
@@ -17,8 +17,8 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { useSavedFilters } from "@/hooks/use-saved-filters";
-import { trpc } from "@/lib/trpc/client";
 import type { MockDocument } from "@/lib/mock-data/documents";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 const VIEW_MODE_KEY = "doc-hub-view-mode";
@@ -76,7 +76,9 @@ export default function DocumentHubPage() {
     error,
     refetch,
     isRefetching,
-  } = trpc.documents.list.useQuery(queryInput as Parameters<typeof trpc.documents.list.useQuery>[0]);
+  } = trpc.documents.list.useQuery(
+    queryInput as Parameters<typeof trpc.documents.list.useQuery>[0],
+  );
 
   const filteredData = useMemo(() => {
     if (!queryResult?.data) return [] as MockDocument[];
@@ -88,7 +90,9 @@ export default function DocumentHubPage() {
       category: doc.category?.toUpperCase() ?? "OTHER",
       status: doc.status?.toUpperCase() ?? "DRAFT",
       revision: doc.revision ?? "A",
-      revisionDate: doc.revisionDate ? new Date(doc.revisionDate).toISOString().split("T")[0] : null,
+      revisionDate: doc.revisionDate
+        ? new Date(doc.revisionDate).toISOString().split("T")[0]
+        : null,
       agency: doc.workshop ?? "CLW",
       fileType: doc.mimeType?.split("/").pop() ?? "pdf",
       fileSize: doc.fileSize ?? 0,
@@ -100,7 +104,12 @@ export default function DocumentHubPage() {
       ocrStatus: doc.ocrStatus?.toUpperCase() ?? "NOT_REQUIRED",
       ocrConfidence: doc.ocrConfidence ?? null,
       ocrText: doc.ocrText ?? null,
-      tags: doc.tags ? doc.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [],
+      tags: doc.tags
+        ? doc.tags
+            .split(",")
+            .map((t: string) => t.trim())
+            .filter(Boolean)
+        : [],
       isLatest: true,
       isDuplicate: false,
       linkedPlIds: [] as string[],
@@ -265,13 +274,12 @@ export default function DocumentHubPage() {
         )}
 
         {/* Error state */}
-        {isError && !isLoading && (
-          <QueryErrorState error={error} retry={() => refetch()} />
-        )}
+        {isError && !isLoading && <QueryErrorState error={error} retry={() => refetch()} />}
 
         {/* Data Table or Grid */}
-        {!isLoading && !isError && (
-          filteredData.length === 0 ? (
+        {!isLoading &&
+          !isError &&
+          (filteredData.length === 0 ? (
             <EmptyStateFallback
               title="No documents found"
               description={
@@ -326,8 +334,7 @@ export default function DocumentHubPage() {
             )
           ) : (
             <DocumentGrid data={filteredData} />
-          )
-        )}
+          ))}
       </div>
     </PageFrame>
   );

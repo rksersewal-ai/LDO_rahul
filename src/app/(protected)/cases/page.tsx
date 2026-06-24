@@ -32,11 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  type CaseSeverity,
-  type CaseStatus,
-  type CaseType,
-} from "@/lib/mock-data/cases";
+import type { CaseSeverity, CaseStatus, CaseType } from "@/lib/mock-data/cases";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import type { createCaseSchema } from "@/lib/validators/cases";
@@ -73,11 +69,31 @@ export default function CasesPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: casesData, isLoading, isError, error, refetch } = trpc.cases.list.useQuery(
+  const {
+    data: casesData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = trpc.cases.list.useQuery(
     {
-      status: statusFilter !== "all" ? statusFilter as "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "ESCALATED" : undefined,
-      severity: severityFilter !== "all" ? severityFilter as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" : undefined,
-      type: typeFilter !== "all" ? typeFilter as "failure_investigation" | "discrepancy" | "vendor_issue" | "design_deviation" | "safety_concern" : undefined,
+      status:
+        statusFilter !== "all"
+          ? (statusFilter as "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "ESCALATED")
+          : undefined,
+      severity:
+        severityFilter !== "all"
+          ? (severityFilter as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL")
+          : undefined,
+      type:
+        typeFilter !== "all"
+          ? (typeFilter as
+              | "failure_investigation"
+              | "discrepancy"
+              | "vendor_issue"
+              | "design_deviation"
+              | "safety_concern")
+          : undefined,
       limit: 100,
     },
     { staleTime: 15_000 },
@@ -214,9 +230,7 @@ export default function CasesPage() {
         </div>
 
         {/* Error State */}
-        {isError && !isLoading && (
-          <QueryErrorState error={error} retry={() => refetch()} />
-        )}
+        {isError && !isLoading && <QueryErrorState error={error} retry={() => refetch()} />}
 
         {/* Table */}
         <div className="rounded-lg border">
@@ -249,12 +263,17 @@ export default function CasesPage() {
               ) : (
                 filteredCases.map((c: Record<string, unknown>) => {
                   const status = (c.status as string) ?? "OPEN";
-                  const statusInfo = statusMap[status as CaseStatus] ?? { status: "pending" as const, label: status };
+                  const statusInfo = statusMap[status as CaseStatus] ?? {
+                    status: "pending" as const,
+                    label: status,
+                  };
                   const severity = (c.severity as string) ?? "MEDIUM";
                   const caseType = (c.type as string) ?? "failure_investigation";
                   return (
                     <TableRow key={c.id as string}>
-                      <TableCell className="text-xs font-mono">{(c.caseNumber as string) ?? "-"}</TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {(c.caseNumber as string) ?? "-"}
+                      </TableCell>
                       <TableCell className="text-xs font-medium max-w-[250px] truncate">
                         {(c.title as string) ?? "-"}
                       </TableCell>
@@ -277,7 +296,9 @@ export default function CasesPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-xs">{(c.assigneeName as string) ?? "-"}</TableCell>
-                      <TableCell className="text-xs font-mono">{(c.plNumber as string) || "-"}</TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {(c.plNumber as string) || "-"}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {c.createdAt
                           ? new Date(c.createdAt as string).toLocaleDateString("en-IN", {

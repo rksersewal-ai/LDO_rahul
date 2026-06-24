@@ -4,7 +4,7 @@ vi.mock("@/lib/db", () => ({ db: { select: vi.fn() } }));
 
 import { invalidateCache } from "@/lib/cache/query-cache";
 import { db } from "@/lib/db";
-import { getEffectiveSetting, SYSTEM_DEFAULTS } from "../get-effective-setting";
+import { getEffectiveSetting } from "../get-effective-setting";
 
 function mockSelectChain(returnValue: unknown[]) {
   const chain = { from: vi.fn(), where: vi.fn(), limit: vi.fn() };

@@ -48,13 +48,14 @@ const ROUTE_LABELS: Record<string, string> = {
 export function BreadcrumbNav({ items }: BreadcrumbNavProps) {
   const pathname = usePathname();
 
-  const autoCrumbs: BreadcrumbItem[] = items ??
+  const autoCrumbs: BreadcrumbItem[] =
+    items ??
     pathname
       .split("/")
       .filter(Boolean)
       .map((seg, i, arr) => ({
         label: ROUTE_LABELS[seg] ?? seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " "),
-        href: i < arr.length - 1 ? "/" + arr.slice(0, i + 1).join("/") : undefined,
+        href: i < arr.length - 1 ? `/${arr.slice(0, i + 1).join("/")}` : undefined,
       }));
 
   const breadcrumbs = autoCrumbs.length > 0 ? autoCrumbs : [{ label: "Dashboard" }];
@@ -64,12 +65,15 @@ export function BreadcrumbNav({ items }: BreadcrumbNavProps) {
       {breadcrumbs.map((item, index) => {
         const isLast = index === breadcrumbs.length - 1;
         return (
-          <span key={`${item.label}-${index}`} className="flex items-center gap-1">
+          <span key={item.href ?? item.label} className="flex items-center gap-1">
             {index > 0 && <ChevronRight className="size-3 text-muted-foreground" />}
             {isLast ? (
               <span className="font-semibold text-foreground">{item.label}</span>
             ) : item.href ? (
-              <Link href={item.href} className="text-muted-foreground hover:text-foreground transition-colors">
+              <Link
+                href={item.href}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
                 {item.label}
               </Link>
             ) : (

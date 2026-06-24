@@ -137,13 +137,7 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={(e) => e.stopPropagation()}
-              />
-            }
+            render={<Button variant="ghost" size="icon-xs" onClick={(e) => e.stopPropagation()} />}
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
           </DropdownMenuTrigger>

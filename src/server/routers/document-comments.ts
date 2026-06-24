@@ -55,9 +55,10 @@ function buildCommentTree(comments: Omit<CommentNode, "children">[]): CommentNod
 
   // Build tree
   for (const comment of comments) {
+    // biome-ignore lint/style/noNonNullAssertion: every comment.id was inserted into `map` in the prior loop, so get() is always defined
     const node = map.get(comment.id)!;
     if (comment.parentId && map.has(comment.parentId)) {
-      map.get(comment.parentId)!.children.push(node);
+      map.get(comment.parentId)?.children.push(node);
     } else {
       roots.push(node);
     }
@@ -186,7 +187,10 @@ export const documentCommentsRouter = router({
       .select()
       .from(documentComments)
       .where(
-        and(eq(documentComments.id, input.commentId), eq(documentComments.workspaceId, workspaceId)),
+        and(
+          eq(documentComments.id, input.commentId),
+          eq(documentComments.workspaceId, workspaceId),
+        ),
       );
 
     if (!comment) {
@@ -242,7 +246,10 @@ export const documentCommentsRouter = router({
       .select()
       .from(documentComments)
       .where(
-        and(eq(documentComments.id, input.commentId), eq(documentComments.workspaceId, workspaceId)),
+        and(
+          eq(documentComments.id, input.commentId),
+          eq(documentComments.workspaceId, workspaceId),
+        ),
       );
 
     if (!comment) {

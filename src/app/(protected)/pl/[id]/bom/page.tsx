@@ -5,10 +5,10 @@ import Link from "next/link";
 import { use } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 
 export default function PlBomPage({ params }: { params: Promise<{ id: string }> }) {
@@ -134,10 +134,15 @@ export default function PlBomPage({ params }: { params: Promise<{ id: string }> 
                     </thead>
                     <tbody>
                       {data.asComponent.map((entry) => (
-                        <tr key={entry.entryId} className="border-b last:border-b-0 hover:bg-muted/30">
+                        <tr
+                          key={entry.entryId}
+                          className="border-b last:border-b-0 hover:bg-muted/30"
+                        >
                           <td className="px-3 py-2">
                             <span className="font-mono font-medium">{entry.productCode}</span>
-                            <span className="text-muted-foreground ml-1">({entry.productName})</span>
+                            <span className="text-muted-foreground ml-1">
+                              ({entry.productName})
+                            </span>
                           </td>
                           <td className="px-3 py-2">{entry.itemNumber}</td>
                           <td className="px-3 py-2">{entry.partName}</td>

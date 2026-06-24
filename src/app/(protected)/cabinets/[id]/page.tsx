@@ -26,7 +26,9 @@ export default function CabinetDetailPage() {
   const [page, setPage] = useState(1);
   const pageSize = 25;
 
-  const { data: cabinet, isLoading: loadingCabinet } = trpc.cabinets.get.useQuery({ id: cabinetId });
+  const { data: cabinet, isLoading: loadingCabinet } = trpc.cabinets.get.useQuery({
+    id: cabinetId,
+  });
   const {
     data: docsData,
     isLoading: loadingDocs,
@@ -68,7 +70,8 @@ export default function CabinetDetailPage() {
           <>
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
-                Showing {docsData.data.length} of {docsData.totalCount} documents (page {docsData.page})
+                Showing {docsData.data.length} of {docsData.totalCount} documents (page{" "}
+                {docsData.page})
               </p>
               {docsData.totalCount > pageSize && (
                 <div className="flex items-center gap-1">

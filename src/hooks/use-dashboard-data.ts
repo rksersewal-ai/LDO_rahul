@@ -40,6 +40,9 @@ export function useDashboardData(compareRange?: ComparePeriod): UseDashboardData
       staleTime: dashboardConfig.staleTime,
       gcTime: dashboardConfig.gcTime,
       refetchInterval: 30_000,
+      // Pause background polling when the tab is not visible to reduce
+      // unnecessary DB load on a multi-user LAN deployment.
+      refetchIntervalInBackground: false,
       refetchOnWindowFocus: dashboardConfig.refetchOnWindowFocus,
     },
   );
@@ -51,6 +54,7 @@ export function useDashboardData(compareRange?: ComparePeriod): UseDashboardData
       staleTime: dashboardConfig.staleTime,
       gcTime: dashboardConfig.gcTime,
       refetchInterval: 30_000,
+      refetchIntervalInBackground: false,
       refetchOnWindowFocus: dashboardConfig.refetchOnWindowFocus,
     },
   );
@@ -60,6 +64,7 @@ export function useDashboardData(compareRange?: ComparePeriod): UseDashboardData
     staleTime: 0,
     gcTime: dashboardConfig.gcTime,
     refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -78,10 +83,7 @@ export function useDashboardData(compareRange?: ComparePeriod): UseDashboardData
     recentDocsQuery.isLoading;
 
   const isError =
-    metricsQuery.isError ||
-    trendsQuery.isError ||
-    activityQuery.isError ||
-    recentDocsQuery.isError;
+    metricsQuery.isError || trendsQuery.isError || activityQuery.isError || recentDocsQuery.isError;
 
   const error =
     metricsQuery.error ?? trendsQuery.error ?? activityQuery.error ?? recentDocsQuery.error ?? null;

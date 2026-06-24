@@ -1,8 +1,8 @@
 "use client";
 
 import { Clock, KeyRound, Lock, Mail, Monitor, Moon, Phone, Shield, Sun, User } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useSession } from "next-auth/react";
+import { useTheme } from "next-themes";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageFrame } from "@/components/layout/page-frame";
@@ -39,12 +39,12 @@ export default function ProfilePage() {
   const currentUser = {
     name: session?.user?.name ?? "Unknown User",
     email: session?.user?.email ?? "",
-    role: (session?.user as Record<string, unknown>)?.role as string ?? "viewer",
-    designation: (session?.user as Record<string, unknown>)?.designation as string ?? "-",
-    department: (session?.user as Record<string, unknown>)?.department as string ?? "-",
-    section: (session?.user as Record<string, unknown>)?.section as string ?? "-",
-    employeeId: (session?.user as Record<string, unknown>)?.employeeId as string ?? "-",
-    phone: (session?.user as Record<string, unknown>)?.phone as string ?? "-",
+    role: ((session?.user as Record<string, unknown>)?.role as string) ?? "viewer",
+    designation: ((session?.user as Record<string, unknown>)?.designation as string) ?? "-",
+    department: ((session?.user as Record<string, unknown>)?.department as string) ?? "-",
+    section: ((session?.user as Record<string, unknown>)?.section as string) ?? "-",
+    employeeId: ((session?.user as Record<string, unknown>)?.employeeId as string) ?? "-",
+    phone: ((session?.user as Record<string, unknown>)?.phone as string) ?? "-",
     lastLogin: null as string | null,
   };
   const [emailNotifs, setEmailNotifs] = useState(true);
@@ -341,7 +341,11 @@ export default function ProfilePage() {
                 Password updated successfully.
               </p>
             )}
-            <Button size="sm" onClick={handlePasswordChange} disabled={changePasswordMutation.isPending}>
+            <Button
+              size="sm"
+              onClick={handlePasswordChange}
+              disabled={changePasswordMutation.isPending}
+            >
               {changePasswordMutation.isPending ? "Updating..." : "Update Password"}
             </Button>
           </CardContent>

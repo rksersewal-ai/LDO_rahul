@@ -1,4 +1,13 @@
-export type UserRole = "admin" | "supervisor" | "reviewer" | "engineer" | "viewer" | "classification_officer" | "records_manager" | "legal_hold_officer" | "auditor";
+export type UserRole =
+  | "admin"
+  | "supervisor"
+  | "reviewer"
+  | "engineer"
+  | "viewer"
+  | "classification_officer"
+  | "records_manager"
+  | "legal_hold_officer"
+  | "auditor";
 
 export interface SessionUser {
   id: string;

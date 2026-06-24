@@ -43,10 +43,7 @@ export function AddEntryDialog({ open, onOpenChange, parentEntry, onSubmit }: Ad
   const [drawingRef, setDrawingRef] = useState("");
   const [showPlResults, setShowPlResults] = useState(false);
 
-  const { data: plData } = trpc.pl.list.useQuery(
-    { pageSize: 100 },
-    { staleTime: 60_000 },
-  );
+  const { data: plData } = trpc.pl.list.useQuery({ pageSize: 100 }, { staleTime: 60_000 });
 
   const plNumbers = plData?.data ?? [];
 

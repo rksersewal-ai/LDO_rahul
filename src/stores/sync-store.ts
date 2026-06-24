@@ -32,7 +32,7 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
   lastSyncAt: null,
 
   // Actions
-  addToQueue: (mutation: SyncMutation) => {
+  addToQueue: (_mutation: SyncMutation) => {
     // In a real runtime, this would dynamically import Dexie and insert:
     // const { offlineDb } = await import("@/lib/offline/db");
     // await offlineDb.syncQueue.add({ ...mutation, createdAt: new Date().toISOString(), retryCount: 0, status: "pending" });

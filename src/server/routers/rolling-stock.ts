@@ -31,6 +31,7 @@ export const rollingStockRouter = router({
     if (input.search) {
       const searchTerm = `%${input.search}%`;
       conditions.push(
+        // biome-ignore lint/style/noNonNullAssertion: or() is only undefined when called with zero conditions; we always pass >=2
         or(
           ilike(rollingStockUnits.unitNumber, searchTerm),
           ilike(rollingStockUnits.serialNumber, searchTerm),
@@ -90,46 +91,41 @@ export const rollingStockRouter = router({
     };
   }),
 
-  getById: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const workspaceId = requireWorkspaceId(ctx);
+  getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
 
-      const [unit] = await db
-        .select()
-        .from(rollingStockUnits)
-        .where(
-          and(eq(rollingStockUnits.id, input.id), eq(rollingStockUnits.workspaceId, workspaceId)),
-        );
+    const [unit] = await db
+      .select()
+      .from(rollingStockUnits)
+      .where(
+        and(eq(rollingStockUnits.id, input.id), eq(rollingStockUnits.workspaceId, workspaceId)),
+      );
 
-      if (!unit) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Rolling stock unit not found" });
-      }
+    if (!unit) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Rolling stock unit not found" });
+    }
 
-      // Fetch linked product if any
-      let product = null;
-      if (unit.productId) {
-        const [p] = await db
-          .select()
-          .from(bomProducts)
-          .where(eq(bomProducts.id, unit.productId));
-        product = p ?? null;
-      }
+    // Fetch linked product if any
+    let product = null;
+    if (unit.productId) {
+      const [p] = await db.select().from(bomProducts).where(eq(bomProducts.id, unit.productId));
+      product = p ?? null;
+    }
 
-      // Fetch work records for this unit
-      const unitWorkRecords = await db
-        .select()
-        .from(workRecords)
-        .where(eq(workRecords.rollingStockUnitId, input.id))
-        .orderBy(desc(workRecords.createdAt))
-        .limit(50);
+    // Fetch work records for this unit
+    const unitWorkRecords = await db
+      .select()
+      .from(workRecords)
+      .where(eq(workRecords.rollingStockUnitId, input.id))
+      .orderBy(desc(workRecords.createdAt))
+      .limit(50);
 
-      return {
-        ...unit,
-        product,
-        workRecords: unitWorkRecords,
-      };
-    }),
+    return {
+      ...unit,
+      product,
+      workRecords: unitWorkRecords,
+    };
+  }),
 
   listByProduct: protectedProcedure
     .input(
@@ -257,9 +253,13 @@ export const rollingStockRouter = router({
     if (updates.unitNumber !== undefined) setValues.unitNumber = updates.unitNumber;
     if (updates.serialNumber !== undefined) setValues.serialNumber = updates.serialNumber;
     if (updates.manufacturedDate !== undefined)
-      setValues.manufacturedDate = updates.manufacturedDate ? new Date(updates.manufacturedDate) : null;
+      setValues.manufacturedDate = updates.manufacturedDate
+        ? new Date(updates.manufacturedDate)
+        : null;
     if (updates.commissioningDate !== undefined)
-      setValues.commissioningDate = updates.commissioningDate ? new Date(updates.commissioningDate) : null;
+      setValues.commissioningDate = updates.commissioningDate
+        ? new Date(updates.commissioningDate)
+        : null;
     if (updates.status !== undefined) setValues.status = updates.status;
     if (updates.homeWorkshop !== undefined) setValues.homeWorkshop = updates.homeWorkshop;
     if (updates.currentLocation !== undefined) setValues.currentLocation = updates.currentLocation;
@@ -295,51 +295,49 @@ export const rollingStockRouter = router({
     return updated;
   }),
 
-  delete: engineerProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const workspaceId = requireWorkspaceId(ctx);
-      const userId = ctx.session.user.id;
-      const userName = ctx.session.user.name ?? "Unknown";
+  delete: engineerProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const userId = ctx.session.user.id;
+    const userName = ctx.session.user.name ?? "Unknown";
 
-      const [existing] = await db
-        .select()
-        .from(rollingStockUnits)
-        .where(
-          and(eq(rollingStockUnits.id, input.id), eq(rollingStockUnits.workspaceId, workspaceId)),
-        );
+    const [existing] = await db
+      .select()
+      .from(rollingStockUnits)
+      .where(
+        and(eq(rollingStockUnits.id, input.id), eq(rollingStockUnits.workspaceId, workspaceId)),
+      );
 
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Rolling stock unit not found" });
-      }
+    if (!existing) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Rolling stock unit not found" });
+    }
 
-      // Check if any work records are linked
-      const linkedRecords = await db
-        .select({ id: workRecords.id })
-        .from(workRecords)
-        .where(eq(workRecords.rollingStockUnitId, input.id))
-        .limit(1);
+    // Check if any work records are linked
+    const linkedRecords = await db
+      .select({ id: workRecords.id })
+      .from(workRecords)
+      .where(eq(workRecords.rollingStockUnitId, input.id))
+      .limit(1);
 
-      if (linkedRecords.length > 0) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Cannot delete unit with linked work records. Unlink or reassign them first.",
-        });
-      }
-
-      await db.delete(rollingStockUnits).where(eq(rollingStockUnits.id, input.id));
-
-      await createAuditEntry(db, {
-        userId,
-        userName,
-        action: "rollingStock.delete",
-        resourceType: "rolling_stock_unit",
-        resourceId: input.id,
-        resourceTitle: existing.unitNumber,
-        details: `Deleted rolling stock unit ${existing.unitNumber}`,
-        workspaceId,
+    if (linkedRecords.length > 0) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Cannot delete unit with linked work records. Unlink or reassign them first.",
       });
+    }
 
-      return { success: true };
-    }),
+    await db.delete(rollingStockUnits).where(eq(rollingStockUnits.id, input.id));
+
+    await createAuditEntry(db, {
+      userId,
+      userName,
+      action: "rollingStock.delete",
+      resourceType: "rolling_stock_unit",
+      resourceId: input.id,
+      resourceTitle: existing.unitNumber,
+      details: `Deleted rolling stock unit ${existing.unitNumber}`,
+      workspaceId,
+    });
+
+    return { success: true };
+  }),
 });

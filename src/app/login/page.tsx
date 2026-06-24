@@ -120,17 +120,6 @@ export default function LoginPage() {
         <Suspense fallback={<div className="h-40" />}>
           <LoginForm />
         </Suspense>
-
-        {/* Demo credentials hint */}
-        <div className="mt-4 rounded-md border border-muted bg-muted/30 p-2.5">
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
-            Demo Credentials
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            Username: <span className="font-mono text-foreground">admin</span> / Password:{" "}
-            <span className="font-mono text-foreground">password123</span>
-          </p>
-        </div>
       </div>
     </div>
   );

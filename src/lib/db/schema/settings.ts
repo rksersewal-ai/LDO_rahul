@@ -1,4 +1,13 @@
-import { boolean, index, pgEnum, pgTable, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 export const settingsScopeEnum = pgEnum("settings_scope", [
   "system",

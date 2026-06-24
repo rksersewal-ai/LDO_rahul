@@ -75,7 +75,12 @@ export function PlDocumentSearchLink({ plId, onLinked }: PlDocumentSearchLinkPro
       linkMutation.mutate({
         plId,
         documentId,
-        linkType: linkType as "manual" | "ocr_candidate" | "ocr_accepted" | "bom_inferred" | "work_record_inferred",
+        linkType: linkType as
+          | "manual"
+          | "ocr_candidate"
+          | "ocr_accepted"
+          | "bom_inferred"
+          | "work_record_inferred",
       });
     },
     [plId, linkType, linkMutation],
@@ -88,7 +93,9 @@ export function PlDocumentSearchLink({ plId, onLinked }: PlDocumentSearchLinkPro
           <div
             className="flex items-center"
             onClick={() => setIsOpen(true)}
-            onKeyDown={(e) => { if (e.key === "Enter") setIsOpen(true); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") setIsOpen(true);
+            }}
             role="button"
             tabIndex={0}
           >
