@@ -60,6 +60,23 @@ async function seed() {
   console.log(`Connecting to ${DATABASE_URL.replace(/:[^:@]+@/, ":****@")}`);
 
   try {
+    // ---- Ensure admin user password is correct ----
+    // The admin user is created by the initial migration. We update its password
+    // to ensure login works with "Admin@123" and unlock if it was locked.
+    console.log("\nEnsuring admin user password...");
+    const adminPwd = hashSync("Admin@123", 12);
+    const adminUpdate = await pool.query(
+      `UPDATE "users" SET password_hash = $1, failed_login_attempts = 0, locked_at = NULL, lock_reason = NULL, password_changed_at = now(), updated_at = now()
+       WHERE username = $2
+       RETURNING id, username`,
+      [adminPwd, "admin"],
+    );
+    if (adminUpdate.rowCount > 0) {
+      console.log("  admin user password updated:", adminUpdate.rows[0]);
+    } else {
+      console.log("  ⚠️  admin user not found; will be seeded if seed data includes it");
+    }
+
     // ---- Extra users (engineers / reviewers) for assignments & approvals ----
     console.log("\nUsers...");
     const pwd = hashSync("Passw0rd@123", 12);
