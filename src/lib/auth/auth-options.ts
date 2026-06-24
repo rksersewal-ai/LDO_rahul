@@ -7,7 +7,55 @@ import { users } from "@/lib/db/schema";
 
 const MAX_FAILED_ATTEMPTS = 5;
 
+// In production the app is served over HTTPS and is frequently embedded in a
+// cross-origin iframe (e.g. the v0 preview). Browsers treat cookies inside a
+// third-party iframe as cross-site, so the default SameSite=Lax session/CSRF
+// cookies are silently dropped — making login appear to "succeed" and then
+// immediately bounce back to /login. Using SameSite=None + Secure lets the
+// auth cookies flow inside the embedded preview. Locally (HTTP) we must keep
+// Lax + non-secure, since SameSite=None requires the Secure attribute.
+const useSecureCookies = process.env.NODE_ENV === "production";
+const sameSite = useSecureCookies ? "none" : "lax";
+const sessionCookieName = useSecureCookies
+  ? "__Secure-authjs.session-token"
+  : "authjs.session-token";
+
 export const authConfig: NextAuthConfig = {
+  // Trust the host header behind the preview/proxy. Without this, NextAuth v5
+  // throws UntrustedHost on any host that isn't localhost or a *.vercel.app
+  // deployment URL, which blocks login in the proxied preview.
+  trustHost: true,
+  cookies: {
+    sessionToken: {
+      name: sessionCookieName,
+      options: {
+        httpOnly: true,
+        sameSite,
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+    callbackUrl: {
+      name: useSecureCookies ? "__Secure-authjs.callback-url" : "authjs.callback-url",
+      options: {
+        sameSite,
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+    csrfToken: {
+      // __Host- prefix requires Secure + Path=/ + no Domain (all satisfied);
+      // SameSite=None is permitted and is required so the CSRF cookie is sent
+      // on the login POST from within the cross-origin preview iframe.
+      name: useSecureCookies ? "__Host-authjs.csrf-token" : "authjs.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite,
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+  },
   providers: [
     Credentials({
       name: "Credentials",
