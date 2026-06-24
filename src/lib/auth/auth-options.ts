@@ -7,6 +7,16 @@ import { users } from "@/lib/db/schema";
 
 const MAX_FAILED_ATTEMPTS = 5;
 
+// Determine NEXTAUTH_URL for production deployments. Vercel auto-sets VERCEL_URL,
+// but if NEXTAUTH_URL is explicitly set in the environment, use that. Without
+// this, NextAuth v5 can't validate callback origins and login silently fails.
+const getNextAuthUrl = () => {
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+  if (process.env.AUTH_URL) return process.env.AUTH_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return undefined;
+};
+
 // In production the app is served over HTTPS and is frequently embedded in a
 // cross-origin iframe (e.g. the v0 preview). Browsers treat cookies inside a
 // third-party iframe as cross-site, so the default SameSite=Lax session/CSRF
@@ -21,10 +31,28 @@ const sessionCookieName = useSecureCookies
   : "authjs.session-token";
 
 export const authConfig: NextAuthConfig = {
+  // Explicitly set NEXTAUTH_URL for production deployments. Derives from env
+  // vars or falls back to Vercel's auto-set VERCEL_URL. Without this, NextAuth v5
+  // can't validate callback origins and login silently fails.
+  ...(getNextAuthUrl() && { url: getNextAuthUrl() }),
   // Trust the host header behind the preview/proxy. Without this, NextAuth v5
   // throws UntrustedHost on any host that isn't localhost or a *.vercel.app
   // deployment URL, which blocks login in the proxied preview.
   trustHost: true,
+  basePath: "/api/auth",
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
+  callbacks: {
+    // Ensure the callback URL is relative so it works across any host/origin
+    redirect: async ({ url, baseUrl }) => {
+      // Allow relative URLs and URLs from the same origin
+      if (url.startsWith("/")) return url;
+      if (new URL(url).origin === new URL(baseUrl).origin) return url;
+      return baseUrl;
+    },
+  },
   cookies: {
     sessionToken: {
       name: sessionCookieName,
@@ -137,34 +165,34 @@ export const authConfig: NextAuthConfig = {
     strategy: "jwt",
     maxAge: 8 * 60 * 60, // 8 hours
   },
-  pages: {
-    signIn: "/login",
+};
+
+// Merge the JWT and session callbacks with the redirect callback
+authConfig.callbacks = {
+  redirect: authConfig.callbacks?.redirect,
+  jwt({ token, user }) {
+    if (user) {
+      const u = user as Record<string, unknown>;
+      token.role = u.role;
+      token.userId = user.id;
+      token.department = u.department;
+      token.designation = u.designation;
+      token.workspaceId = u.workspaceId;
+      token.clearanceLevel = u.clearanceLevel;
+      token.forcePasswordChange = u.forcePasswordChange;
+    }
+    return token;
   },
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        const u = user as Record<string, unknown>;
-        token.role = u.role;
-        token.userId = user.id;
-        token.department = u.department;
-        token.designation = u.designation;
-        token.workspaceId = u.workspaceId;
-        token.clearanceLevel = u.clearanceLevel;
-        token.forcePasswordChange = u.forcePasswordChange;
-      }
-      return token;
-    },
-    session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.userId as string;
-        session.user.role = token.role as string;
-        session.user.department = token.department as string;
-        session.user.designation = token.designation as string;
-        session.user.workspaceId = (token.workspaceId as string) ?? null;
-        session.user.clearanceLevel = (token.clearanceLevel as string) ?? null;
-        session.user.forcePasswordChange = (token.forcePasswordChange as boolean) ?? false;
-      }
-      return session;
-    },
+  session({ session, token }) {
+    if (session.user) {
+      session.user.id = token.userId as string;
+      session.user.role = token.role as string;
+      session.user.department = token.department as string;
+      session.user.designation = token.designation as string;
+      session.user.workspaceId = (token.workspaceId as string) ?? null;
+      session.user.clearanceLevel = (token.clearanceLevel as string) ?? null;
+      session.user.forcePasswordChange = (token.forcePasswordChange as boolean) ?? false;
+    }
+    return session;
   },
 };
