@@ -159,7 +159,8 @@ export function HelpCenter({ open, onOpenChange }: HelpCenterProps) {
                   </button>
                   <h4 className="text-sm font-semibold">{selectedTopic}</h4>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    {TOPIC_CONTENT[selectedTopic] ?? "Content coming soon."}
+                    {TOPIC_CONTENT[selectedTopic] ??
+                      "This topic is not mapped yet. Contact the local administrator or use Support to request a site-specific runbook."}
                   </p>
                 </div>
               ) : filteredTopics.length === 0 ? (

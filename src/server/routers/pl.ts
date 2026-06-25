@@ -275,6 +275,18 @@ export const plRouter = router({
       throw new TRPCError({ code: "NOT_FOUND", message: "PL number not found" });
     }
 
+    if (input.expectedUpdatedAt) {
+      const expectedUpdatedAt = new Date(input.expectedUpdatedAt).getTime();
+      const currentUpdatedAt = oldPl.updatedAt ? new Date(oldPl.updatedAt).getTime() : null;
+      if (Number.isNaN(expectedUpdatedAt) || currentUpdatedAt !== expectedUpdatedAt) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "PL details changed since you opened this form. Refresh and review the latest data before saving.",
+        });
+      }
+    }
+
     // If safetyCritical is being changed, require supervisor+ role
     if (input.safetyCritical !== undefined && input.safetyCritical !== oldPl.safetyCritical) {
       if (!isRoleAtLeast(userRole, "supervisor")) {
@@ -311,7 +323,7 @@ export const plRouter = router({
       }
     }
 
-    const { id, ...updates } = input;
+    const { id, expectedUpdatedAt: _expectedUpdatedAt, ...updates } = input;
     const setValues: Record<string, unknown> = { updatedAt: new Date(), updatedBy: userId };
 
     if (updates.name !== undefined) setValues.name = sanitizeUserInput(updates.name);

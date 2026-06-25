@@ -21,7 +21,8 @@
     "seed:mock": "node scripts/seed-mock-data.mjs",
     "workers": "tsx src/workers/start-workers.ts",
     "graphify": "tsx scripts/update-graphify.ts",
-    "ci": "bun run validate:env && bun run db:check && bun run lint && bun run typecheck && bun run test && bun run build"
+    "ci": "bun run validate:env && bun run db:check && bun run lint && bun run typecheck && bun run test && bun run build",
+    "smoke:lan": "node scripts/smoke-lan.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

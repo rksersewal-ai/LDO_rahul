@@ -152,8 +152,10 @@ export default function EditPlPage({ params }: { params: Promise<{ id: string }>
   });
 
   function onSubmit(values: EditPlFormInput) {
+    if (!pl) return;
     updateMutation.mutate({
       id,
+      expectedUpdatedAt: pl.updatedAt ? new Date(pl.updatedAt).toISOString() : undefined,
       name: values.name,
       description: values.description?.trim() || "",
       category: values.category,

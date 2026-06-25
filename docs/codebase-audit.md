@@ -43,3 +43,16 @@ Graphify reports all 46 tracked features as complete. The dependency chain shows
 - Add optimistic concurrency for PL edits using `updatedAt` or a `version` column to avoid silent overwrites when many users edit the same PL.
 - Add database indexes for frequent PL-document lookups by `(pl_number_id, linked_at)` and document workspace/deleted filters if query plans show sequential scans at scale.
 - Replace remaining toast-only operations with persistent audit/activity entries where business-critical actions occur.
+
+## Follow-up risk closure
+
+- Added optimistic concurrency checks for PL editing: the edit screen submits the last-seen `updatedAt` value and the server rejects stale writes with a `CONFLICT` response instead of overwriting another user's changes.
+- Replaced dashboard placeholder filter/column controls with working category/status/OCR filters and column visibility toggles so operators can tailor recent-document views during busy LAN sessions.
+- Connected the document detail `Edit` action to an inline metadata editor backed by the existing authenticated document update mutation.
+- Replaced remaining generic “coming soon” help/search copy with actionable LAN-operations guidance.
+- Added `smoke:lan` for post-deployment health and protected-route redirect checks without introducing external browser-test dependencies.
+
+## Remaining manual review
+
+- Run `bun run smoke:lan` after starting the app or after a staging/production deploy; it intentionally requires a live HTTP server.
+- Full browser automation (Playwright/Cypress) is still recommended when the package registry is available, but the current LAN smoke script provides a dependency-free deployment gate.
