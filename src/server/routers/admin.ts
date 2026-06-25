@@ -1555,8 +1555,8 @@ export const adminRouter = router({
       complianceSettings,
       legacySettings,
     ] = await Promise.all([
-        getFeatureTogglesValue(),
-        getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES),
+      getFeatureTogglesValue(),
+      getSettingValue<SecurityPolicies>(SECURITY_POLICIES_KEY, MOCK_SECURITY_POLICIES),
       getSettingValue<RolePermissionMatrix>(ROLE_PERMISSIONS_KEY, MOCK_ROLE_PERMISSIONS),
       getSettingValue<SystemConfiguration>(SYSTEM_CONFIG_KEY, MOCK_SYSTEM_CONFIGURATION),
       getSettingValue<ComplianceSettings>(COMPLIANCE_SETTINGS_KEY, MOCK_COMPLIANCE_SETTINGS),

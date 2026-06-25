@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({ db: { select: vi.fn() } }));
 
@@ -24,7 +24,7 @@ describe("getEffectiveSetting", () => {
 
   it("returns user-scope setting when it exists", async () => {
     const chain = mockSelectChain([{ value: "user-value" }]);
-    (db.select as any).mockReturnValueOnce(chain);
+    (db.select as Mock).mockReturnValueOnce(chain);
 
     const result = await getEffectiveSetting("someKey", {
       userId: "u1",
@@ -38,7 +38,7 @@ describe("getEffectiveSetting", () => {
     const userChain = mockSelectChain([]);
     const wsChain = mockSelectChain([{ value: "workspace-value" }]);
 
-    (db.select as any).mockReturnValueOnce(userChain).mockReturnValueOnce(wsChain);
+    (db.select as Mock).mockReturnValueOnce(userChain).mockReturnValueOnce(wsChain);
 
     const result = await getEffectiveSetting("someKey", {
       userId: "u1",
@@ -54,7 +54,7 @@ describe("getEffectiveSetting", () => {
     const orgChain = mockSelectChain([]);
     const systemChain = mockSelectChain([{ value: "system-db-value" }]);
 
-    (db.select as any)
+    (db.select as Mock)
       .mockReturnValueOnce(userChain)
       .mockReturnValueOnce(wsChain)
       .mockReturnValueOnce(orgChain)
@@ -74,7 +74,7 @@ describe("getEffectiveSetting", () => {
     const wsChain = mockSelectChain([]);
     const systemChain = mockSelectChain([]);
 
-    (db.select as any)
+    (db.select as Mock)
       .mockReturnValueOnce(userChain)
       .mockReturnValueOnce(wsChain)
       .mockReturnValueOnce(systemChain);
@@ -92,7 +92,7 @@ describe("getEffectiveSetting", () => {
     const wsChain = mockSelectChain([]);
     const systemChain = mockSelectChain([]);
 
-    (db.select as any)
+    (db.select as Mock)
       .mockReturnValueOnce(userChain)
       .mockReturnValueOnce(wsChain)
       .mockReturnValueOnce(systemChain);

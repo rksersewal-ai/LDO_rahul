@@ -305,7 +305,8 @@ function SearchPageContent() {
       ) : (
         <div className="rounded-lg border border-dashed border-border/60 bg-muted/30 p-4 text-center">
           <p className="text-xs text-muted-foreground">
-            Search Analytics coming soon. This feature is currently disabled.
+            Search analytics are disabled for this LAN deployment. Enable the search_analytics
+            feature flag after indexing and retention policies are configured.
           </p>
         </div>
       )}

@@ -43,6 +43,48 @@
       "when": 1781262532700,
       "tag": "0005_railway_domain_enrichment",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781262533400,
+      "tag": "0006_cases_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781262533500,
+      "tag": "0007_removed_file_hashes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781262533600,
+      "tag": "0008_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781262533700,
+      "tag": "0009_document_pages",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781262533800,
+      "tag": "0010_document_pl_link_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781262533900,
+      "tag": "0011_production_readiness_indexes",
+      "breakpoints": true
     }
   ]
 }

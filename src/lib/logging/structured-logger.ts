@@ -14,6 +14,31 @@ interface LogEntry {
   stack?: string;
 }
 
+const sensitiveKeyPattern =
+  /(secret|password|token|authorization|cookie|database_url|postgres_url|redis_url|auth_secret)/i;
+
+function sanitizeValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value.replace(/:\/\/([^:\s]+):([^@\s]+)@/g, "://$1:***@");
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item));
+  }
+  if (value && typeof value === "object") {
+    return sanitizeContext(value as Record<string, unknown>);
+  }
+  return value;
+}
+
+function sanitizeContext(context: LogContext): LogContext {
+  return Object.fromEntries(
+    Object.entries(context).map(([key, value]) => [
+      key,
+      sensitiveKeyPattern.test(key) ? "[REDACTED]" : sanitizeValue(value),
+    ]),
+  );
+}
+
 function writeLog(entry: LogEntry): void {
   try {
     const serialized = JSON.stringify(entry);
@@ -49,13 +74,15 @@ export function logError(message: string, context?: LogContext, error?: Error | 
   };
 
   if (context) {
-    entry.context = context;
+    entry.context = sanitizeContext(context);
   }
 
-  if (error instanceof Error) {
-    entry.stack = error.stack;
-  } else if (error) {
-    entry.stack = String(error);
+  if (process.env.NODE_ENV !== "production") {
+    if (error instanceof Error) {
+      entry.stack = error.stack;
+    } else if (error) {
+      entry.stack = String(error);
+    }
   }
 
   writeLog(entry);
@@ -69,7 +96,7 @@ export function logWarn(message: string, context?: LogContext): void {
     timestamp: new Date().toISOString(),
     level: "warn",
     message,
-    context,
+    context: context ? sanitizeContext(context) : undefined,
   });
 }
 
@@ -81,6 +108,6 @@ export function logInfo(message: string, context?: LogContext): void {
     timestamp: new Date().toISOString(),
     level: "info",
     message,
-    context,
+    context: context ? sanitizeContext(context) : undefined,
   });
 }

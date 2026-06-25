@@ -11,13 +11,14 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Save,
   Trash2,
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { OcrStatusBadge } from "@/components/documents/ocr-status-badge";
 import { type RevisionEntry, RevisionTimeline } from "@/components/documents/revision-timeline";
@@ -39,6 +40,22 @@ import { getValidTransitions, TRANSITION_LABELS } from "@/lib/fsm/document-fsm";
 import type { OcrStatus } from "@/lib/mock-data/documents";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import type { UpdateDocumentInput } from "@/lib/validators/documents";
+
+const documentCategoryOptions = [
+  "DRAWING",
+  "SPECIFICATION",
+  "ELIGIBILITY_CRITERIA",
+  "SCOPE_OF_SUPPLY",
+  "SMI",
+  "STANDARD",
+  "TENDER",
+  "SDR",
+  "TEST_REPORT",
+  "CERTIFICATE",
+  "PROCEDURE",
+  "OTHER",
+];
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -130,6 +147,7 @@ function generateRevisionHistory(doc: {
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -140,12 +158,20 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const [isRejecting, setIsRejecting] = useState(false);
   const [linkPlOpen, setLinkPlOpen] = useState(false);
   const [selectedPlNumber, setSelectedPlNumber] = useState<string | null>(null);
+  const [metadataForm, setMetadataForm] = useState({
+    title: "",
+    category: "OTHER",
+    revision: "",
+    revisionDate: "",
+    agency: "",
+    tags: "",
+  });
 
   // Fetch document by ID
   const { data: doc, isLoading, isError, error, refetch } = trpc.documents.getById.useQuery({ id });
 
   // Fetch linked PLs
-  const { data: linkedPls } = trpc.documents.getLinkedPls.useQuery(
+  const { data: linkedPls, refetch: refetchLinkedPls } = trpc.documents.getLinkedPls.useQuery(
     { documentId: id },
     { enabled: !!doc },
   );
@@ -186,9 +212,31 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       setLinkPlOpen(false);
       setSelectedPlNumber(null);
       refetch();
+      refetchLinkedPls();
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const updateMetadataMutation = trpc.documents.update.useMutation({
+    onSuccess: () => {
+      toast.success("Document metadata updated");
+      router.replace(`/documents/${id}`);
+      refetch();
+    },
+    onError: (err) => toast.error(err.message || "Failed to update document metadata"),
+  });
+
+  useEffect(() => {
+    if (!doc) return;
+    setMetadataForm({
+      title: doc.title ?? "",
+      category: doc.category?.toUpperCase() ?? "OTHER",
+      revision: doc.revision ?? "",
+      revisionDate: doc.revisionDate ? new Date(doc.revisionDate).toISOString().slice(0, 10) : "",
+      agency: doc.workshop ?? "",
+      tags: doc.tags ?? "",
+    });
+  }, [doc]);
 
   // Transition mutation (FSM)
   const [transitioningTo, setTransitioningTo] = useState<string | null>(null);
@@ -256,6 +304,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const canApprove = docStatus === "UNDER_REVIEW";
   const canDelete = docStatus === "DRAFT";
   const canRevise = ["APPROVED", "ACTIVE"].includes(docStatus);
+  const isEditMode = canEdit && searchParams.get("edit") === "true";
 
   function handleDownload() {
     if (doc?.filePath) {
@@ -269,7 +318,6 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   function handleEdit() {
     router.push(`/documents/${doc?.id}?edit=true`);
-    toast.info("Entering edit mode");
   }
 
   function handleNewRevision() {
@@ -301,6 +349,22 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       return;
     }
     linkPlMutation.mutate({ documentId: doc.id, plId: selectedPlNumber });
+  }
+
+  function handleSaveMetadata() {
+    if (!doc) return;
+    updateMetadataMutation.mutate({
+      id: doc.id,
+      title: metadataForm.title.trim(),
+      category: metadataForm.category as UpdateDocumentInput["category"],
+      revision: metadataForm.revision.trim() || undefined,
+      revisionDate: metadataForm.revisionDate || null,
+      agency: metadataForm.agency.trim() || undefined,
+      tags: metadataForm.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    });
   }
 
   return (
@@ -446,59 +510,73 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
               <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">
                 Document Metadata
               </h3>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                <MetaField label="Document Number" value={doc.documentNumber} mono />
-                <MetaField label="Title" value={doc.title} />
-                <MetaField label="Category" value={docCategory.replace("_", " ")} />
-                <MetaField label="Status" value={docStatus.replace("_", " ")} />
-                <MetaField label="Revision" value={docRevision} mono />
-                <MetaField
-                  label="Revision Date"
-                  value={
-                    doc.revisionDate
-                      ? new Date(doc.revisionDate).toLocaleDateString("en-IN")
-                      : "Not set"
-                  }
+              {isEditMode ? (
+                <DocumentMetadataEditForm
+                  value={metadataForm}
+                  isSaving={updateMetadataMutation.isPending}
+                  onChange={setMetadataForm}
+                  onCancel={() => router.replace(`/documents/${doc.id}`)}
+                  onSave={handleSaveMetadata}
                 />
-                <MetaField label="Workshop" value={doc.workshop ?? "Not set"} />
-                <MetaField label="Owner" value={doc.createdBy ?? "Unknown"} />
-                <MetaField
-                  label="File Type"
-                  value={(doc.mimeType ?? "pdf").split("/").pop()?.toUpperCase() ?? "PDF"}
-                />
-                <MetaField label="File Size" value={formatFileSize(doc.fileSize ?? 0)} />
-                <MetaField label="Pages" value={String(doc.pageCount ?? 1)} />
-                <MetaField
-                  label="Created"
-                  value={doc.createdAt ? new Date(doc.createdAt).toLocaleDateString("en-IN") : "-"}
-                />
-                <MetaField
-                  label="Last Updated"
-                  value={doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString("en-IN") : "-"}
-                />
-                <MetaField label="Uploaded By" value={doc.createdBy ?? "Unknown"} />
-                <div className="col-span-2">
+              ) : (
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <MetaField label="Document Number" value={doc.documentNumber} mono />
+                  <MetaField label="Title" value={doc.title} />
+                  <MetaField label="Category" value={docCategory.replace("_", " ")} />
+                  <MetaField label="Status" value={docStatus.replace("_", " ")} />
+                  <MetaField label="Revision" value={docRevision} mono />
                   <MetaField
-                    label="File Hash (SHA-256)"
-                    value={doc.fileHash || "Not computed"}
-                    mono
+                    label="Revision Date"
+                    value={
+                      doc.revisionDate
+                        ? new Date(doc.revisionDate).toLocaleDateString("en-IN")
+                        : "Not set"
+                    }
                   />
-                </div>
-                {tags.length > 0 && (
+                  <MetaField label="Workshop" value={doc.workshop ?? "Not set"} />
+                  <MetaField label="Owner" value={doc.createdBy ?? "Unknown"} />
+                  <MetaField
+                    label="File Type"
+                    value={(doc.mimeType ?? "pdf").split("/").pop()?.toUpperCase() ?? "PDF"}
+                  />
+                  <MetaField label="File Size" value={formatFileSize(doc.fileSize ?? 0)} />
+                  <MetaField label="Pages" value={String(doc.pageCount ?? 1)} />
+                  <MetaField
+                    label="Created"
+                    value={
+                      doc.createdAt ? new Date(doc.createdAt).toLocaleDateString("en-IN") : "-"
+                    }
+                  />
+                  <MetaField
+                    label="Last Updated"
+                    value={
+                      doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString("en-IN") : "-"
+                    }
+                  />
+                  <MetaField label="Uploaded By" value={doc.createdBy ?? "Unknown"} />
                   <div className="col-span-2">
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                      Tags
-                    </span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-[10px]">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
+                    <MetaField
+                      label="File Hash (SHA-256)"
+                      value={doc.fileHash || "Not computed"}
+                      mono
+                    />
                   </div>
-                )}
-              </div>
+                  {tags.length > 0 && (
+                    <div className="col-span-2">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase">
+                        Tags
+                      </span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {tags.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-[10px]">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* OCR Section */}
@@ -775,5 +853,123 @@ function MetaField({
       <span className="text-[10px] font-medium text-muted-foreground uppercase">{label}</span>
       <span className={cn("text-xs text-foreground break-all", mono && "font-mono")}>{value}</span>
     </div>
+  );
+}
+function DocumentMetadataEditForm({
+  value,
+  isSaving,
+  onChange,
+  onCancel,
+  onSave,
+}: {
+  value: {
+    title: string;
+    category: string;
+    revision: string;
+    revisionDate: string;
+    agency: string;
+    tags: string;
+  };
+  isSaving: boolean;
+  onChange: (value: {
+    title: string;
+    category: string;
+    revision: string;
+    revisionDate: string;
+    agency: string;
+    tags: string;
+  }) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const updateField = (field: keyof typeof value, fieldValue: string) =>
+    onChange({ ...value, [field]: fieldValue });
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <EditField
+          label="Title"
+          value={value.title}
+          onChange={(next) => updateField("title", next)}
+          required
+        />
+        <label className="flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground">
+          Category
+          <select
+            value={value.category}
+            onChange={(event) => updateField("category", event.target.value)}
+            className="h-9 rounded-md border bg-background px-2 text-xs font-normal text-foreground"
+          >
+            {documentCategoryOptions.map((category) => (
+              <option key={category} value={category}>
+                {category.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        <EditField
+          label="Revision"
+          value={value.revision}
+          onChange={(next) => updateField("revision", next)}
+        />
+        <EditField
+          label="Revision Date"
+          type="date"
+          value={value.revisionDate}
+          onChange={(next) => updateField("revisionDate", next)}
+        />
+        <EditField
+          label="Workshop / Agency"
+          value={value.agency}
+          onChange={(next) => updateField("agency", next)}
+        />
+        <EditField
+          label="Tags"
+          value={value.tags}
+          onChange={(next) => updateField("tags", next)}
+          placeholder="comma,separated,tags"
+        />
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={onCancel} disabled={isSaving}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={onSave} disabled={isSaving || !value.title.trim()}>
+          {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          Save metadata
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function EditField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-[10px] font-medium uppercase text-muted-foreground">
+      {label}
+      <input
+        type={type}
+        value={value}
+        required={required}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 rounded-md border bg-background px-2 text-xs font-normal text-foreground"
+      />
+    </label>
   );
 }

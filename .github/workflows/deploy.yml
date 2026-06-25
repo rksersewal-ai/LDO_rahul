@@ -1,0 +1,73 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [staging, production]
+  push:
+    branches: [main]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      REDIS_URL: ${{ secrets.REDIS_URL }}
+      STORAGE_NAS_PATH: ${{ vars.STORAGE_NAS_PATH || './storage' }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+      DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.14
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Validate environment
+        run: bun run validate:env
+      - name: Validate migrations
+        run: bun run db:check
+      - name: Test
+        run: bun run test
+      - name: Build
+        run: bun run build
+      - name: Apply database migrations
+        run: bun run db:migrate
+      - name: Deploy application
+        run: |
+          if [[ -z "${DEPLOY_COMMAND:-}" ]]; then
+            echo "Set DEPLOY_COMMAND as an environment secret/variable for your platform-specific deploy step."
+            echo "Examples: vercel deploy --prod, fly deploy, kubectl rollout restart, or docker compose pull/up."
+            exit 1
+          fi
+          eval "$DEPLOY_COMMAND"
+        env:
+          DEPLOY_COMMAND: ${{ secrets.DEPLOY_COMMAND }}
+      - name: Post-deploy health check
+        run: |
+          if [[ -z "${DEPLOY_HEALTH_URL}" ]]; then
+            echo "DEPLOY_HEALTH_URL is not configured; skipping HTTP health verification."
+            exit 0
+          fi
+          for attempt in {1..10}; do
+            if curl --fail --silent --show-error "${DEPLOY_HEALTH_URL}"; then
+              echo "Health check passed."
+              exit 0
+            fi
+            echo "Health check attempt ${attempt} failed; retrying..."
+            sleep 10
+          done
+          echo "Deployment health check failed. Start rollback using the previous artifact/release."
+          exit 1

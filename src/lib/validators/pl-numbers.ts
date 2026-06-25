@@ -98,6 +98,7 @@ export const createPlSchema = z.object({
 
 export const updatePlSchema = z.object({
   id: z.string(),
+  expectedUpdatedAt: z.string().datetime().optional(),
   name: z.string().min(1).max(500).optional(),
   description: z.string().optional(),
   category: plCategoryEnum.optional(),

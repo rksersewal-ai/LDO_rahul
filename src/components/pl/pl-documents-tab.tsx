@@ -1,6 +1,7 @@
 "use client";
 
-import { Link2, Trash2 } from "lucide-react";
+import { ExternalLink, Eye, Link2, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -192,17 +193,37 @@ export function PlDocumentsTab({ plId }: PlDocumentsTabProps) {
                       </Button>
                     </div>
                   ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 text-[10px] px-1.5 text-destructive hover:text-destructive"
-                      onClick={() =>
-                        setUnlinkTarget({ documentId: doc.documentId, title: doc.title })
-                      }
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      Unlink
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1.5 text-[10px]"
+                        render={<Link href={`/documents/${doc.documentId}/preview`} />}
+                      >
+                        <Eye className="h-3 w-3" />
+                        Preview
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1.5 text-[10px]"
+                        render={<Link href={`/documents/${doc.documentId}`} />}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Open
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1.5 text-[10px] text-destructive hover:text-destructive"
+                        onClick={() =>
+                          setUnlinkTarget({ documentId: doc.documentId, title: doc.title })
+                        }
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Unlink
+                      </Button>
+                    </div>
                   )}
                 </td>
               </tr>

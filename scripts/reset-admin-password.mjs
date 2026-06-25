@@ -60,16 +60,12 @@ async function resetAdminPassword() {
 
     // Verify the password works
     const { compare } = await import("bcryptjs");
-    const verifyResult = await pool.query(
-      `SELECT password_hash FROM "users" WHERE username = $1`,
-      ["admin"],
-    );
+    const verifyResult = await pool.query(`SELECT password_hash FROM "users" WHERE username = $1`, [
+      "admin",
+    ]);
 
     if (verifyResult.rows.length > 0) {
-      const passwordMatches = await compare(
-        newPassword,
-        verifyResult.rows[0].password_hash,
-      );
+      const passwordMatches = await compare(newPassword, verifyResult.rows[0].password_hash);
       console.log(`\n✓ Password verification: ${passwordMatches ? "PASSED" : "FAILED"}`);
     }
 

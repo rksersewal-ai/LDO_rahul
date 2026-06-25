@@ -47,5 +47,7 @@ export const documentPlLinks = pgTable(
     unique("uq_document_pl_links_doc_pl").on(table.documentId, table.plNumberId),
     index("idx_doc_pl_links_document_id").on(table.documentId),
     index("idx_doc_pl_links_pl_number_id").on(table.plNumberId),
+    index("idx_doc_pl_links_pl_linked_at").on(table.plNumberId, table.linkedAt),
+    index("idx_doc_pl_links_doc_linked_at").on(table.documentId, table.linkedAt),
   ],
 );

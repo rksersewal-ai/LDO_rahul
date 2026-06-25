@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, getDbPoolStats } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,14 +43,28 @@ export async function GET(_request: NextRequest) {
     }
   }
 
+  const memory = process.memoryUsage();
   const response = {
     status: overallStatus,
     timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.round(process.uptime()),
     services,
+    resources: {
+      memory: {
+        rssMb: Math.round(memory.rss / 1024 / 1024),
+        heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+      },
+      databasePool: getDbPoolStats(),
+    },
   };
 
   const httpStatus = overallStatus === "unhealthy" ? 503 : 200;
-  return NextResponse.json(response, { status: httpStatus });
+  return NextResponse.json(response, {
+    status: httpStatus,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+    },
+  });
 }
 
 async function checkDatabase(): Promise<ServiceCheck> {

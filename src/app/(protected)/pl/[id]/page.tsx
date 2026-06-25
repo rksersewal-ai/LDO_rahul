@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Shield } from "lucide-react";
+import { ArrowLeft, Pencil, Shield } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use } from "react";
@@ -134,6 +134,15 @@ export default function PlDetailPage({ params }: { params: Promise<{ id: string 
             <h2 className="text-lg font-medium text-foreground">{pl.name}</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">{pl.description}</p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 shrink-0 gap-1 text-xs"
+            render={<Link href={`/pl/${pl.id}/edit`} />}
+          >
+            <Pencil className="h-3 w-3" />
+            Edit PL
+          </Button>
         </div>
 
         {/* Inspection Warning Banner for CAT-A items */}
