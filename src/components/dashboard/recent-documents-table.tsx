@@ -36,6 +36,16 @@ interface RecentDocumentsTableProps {
   className?: string;
 }
 
+const columnOptions = [
+  { id: "documentNumber", label: "Document #" },
+  { id: "title", label: "Title" },
+  { id: "category", label: "Category" },
+  { id: "status", label: "Status" },
+  { id: "owner", label: "Owner" },
+  { id: "date", label: "Date" },
+  { id: "ocrStatus", label: "OCR Status" },
+] as const;
+
 const ocrStatusLabels: Record<RecentDocument["ocrStatus"], { label: string; variant: string }> = {
   completed: { label: "Completed", variant: "success" },
   processing: { label: "Processing", variant: "primary" },
@@ -52,24 +62,46 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
   const [showFilters, setShowFilters] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [ocrFilter, setOcrFilter] = useState("all");
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(
+    columnOptions.map((column) => column.id),
+  );
+
+  const filterOptions = useMemo(
+    () => ({
+      categories: Array.from(new Set(data.map((d) => d.category))).sort(),
+      statuses: Array.from(new Set(data.map((d) => d.status))).sort(),
+      ocrStatuses: Array.from(new Set(data.map((d) => d.ocrStatus))).sort(),
+    }),
+    [data],
+  );
 
   const filteredData = useMemo(() => {
-    if (!search) return data;
-    const q = search.toLowerCase();
-    return data.filter(
-      (d) =>
+    const q = search.toLowerCase().trim();
+    return data.filter((d) => {
+      const matchesSearch =
+        !q ||
         d.documentNumber.toLowerCase().includes(q) ||
         d.title.toLowerCase().includes(q) ||
         d.category.toLowerCase().includes(q) ||
-        d.owner.toLowerCase().includes(q),
-    );
-  }, [data, search]);
+        d.owner.toLowerCase().includes(q);
+      return (
+        matchesSearch &&
+        (categoryFilter === "all" || d.category === categoryFilter) &&
+        (statusFilter === "all" || d.status === statusFilter) &&
+        (ocrFilter === "all" || d.ocrStatus === ocrFilter)
+      );
+    });
+  }, [categoryFilter, data, ocrFilter, search, statusFilter]);
 
   const totalPages = Math.ceil(filteredData.length / pageSize);
   const paginatedData = filteredData.slice(page * pageSize, (page + 1) * pageSize);
 
-  const columns: ColumnDef<RecentDocument, unknown>[] = [
+  const baseColumns: ColumnDef<RecentDocument, unknown>[] = [
     {
+      id: "documentNumber",
       accessorKey: "documentNumber",
       header: "Document #",
       size: 140,
@@ -78,6 +110,7 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
       ),
     },
     {
+      id: "title",
       accessorKey: "title",
       header: "Title",
       size: 260,
@@ -88,28 +121,33 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
       ),
     },
     {
+      id: "category",
       accessorKey: "category",
       header: "Category",
       size: 110,
       cell: ({ row }) => <Badge variant="secondary">{row.original.category}</Badge>,
     },
     {
+      id: "status",
       accessorKey: "status",
       header: "Status",
       size: 110,
       cell: ({ row }) => <StatusBadge status={row.original.status as StatusType} />,
     },
     {
+      id: "owner",
       accessorKey: "owner",
       header: "Owner",
       size: 130,
     },
     {
+      id: "date",
       accessorKey: "date",
       header: "Date",
       size: 100,
     },
     {
+      id: "ocrStatus",
       accessorKey: "ocrStatus",
       header: "OCR Status",
       size: 110,
@@ -152,6 +190,10 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
     },
   ];
 
+  const columns = baseColumns.filter(
+    (column) => column.id === "actions" || (column.id ? visibleColumns.includes(column.id) : true),
+  );
+
   return (
     <div className={cn("rounded-lg border bg-card", className)}>
       {/* Toolbar */}
@@ -185,10 +227,46 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
               Filter
             </Button>
             {showFilters && (
-              <div className="absolute top-full left-0 z-20 mt-1 w-48 rounded-lg border bg-popover p-3 shadow-[var(--shadow-popover)]">
-                <p className="text-[var(--text-xs)] text-muted-foreground">
-                  Filter options coming soon
-                </p>
+              <div className="absolute top-full left-0 z-20 mt-1 w-56 space-y-2 rounded-lg border bg-popover p-3 shadow-[var(--shadow-popover)]">
+                <FilterSelect
+                  label="Category"
+                  value={categoryFilter}
+                  onChange={(value) => {
+                    setCategoryFilter(value);
+                    setPage(0);
+                  }}
+                  options={filterOptions.categories}
+                />
+                <FilterSelect
+                  label="Status"
+                  value={statusFilter}
+                  onChange={(value) => {
+                    setStatusFilter(value);
+                    setPage(0);
+                  }}
+                  options={filterOptions.statuses}
+                />
+                <FilterSelect
+                  label="OCR"
+                  value={ocrFilter}
+                  onChange={(value) => {
+                    setOcrFilter(value);
+                    setPage(0);
+                  }}
+                  options={filterOptions.ocrStatuses}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-full text-xs"
+                  onClick={() => {
+                    setCategoryFilter("all");
+                    setStatusFilter("all");
+                    setOcrFilter("all");
+                  }}
+                >
+                  Clear filters
+                </Button>
               </div>
             )}
           </div>
@@ -205,10 +283,23 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
               Columns
             </Button>
             {showColumns && (
-              <div className="absolute top-full left-0 z-20 mt-1 w-48 rounded-lg border bg-popover p-3 shadow-[var(--shadow-popover)]">
-                <p className="text-[var(--text-xs)] text-muted-foreground">
-                  Column visibility coming soon
-                </p>
+              <div className="absolute top-full left-0 z-20 mt-1 w-48 space-y-1 rounded-lg border bg-popover p-3 shadow-[var(--shadow-popover)]">
+                {columnOptions.map((column) => (
+                  <label key={column.id} className="flex items-center gap-2 text-[var(--text-xs)]">
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns.includes(column.id)}
+                      onChange={(event) => {
+                        setVisibleColumns((current) =>
+                          event.target.checked
+                            ? [...current, column.id]
+                            : current.filter((id) => id !== column.id),
+                        );
+                      }}
+                    />
+                    {column.label}
+                  </label>
+                ))}
               </div>
             )}
           </div>
@@ -334,5 +425,34 @@ export function RecentDocumentsTable({ data, className }: RecentDocumentsTablePr
         </div>
       </div>
     </div>
+  );
+}
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-[var(--text-xs)] font-medium">
+      {label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-7 rounded-md border bg-background px-2 text-[var(--text-xs)] font-normal"
+      >
+        <option value="all">All</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option.replaceAll("_", " ")}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

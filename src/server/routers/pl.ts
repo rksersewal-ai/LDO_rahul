@@ -275,6 +275,18 @@ export const plRouter = router({
       throw new TRPCError({ code: "NOT_FOUND", message: "PL number not found" });
     }
 
+    if (input.expectedUpdatedAt) {
+      const expectedUpdatedAt = new Date(input.expectedUpdatedAt).getTime();
+      const currentUpdatedAt = oldPl.updatedAt ? new Date(oldPl.updatedAt).getTime() : null;
+      if (Number.isNaN(expectedUpdatedAt) || currentUpdatedAt !== expectedUpdatedAt) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "PL details changed since you opened this form. Refresh and review the latest data before saving.",
+        });
+      }
+    }
+
     // If safetyCritical is being changed, require supervisor+ role
     if (input.safetyCritical !== undefined && input.safetyCritical !== oldPl.safetyCritical) {
       if (!isRoleAtLeast(userRole, "supervisor")) {
@@ -311,7 +323,7 @@ export const plRouter = router({
       }
     }
 
-    const { id, ...updates } = input;
+    const { id, expectedUpdatedAt: _expectedUpdatedAt, ...updates } = input;
     const setValues: Record<string, unknown> = { updatedAt: new Date(), updatedBy: userId };
 
     if (updates.name !== undefined) setValues.name = sanitizeUserInput(updates.name);
@@ -699,6 +711,21 @@ export const plRouter = router({
       throw new TRPCError({ code: "NOT_FOUND", message: "PL number not found" });
     }
 
+    const [document] = await db
+      .select({ id: documents.id, documentNumber: documents.documentNumber })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, input.documentId),
+          eq(documents.workspaceId, workspaceId),
+          eq(documents.isDeleted, 0),
+        ),
+      );
+
+    if (!document) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+    }
+
     // Check if link already exists (upsert)
     const [existingLink] = await db
       .select()
@@ -750,7 +777,7 @@ export const plRouter = router({
       action: "pl.linkDocument",
       resourceType: "document_pl_link",
       resourceId: result.id,
-      details: `Linked document ${input.documentId} to PL ${pl.plNumber} (${input.linkType}, role: ${input.linkRole})`,
+      details: `Linked document ${document.documentNumber} to PL ${pl.plNumber} (${input.linkType}, role: ${input.linkRole})`,
       workspaceId,
     });
 
@@ -839,7 +866,11 @@ export const plRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "PL number not found" });
       }
 
-      const conditions = [eq(documentPlLinks.plNumberId, input.plId)];
+      const conditions = [
+        eq(documentPlLinks.plNumberId, input.plId),
+        eq(documents.workspaceId, workspaceId),
+        eq(documents.isDeleted, 0),
+      ];
 
       if (input.status) {
         conditions.push(
@@ -1220,7 +1251,13 @@ export const plRouter = router({
         })
         .from(documentPlLinks)
         .innerJoin(documents, eq(documentPlLinks.documentId, documents.id))
-        .where(eq(documentPlLinks.plNumberId, input.plId))
+        .where(
+          and(
+            eq(documentPlLinks.plNumberId, input.plId),
+            eq(documents.workspaceId, workspaceId),
+            eq(documents.isDeleted, 0),
+          ),
+        )
         .orderBy(desc(documentPlLinks.linkedAt));
 
       return data;

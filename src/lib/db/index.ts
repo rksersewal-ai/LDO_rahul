@@ -3,37 +3,18 @@ import "@/lib/tls-init";
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { getDatabaseUrl } from "@/lib/env";
 import * as schema from "./schema";
 
 function getConnectionString(): string {
-  // Prefer DATABASE_URL, but fall back to POSTGRES_URL which is the variable
-  // provided by the Supabase/Vercel Postgres integration. This keeps the app
-  // working whether the connection string is configured manually or supplied
-  // automatically by the connected integration.
-  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-  if (
-    !url &&
-    process.env.NODE_ENV === "production" &&
-    process.env.NEXT_PHASE !== "phase-production-build"
-  ) {
-    throw new Error(
-      "DATABASE_URL (or POSTGRES_URL) environment variable is required in production",
-    );
-  }
-  if (!url) {
-    console.warn(
-      "[db] Neither DATABASE_URL nor POSTGRES_URL is set — falling back to local " +
-        "development default. Set DATABASE_URL explicitly to silence this warning.",
-    );
-  }
-  return url || "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
+  return getDatabaseUrl();
 }
 
 const globalForDb = globalThis as unknown as {
   pgPool: Pool | undefined;
 };
 
-const pool =
+export const pool =
   globalForDb.pgPool ??
   new Pool({
     connectionString: getConnectionString(),
@@ -57,3 +38,12 @@ globalForDb.pgPool = pool;
 export const db = drizzle(pool, { schema });
 
 export type Database = typeof db;
+
+export function getDbPoolStats() {
+  return {
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount,
+    max: Number(process.env.DB_POOL_MAX ?? "40"),
+  };
+}

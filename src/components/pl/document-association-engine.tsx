@@ -10,7 +10,8 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { FileText, GripVertical, Link2, Plus, Search, Unlink, X } from "lucide-react";
+import { Eye, FileText, GripVertical, Link2, Plus, Search, Unlink, X } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -186,6 +187,15 @@ function RoleColumn({
               <Button
                 variant="ghost"
                 size="sm"
+                className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                render={<Link href={`/documents/${doc.documentId}/preview`} />}
+                aria-label={`Preview ${doc.documentNumber}`}
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-destructive"
                 onClick={() => onUnlink(doc.documentId)}
                 aria-label={`Unlink ${doc.documentNumber}`}
@@ -269,7 +279,7 @@ export function DocumentAssociationEngine({ plId }: { plId: string }) {
 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div id="pl-document-search" className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Search / source panel */}
         <div className="flex flex-col gap-2 rounded-md border p-3">
           <div className="flex items-center gap-2">

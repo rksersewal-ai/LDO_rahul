@@ -25,7 +25,6 @@ const DATABASE_URL =
   "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
 
 const WS = "ws-default";
-const ORG = "org-default";
 const ADMIN = "user-admin";
 
 // Spread timestamps over the last N days so dashboards/charts look realistic.
@@ -130,9 +129,27 @@ async function seed() {
     await insert(
       "user_workspaces",
       [
-        { user_id: "user-eng-01", workspace_id: WS, role: "engineer", is_primary: true, assigned_by: ADMIN },
-        { user_id: "user-eng-02", workspace_id: WS, role: "engineer", is_primary: true, assigned_by: ADMIN },
-        { user_id: "user-rev-01", workspace_id: WS, role: "reviewer", is_primary: true, assigned_by: ADMIN },
+        {
+          user_id: "user-eng-01",
+          workspace_id: WS,
+          role: "engineer",
+          is_primary: true,
+          assigned_by: ADMIN,
+        },
+        {
+          user_id: "user-eng-02",
+          workspace_id: WS,
+          role: "engineer",
+          is_primary: true,
+          assigned_by: ADMIN,
+        },
+        {
+          user_id: "user-rev-01",
+          workspace_id: WS,
+          role: "reviewer",
+          is_primary: true,
+          assigned_by: ADMIN,
+        },
       ],
       "user_id, workspace_id",
     );
@@ -140,14 +157,94 @@ async function seed() {
     // ---- PL numbers (railway part-list knowledge hub) ----
     console.log("\nPL numbers...");
     const pls = [
-      { id: "pl-100", pl_number: "16734310", name: "Traction Motor TM-15", category: "CAT-A", safety_critical: true, manufacturer: "BHEL", part_family: "Traction", item_type: "VD", inspection_agency: "RDSO" },
-      { id: "pl-101", pl_number: "16734328", name: "Brake Cylinder Assembly", category: "CAT-A", safety_critical: true, manufacturer: "Knorr-Bremse", part_family: "Brakes", item_type: "VD", inspection_agency: "RDSO" },
-      { id: "pl-102", pl_number: "16720045", name: "Bogie Frame Casting", category: "CAT-B", safety_critical: true, manufacturer: "Texmaco", part_family: "Bogie", item_type: "VD", inspection_agency: "ZONAL" },
-      { id: "pl-103", pl_number: "16710092", name: "Roof Mounted AC Package", category: "CAT-B", safety_critical: false, manufacturer: "Stesalit", part_family: "HVAC", item_type: "VD", inspection_agency: "WORKSHOP" },
-      { id: "pl-104", pl_number: "16702213", name: "Axle Box Bearing", category: "CAT-A", safety_critical: true, manufacturer: "SKF", part_family: "Running Gear", item_type: "VD", inspection_agency: "RDSO" },
-      { id: "pl-105", pl_number: "16688170", name: "Pantograph High Reach", category: "CAT-A", safety_critical: true, manufacturer: "Faiveley", part_family: "Current Collection", item_type: "VD", inspection_agency: "RDSO" },
-      { id: "pl-106", pl_number: "16655401", name: "Coupler Draft Gear", category: "CAT-C", safety_critical: false, manufacturer: "Escorts", part_family: "Coupling", item_type: "NVD", inspection_agency: "STORES" },
-      { id: "pl-107", pl_number: "16640088", name: "Control Electronics Card VCU", category: "CAT-B", safety_critical: false, manufacturer: "Medha", part_family: "Electronics", item_type: "VD", inspection_agency: "WORKSHOP" },
+      {
+        id: "pl-100",
+        pl_number: "16734310",
+        name: "Traction Motor TM-15",
+        category: "CAT-A",
+        safety_critical: true,
+        manufacturer: "BHEL",
+        part_family: "Traction",
+        item_type: "VD",
+        inspection_agency: "RDSO",
+      },
+      {
+        id: "pl-101",
+        pl_number: "16734328",
+        name: "Brake Cylinder Assembly",
+        category: "CAT-A",
+        safety_critical: true,
+        manufacturer: "Knorr-Bremse",
+        part_family: "Brakes",
+        item_type: "VD",
+        inspection_agency: "RDSO",
+      },
+      {
+        id: "pl-102",
+        pl_number: "16720045",
+        name: "Bogie Frame Casting",
+        category: "CAT-B",
+        safety_critical: true,
+        manufacturer: "Texmaco",
+        part_family: "Bogie",
+        item_type: "VD",
+        inspection_agency: "ZONAL",
+      },
+      {
+        id: "pl-103",
+        pl_number: "16710092",
+        name: "Roof Mounted AC Package",
+        category: "CAT-B",
+        safety_critical: false,
+        manufacturer: "Stesalit",
+        part_family: "HVAC",
+        item_type: "VD",
+        inspection_agency: "WORKSHOP",
+      },
+      {
+        id: "pl-104",
+        pl_number: "16702213",
+        name: "Axle Box Bearing",
+        category: "CAT-A",
+        safety_critical: true,
+        manufacturer: "SKF",
+        part_family: "Running Gear",
+        item_type: "VD",
+        inspection_agency: "RDSO",
+      },
+      {
+        id: "pl-105",
+        pl_number: "16688170",
+        name: "Pantograph High Reach",
+        category: "CAT-A",
+        safety_critical: true,
+        manufacturer: "Faiveley",
+        part_family: "Current Collection",
+        item_type: "VD",
+        inspection_agency: "RDSO",
+      },
+      {
+        id: "pl-106",
+        pl_number: "16655401",
+        name: "Coupler Draft Gear",
+        category: "CAT-C",
+        safety_critical: false,
+        manufacturer: "Escorts",
+        part_family: "Coupling",
+        item_type: "NVD",
+        inspection_agency: "STORES",
+      },
+      {
+        id: "pl-107",
+        pl_number: "16640088",
+        name: "Control Electronics Card VCU",
+        category: "CAT-B",
+        safety_critical: false,
+        manufacturer: "Medha",
+        part_family: "Electronics",
+        item_type: "VD",
+        inspection_agency: "WORKSHOP",
+      },
     ];
     await insert(
       "pl_numbers",
@@ -179,11 +276,46 @@ async function seed() {
     // ---- BOM products + entries ----
     console.log("\nBOM products & entries...");
     const products = [
-      { id: "bom-wag9", code: "WAG-9", name: "WAG-9 Freight Locomotive", type: "locomotive", gauge: "broad_gauge", pl: "pl-100" },
-      { id: "bom-wap7", code: "WAP-7", name: "WAP-7 Passenger Locomotive", type: "locomotive", gauge: "broad_gauge", pl: "pl-100" },
-      { id: "bom-lhb", code: "LHB-AC3", name: "LHB AC 3-Tier Coach", type: "coach", gauge: "broad_gauge", pl: "pl-103" },
-      { id: "bom-bogie", code: "FIAT-BOGIE", name: "FIAT Bogie Assembly", type: "assembly", gauge: "broad_gauge", pl: "pl-102" },
-      { id: "bom-traction", code: "TRAC-PKG", name: "Traction Package 3-Phase", type: "sub_assembly", gauge: "broad_gauge", pl: "pl-100" },
+      {
+        id: "bom-wag9",
+        code: "WAG-9",
+        name: "WAG-9 Freight Locomotive",
+        type: "locomotive",
+        gauge: "broad_gauge",
+        pl: "pl-100",
+      },
+      {
+        id: "bom-wap7",
+        code: "WAP-7",
+        name: "WAP-7 Passenger Locomotive",
+        type: "locomotive",
+        gauge: "broad_gauge",
+        pl: "pl-100",
+      },
+      {
+        id: "bom-lhb",
+        code: "LHB-AC3",
+        name: "LHB AC 3-Tier Coach",
+        type: "coach",
+        gauge: "broad_gauge",
+        pl: "pl-103",
+      },
+      {
+        id: "bom-bogie",
+        code: "FIAT-BOGIE",
+        name: "FIAT Bogie Assembly",
+        type: "assembly",
+        gauge: "broad_gauge",
+        pl: "pl-102",
+      },
+      {
+        id: "bom-traction",
+        code: "TRAC-PKG",
+        name: "Traction Package 3-Phase",
+        type: "sub_assembly",
+        gauge: "broad_gauge",
+        pl: "pl-100",
+      },
     ];
     await insert(
       "bom_products",
@@ -212,10 +344,8 @@ async function seed() {
       ["VCU Electronics Card", "16640088", "pl-107", "PCB", 4],
     ];
     const entries = [];
-    let e = 0;
     for (const prod of products) {
       entryParts.forEach((part, idx) => {
-        e += 1;
         entries.push({
           id: `bome-${prod.id}-${idx + 1}`,
           bom_product_id: prod.id,
@@ -238,7 +368,20 @@ async function seed() {
 
     // ---- Rolling stock units ----
     console.log("\nRolling stock units...");
-    const statuses = ["active", "active", "under_overhaul", "active", "awaiting_commissioning", "transferred", "active", "condemned", "active", "under_overhaul", "active", "active"];
+    const statuses = [
+      "active",
+      "active",
+      "under_overhaul",
+      "active",
+      "awaiting_commissioning",
+      "transferred",
+      "active",
+      "condemned",
+      "active",
+      "under_overhaul",
+      "active",
+      "active",
+    ];
     const rsRows = Array.from({ length: 12 }).map((_, i) => {
       const isWap = i % 2 === 0;
       return {
@@ -263,24 +406,96 @@ async function seed() {
     // ---- Tags ----
     console.log("\nTags...");
     await insert("tags", [
-      { id: "tag-01", workspace_id: WS, name: "Safety Critical", color: "#DC2626", created_by: ADMIN },
-      { id: "tag-02", workspace_id: WS, name: "RDSO Approved", color: "#16A34A", created_by: ADMIN },
-      { id: "tag-03", workspace_id: WS, name: "Revision Pending", color: "#D97706", created_by: ADMIN },
-      { id: "tag-04", workspace_id: WS, name: "Vendor Document", color: "#2563EB", created_by: ADMIN },
+      {
+        id: "tag-01",
+        workspace_id: WS,
+        name: "Safety Critical",
+        color: "#DC2626",
+        created_by: ADMIN,
+      },
+      {
+        id: "tag-02",
+        workspace_id: WS,
+        name: "RDSO Approved",
+        color: "#16A34A",
+        created_by: ADMIN,
+      },
+      {
+        id: "tag-03",
+        workspace_id: WS,
+        name: "Revision Pending",
+        color: "#D97706",
+        created_by: ADMIN,
+      },
+      {
+        id: "tag-04",
+        workspace_id: WS,
+        name: "Vendor Document",
+        color: "#2563EB",
+        created_by: ADMIN,
+      },
       { id: "tag-05", workspace_id: WS, name: "Archived", color: "#6B7280", created_by: ADMIN },
-      { id: "tag-06", workspace_id: WS, name: "Inspection Report", color: "#7C3AED", created_by: ADMIN },
+      {
+        id: "tag-06",
+        workspace_id: WS,
+        name: "Inspection Report",
+        color: "#7C3AED",
+        created_by: ADMIN,
+      },
     ]);
 
     // ---- Cabinets (with hierarchy) ----
     console.log("\nCabinets...");
     await insert("cabinets", [
-      { id: "cab-01", workspace_id: WS, name: "Locomotive Drawings", description: "All loco GA & sub-assembly drawings", color: "#2563EB", icon: "folder", created_by: ADMIN },
-      { id: "cab-02", workspace_id: WS, name: "Coach Documents", description: "LHB / ICF coach documentation", color: "#16A34A", icon: "folder", created_by: ADMIN },
-      { id: "cab-03", workspace_id: WS, name: "Quality Certificates", description: "Test & material certificates", color: "#D97706", icon: "folder", created_by: ADMIN },
+      {
+        id: "cab-01",
+        workspace_id: WS,
+        name: "Locomotive Drawings",
+        description: "All loco GA & sub-assembly drawings",
+        color: "#2563EB",
+        icon: "folder",
+        created_by: ADMIN,
+      },
+      {
+        id: "cab-02",
+        workspace_id: WS,
+        name: "Coach Documents",
+        description: "LHB / ICF coach documentation",
+        color: "#16A34A",
+        icon: "folder",
+        created_by: ADMIN,
+      },
+      {
+        id: "cab-03",
+        workspace_id: WS,
+        name: "Quality Certificates",
+        description: "Test & material certificates",
+        color: "#D97706",
+        icon: "folder",
+        created_by: ADMIN,
+      },
     ]);
     await insert("cabinets", [
-      { id: "cab-04", workspace_id: WS, name: "WAG-9", description: "WAG-9 specific drawings", parent_id: "cab-01", color: "#3B82F6", icon: "folder", created_by: ADMIN },
-      { id: "cab-05", workspace_id: WS, name: "WAP-7", description: "WAP-7 specific drawings", parent_id: "cab-01", color: "#3B82F6", icon: "folder", created_by: ADMIN },
+      {
+        id: "cab-04",
+        workspace_id: WS,
+        name: "WAG-9",
+        description: "WAG-9 specific drawings",
+        parent_id: "cab-01",
+        color: "#3B82F6",
+        icon: "folder",
+        created_by: ADMIN,
+      },
+      {
+        id: "cab-05",
+        workspace_id: WS,
+        name: "WAP-7",
+        description: "WAP-7 specific drawings",
+        parent_id: "cab-01",
+        color: "#3B82F6",
+        icon: "folder",
+        created_by: ADMIN,
+      },
     ]);
 
     // ---- Documents ----
@@ -360,14 +575,70 @@ async function seed() {
     // ---- Cases ----
     console.log("\nCases...");
     const caseDefs = [
-      ["Premature bearing wear on WAG9-31200", "investigating", "high", "Quality", "user-eng-01", "Rahul Banerjee"],
-      ["Brake cylinder leakage during testing", "open", "critical", "Safety", "user-rev-01", "Arif Khan"],
-      ["Drawing revision mismatch - bogie", "resolved", "medium", "Documentation", "user-eng-02", "Sunita Iyer"],
-      ["Vendor delay - SKF bearings", "open", "low", "Procurement", "user-eng-01", "Rahul Banerjee"],
-      ["Pantograph arcing reported ELS Howrah", "escalated", "high", "Maintenance", "user-rev-01", "Arif Khan"],
-      ["AC package noise complaint LHB", "investigating", "medium", "Comfort", "user-eng-02", "Sunita Iyer"],
-      ["Coupler draft gear tolerance issue", "closed", "low", "Quality", "user-eng-01", "Rahul Banerjee"],
-      ["VCU firmware version conflict", "open", "high", "Electronics", "user-eng-02", "Sunita Iyer"],
+      [
+        "Premature bearing wear on WAG9-31200",
+        "investigating",
+        "high",
+        "Quality",
+        "user-eng-01",
+        "Rahul Banerjee",
+      ],
+      [
+        "Brake cylinder leakage during testing",
+        "open",
+        "critical",
+        "Safety",
+        "user-rev-01",
+        "Arif Khan",
+      ],
+      [
+        "Drawing revision mismatch - bogie",
+        "resolved",
+        "medium",
+        "Documentation",
+        "user-eng-02",
+        "Sunita Iyer",
+      ],
+      [
+        "Vendor delay - SKF bearings",
+        "open",
+        "low",
+        "Procurement",
+        "user-eng-01",
+        "Rahul Banerjee",
+      ],
+      [
+        "Pantograph arcing reported ELS Howrah",
+        "escalated",
+        "high",
+        "Maintenance",
+        "user-rev-01",
+        "Arif Khan",
+      ],
+      [
+        "AC package noise complaint LHB",
+        "investigating",
+        "medium",
+        "Comfort",
+        "user-eng-02",
+        "Sunita Iyer",
+      ],
+      [
+        "Coupler draft gear tolerance issue",
+        "closed",
+        "low",
+        "Quality",
+        "user-eng-01",
+        "Rahul Banerjee",
+      ],
+      [
+        "VCU firmware version conflict",
+        "open",
+        "high",
+        "Electronics",
+        "user-eng-02",
+        "Sunita Iyer",
+      ],
     ];
     await insert(
       "cases",
@@ -438,17 +709,104 @@ async function seed() {
     // ---- Notifications (for admin) ----
     console.log("\nNotifications...");
     await insert("notifications", [
-      { id: "ntf-01", user_id: ADMIN, notification_type: "approval_request", title: "Approval requested", message: "QAP - Traction (doc-009) awaits your approval.", entity_type: "document", entity_id: "doc-009", is_read: false, action_url: "/documents/doc-009", workspace_id: WS, created_at: daysAgo(1) },
-      { id: "ntf-02", user_id: ADMIN, notification_type: "document_upload", title: "New document uploaded", message: "Schedule of Requirements 2024 was uploaded.", entity_type: "document", entity_id: "doc-013", is_read: false, action_url: "/documents/doc-013", workspace_id: WS, created_at: daysAgo(2) },
-      { id: "ntf-03", user_id: ADMIN, notification_type: "case_assigned", title: "Case escalated", message: "CASE-2024-0005 (Pantograph arcing) was escalated.", entity_type: "case", entity_id: "case-005", is_read: false, action_url: "/cases/case-005", workspace_id: WS, created_at: daysAgo(3) },
-      { id: "ntf-04", user_id: ADMIN, notification_type: "document_comment", title: "New comment", message: "Sunita Iyer commented on the LHB wiring diagram.", entity_type: "document", entity_id: "doc-006", is_read: true, read_at: daysAgo(3), action_url: "/documents/doc-006", workspace_id: WS, created_at: daysAgo(4) },
-      { id: "ntf-05", user_id: ADMIN, notification_type: "approval_decision", title: "Document approved", message: "WAP-7 Set List Rev C was approved.", entity_type: "document", entity_id: "doc-008", is_read: true, read_at: daysAgo(6), action_url: "/documents/doc-008", workspace_id: WS, created_at: daysAgo(6) },
-      { id: "ntf-06", user_id: ADMIN, notification_type: "system", title: "Welcome to LDO-2 EDMS", message: "Sample data has been loaded for preview.", entity_type: null, entity_id: null, is_read: true, read_at: daysAgo(7), action_url: null, workspace_id: WS, created_at: daysAgo(7) },
+      {
+        id: "ntf-01",
+        user_id: ADMIN,
+        notification_type: "approval_request",
+        title: "Approval requested",
+        message: "QAP - Traction (doc-009) awaits your approval.",
+        entity_type: "document",
+        entity_id: "doc-009",
+        is_read: false,
+        action_url: "/documents/doc-009",
+        workspace_id: WS,
+        created_at: daysAgo(1),
+      },
+      {
+        id: "ntf-02",
+        user_id: ADMIN,
+        notification_type: "document_upload",
+        title: "New document uploaded",
+        message: "Schedule of Requirements 2024 was uploaded.",
+        entity_type: "document",
+        entity_id: "doc-013",
+        is_read: false,
+        action_url: "/documents/doc-013",
+        workspace_id: WS,
+        created_at: daysAgo(2),
+      },
+      {
+        id: "ntf-03",
+        user_id: ADMIN,
+        notification_type: "case_assigned",
+        title: "Case escalated",
+        message: "CASE-2024-0005 (Pantograph arcing) was escalated.",
+        entity_type: "case",
+        entity_id: "case-005",
+        is_read: false,
+        action_url: "/cases/case-005",
+        workspace_id: WS,
+        created_at: daysAgo(3),
+      },
+      {
+        id: "ntf-04",
+        user_id: ADMIN,
+        notification_type: "document_comment",
+        title: "New comment",
+        message: "Sunita Iyer commented on the LHB wiring diagram.",
+        entity_type: "document",
+        entity_id: "doc-006",
+        is_read: true,
+        read_at: daysAgo(3),
+        action_url: "/documents/doc-006",
+        workspace_id: WS,
+        created_at: daysAgo(4),
+      },
+      {
+        id: "ntf-05",
+        user_id: ADMIN,
+        notification_type: "approval_decision",
+        title: "Document approved",
+        message: "WAP-7 Set List Rev C was approved.",
+        entity_type: "document",
+        entity_id: "doc-008",
+        is_read: true,
+        read_at: daysAgo(6),
+        action_url: "/documents/doc-008",
+        workspace_id: WS,
+        created_at: daysAgo(6),
+      },
+      {
+        id: "ntf-06",
+        user_id: ADMIN,
+        notification_type: "system",
+        title: "Welcome to LDO-2 EDMS",
+        message: "Sample data has been loaded for preview.",
+        entity_type: null,
+        entity_id: null,
+        is_read: true,
+        read_at: daysAgo(7),
+        action_url: null,
+        workspace_id: WS,
+        created_at: daysAgo(7),
+      },
     ]);
 
     // ---- Summary ----
     console.log("\n--- Summary ---");
-    for (const t of ["users", "pl_numbers", "bom_products", "bom_entries", "rolling_stock_units", "documents", "tags", "cabinets", "cases", "work_records", "notifications"]) {
+    for (const t of [
+      "users",
+      "pl_numbers",
+      "bom_products",
+      "bom_entries",
+      "rolling_stock_units",
+      "documents",
+      "tags",
+      "cabinets",
+      "cases",
+      "work_records",
+      "notifications",
+    ]) {
       const r = await pool.query(`SELECT count(*)::int AS c FROM "${t}"`);
       console.log(`  ${t.padEnd(22)} ${r.rows[0].c}`);
     }

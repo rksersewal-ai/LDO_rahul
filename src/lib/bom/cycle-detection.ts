@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import type { Database } from "@/lib/db";
 import { bomEntries } from "@/lib/db/schema";
 
 const MAX_ITERATIONS = 100;
@@ -7,13 +8,7 @@ const MAX_ITERATIONS = 100;
  * Minimal interface for the database instance used by cycle detection.
  * Only requires the select().from().where() chain pattern used internally.
  */
-export interface CycleDetectionDb {
-  select: (...args: any[]) => {
-    from: (...args: any[]) => {
-      where: (...args: any[]) => PromiseLike<Array<Record<string, any>>>;
-    };
-  };
-}
+export type CycleDetectionDb = Pick<Database, "select">;
 
 /**
  * Detect whether moving/adding an entry under a proposed parent would create

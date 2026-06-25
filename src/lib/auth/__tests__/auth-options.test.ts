@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 /**
  * Unit tests for the authorize logic in auth-options.ts.
@@ -105,9 +105,9 @@ async function authorizeLogic(
 describe("auth authorize logic", () => {
   let mockDb: MockDb;
   let mockBcrypt: MockBcrypt;
-  let mockFindUser: any;
-  let mockUpdateUser: any;
-  let mockCompare: any;
+  let mockFindUser: Mock<MockDb["findUser"]>;
+  let mockUpdateUser: Mock<MockDb["updateUser"]>;
+  let mockCompare: Mock<MockBcrypt["compare"]>;
 
   const activeUser: MockUser = {
     id: "u1",
