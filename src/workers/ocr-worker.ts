@@ -2,7 +2,6 @@ import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-// @ts-expect-error - sharp types not resolved with bundler moduleResolution
 import sharp from "sharp";
 
 import { db } from "@/lib/db";

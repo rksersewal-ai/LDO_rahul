@@ -1,4 +1,3 @@
-// @ts-expect-error - sharp types not resolved with bundler moduleResolution
 import sharp from "sharp";
 import { OCR_PIPELINE_CONFIG } from "./pipeline-config";
 

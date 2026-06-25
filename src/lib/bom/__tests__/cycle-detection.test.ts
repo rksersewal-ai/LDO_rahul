@@ -11,7 +11,7 @@ function _createMockDb(entries: Record<string, string | null>) {
   return {
     select: () => ({
       from: () => ({
-        where: (condition: any) => {
+        where: (condition: unknown) => {
           // Extract the ID being queried from the condition
           // In our implementation, we pass eq(bomEntries.id, currentId)
           // The mock needs to find the entry by ID from the condition value
@@ -31,12 +31,12 @@ function _createMockDb(entries: Record<string, string | null>) {
  * Drizzle's eq() returns an object with the column and value.
  * We inspect its structure to get the queried ID.
  */
-function extractIdFromCondition(condition: any): string | null {
+function extractIdFromCondition(condition: unknown): string | null {
   // Drizzle eq() returns a BinaryOperator with left (column) and right (value)
   if (condition && typeof condition === "object") {
     // Try common drizzle condition shapes
-    if ("value" in condition) return condition.value;
-    if ("right" in condition) return condition.right;
+    if ("value" in condition) return String(condition.value);
+    if ("right" in condition) return String(condition.right);
   }
   return null;
 }
@@ -54,7 +54,7 @@ function _createTreeDb(entries: Record<string, string | null>) {
   };
 
   const fromHandler = () => ({
-    where: (_condition: any) => {
+    where: (_condition: unknown) => {
       // The eq function from drizzle-orm produces an SQL chunk.
       // For testing we use a proxy approach to capture the ID being looked up.
       return whereHandler();
@@ -84,7 +84,7 @@ function _buildMockDb(_tree: Record<string, string | null>) {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockImplementation((_condition: any) => {
+    where: vi.fn().mockImplementation((_condition: unknown) => {
       // We need to figure out which ID was queried
       // The condition is eq(bomEntries.id, currentId) - drizzle returns a SQL object
       // Since we can't easily parse it, we'll use a different approach
