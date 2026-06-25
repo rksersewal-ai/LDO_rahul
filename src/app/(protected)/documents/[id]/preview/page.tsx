@@ -105,7 +105,6 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const router = useRouter();
   const [minimized, setMinimized] = useState(false);
-  const [isReindexing, setIsReindexing] = useState(false);
 
   // Fetch document
   const { data: doc, isLoading, isError, error, refetch } = trpc.documents.getById.useQuery({ id });
@@ -115,6 +114,14 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
     { documentId: id },
     { enabled: !!doc },
   );
+
+  const reindexMutation = trpc.ocr.retrigger.useMutation({
+    onSuccess: () => {
+      toast.success("OCR reindex queued successfully");
+      refetch();
+    },
+    onError: (err) => toast.error(err.message || "Failed to queue OCR reindex"),
+  });
 
   // OCR intelligence data (still from local utilities for structural analysis)
   const assertions = useMemo(() => (doc ? getAssertionsForDocument(doc.id) : []), [doc]);
@@ -209,7 +216,7 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
   const docStatus = doc.status?.toUpperCase() ?? "DRAFT";
   const fileType = doc.mimeType?.split("/").pop() ?? "pdf";
   const FileIcon = getFileIcon(fileType);
-  const fileUrl = doc.filePath || null;
+  const fileUrl = doc.filePath ? `/api/documents/${doc.id}/download` : null;
   const embedable = canEmbedFile(fileType, fileUrl);
   const isImage = isImageType(fileType);
 
@@ -469,21 +476,15 @@ export default function DocumentPreviewPage({ params }: { params: Promise<{ id: 
                         size="sm"
                         variant="secondary"
                         className="w-full"
-                        disabled={isReindexing}
-                        onClick={() => {
-                          setIsReindexing(true);
-                          setTimeout(() => {
-                            setIsReindexing(false);
-                            toast.success("OCR reindex queued successfully");
-                          }, 1200);
-                        }}
+                        disabled={reindexMutation.isPending}
+                        onClick={() => reindexMutation.mutate({ documentId: doc.id })}
                       >
-                        {isReindexing ? (
+                        {reindexMutation.isPending ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <RefreshCw className="h-3.5 w-3.5" />
                         )}
-                        {isReindexing ? "Reindexing..." : "Reindex"}
+                        {reindexMutation.isPending ? "Queueing..." : "Queue OCR reindex"}
                       </Button>
                     </div>
                   </div>

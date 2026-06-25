@@ -20,7 +20,7 @@
     "seed": "tsx scripts/seed.ts",
     "seed:mock": "node scripts/seed-mock-data.mjs",
     "workers": "tsx src/workers/start-workers.ts",
-    "graphify": "npx tsx scripts/update-graphify.ts",
+    "graphify": "tsx scripts/update-graphify.ts",
     "ci": "bun run validate:env && bun run db:check && bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {

@@ -145,7 +145,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const { data: doc, isLoading, isError, error, refetch } = trpc.documents.getById.useQuery({ id });
 
   // Fetch linked PLs
-  const { data: linkedPls } = trpc.documents.getLinkedPls.useQuery(
+  const { data: linkedPls, refetch: refetchLinkedPls } = trpc.documents.getLinkedPls.useQuery(
     { documentId: id },
     { enabled: !!doc },
   );
@@ -186,6 +186,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       setLinkPlOpen(false);
       setSelectedPlNumber(null);
       refetch();
+      refetchLinkedPls();
     },
     onError: (err) => toast.error(err.message),
   });
