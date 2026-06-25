@@ -1,10 +1,11 @@
 import NextAuth from "next-auth";
-import { authConfig } from "./auth-options";
-
 // Fail fast in production if the session-signing secret is missing or left at
 // the documented example value. A weak/known secret lets an attacker forge
 // session tokens. Skipped during the build phase, when secrets aren't present.
-const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+import { getAuthSecret } from "@/lib/env";
+import { authConfig } from "./auth-options";
+
+const authSecret = getAuthSecret();
 if (
   process.env.NODE_ENV === "production" &&
   process.env.NEXT_PHASE !== "phase-production-build" &&
