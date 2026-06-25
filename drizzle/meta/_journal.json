@@ -78,6 +78,13 @@
       "when": 1781262533800,
       "tag": "0010_document_pl_link_role",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781262533900,
+      "tag": "0011_production_readiness_indexes",
+      "breakpoints": true
     }
   ]
 }

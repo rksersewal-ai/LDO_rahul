@@ -14,7 +14,7 @@ const globalForDb = globalThis as unknown as {
   pgPool: Pool | undefined;
 };
 
-const pool =
+export const pool =
   globalForDb.pgPool ??
   new Pool({
     connectionString: getConnectionString(),
@@ -38,3 +38,12 @@ globalForDb.pgPool = pool;
 export const db = drizzle(pool, { schema });
 
 export type Database = typeof db;
+
+export function getDbPoolStats() {
+  return {
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount,
+    max: Number(process.env.DB_POOL_MAX ?? "40"),
+  };
+}

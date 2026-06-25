@@ -21,8 +21,15 @@
     "seed:mock": "node scripts/seed-mock-data.mjs",
     "workers": "tsx src/workers/start-workers.ts",
     "graphify": "tsx scripts/update-graphify.ts",
-    "ci": "bun run validate:env && bun run db:check && bun run lint && bun run typecheck && bun run test && bun run build",
-    "smoke:lan": "node scripts/smoke-lan.mjs"
+    "ci": "bun run validate:env && bun run db:check && bun run format:check && bun run lint && bun run typecheck && bun run test && bun run test:integration && bun run build",
+    "smoke:lan": "node scripts/smoke-lan.mjs",
+    "format:check": "biome format .",
+    "test:integration": "tsx scripts/integration-check.ts",
+    "load:test": "node scripts/load-test.mjs normal",
+    "load:test:smoke": "node scripts/load-test.mjs smoke",
+    "load:test:stress": "node scripts/load-test.mjs stress",
+    "load:test:spike": "node scripts/load-test.mjs spike",
+    "load:test:soak": "node scripts/load-test.mjs soak"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
