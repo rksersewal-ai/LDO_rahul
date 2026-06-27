@@ -45,7 +45,7 @@ export default function PlDocumentsPage({ params }: { params: Promise<{ id: stri
               variant="outline"
               size="sm"
               className="h-7 text-xs gap-1"
-              render={<a href="#pl-document-search" />}
+              render={<Link href="#pl-document-search" />}
             >
               <Plus className="h-3 w-3" />
               Link Document
