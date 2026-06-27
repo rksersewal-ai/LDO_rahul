@@ -915,20 +915,20 @@ export const documentsRouter = router({
           }
           break;
         }
-        for (const docId of processableIds) {
+        if (processableIds.length > 0) {
           try {
-            await db
-              .insert(documentTags)
-              .values({
-                documentId: docId,
-                tagId: input.value,
-                taggedBy: userId,
-              })
-              .onConflictDoNothing();
-            succeeded.push(docId);
-          } catch {
-            failed.push(docId);
-            errors.push({ id: docId, reason: "Failed to add tag" });
+            const values = processableIds.map((docId) => ({
+              documentId: docId,
+              tagId: input.value!,
+              taggedBy: userId,
+            }));
+            await db.insert(documentTags).values(values).onConflictDoNothing();
+            succeeded.push(...processableIds);
+          } catch (e) {
+            for (const id of processableIds) {
+              failed.push(id);
+              errors.push({ id, reason: "Failed to add tag in bulk" });
+            }
           }
         }
         break;
@@ -962,20 +962,20 @@ export const documentsRouter = router({
           }
           break;
         }
-        for (const docId of processableIds) {
+        if (processableIds.length > 0) {
           try {
-            await db
-              .insert(documentCabinets)
-              .values({
-                documentId: docId,
-                cabinetId: input.value,
-                addedBy: userId,
-              })
-              .onConflictDoNothing();
-            succeeded.push(docId);
-          } catch {
-            failed.push(docId);
-            errors.push({ id: docId, reason: "Failed to add to cabinet" });
+            const values = processableIds.map((docId) => ({
+              documentId: docId,
+              cabinetId: input.value!,
+              addedBy: userId,
+            }));
+            await db.insert(documentCabinets).values(values).onConflictDoNothing();
+            succeeded.push(...processableIds);
+          } catch (e) {
+            for (const id of processableIds) {
+              failed.push(id);
+              errors.push({ id, reason: "Failed to add to cabinet in bulk" });
+            }
           }
         }
         break;
