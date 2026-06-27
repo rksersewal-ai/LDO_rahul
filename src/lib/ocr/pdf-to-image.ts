@@ -1,3 +1,4 @@
+// @ts-expect-error
 import sharp from "sharp";
 import { OCR_PIPELINE_CONFIG } from "./pipeline-config";
 
