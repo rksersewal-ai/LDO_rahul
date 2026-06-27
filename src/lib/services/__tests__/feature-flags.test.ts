@@ -34,9 +34,7 @@ describe("FeatureFlagService", () => {
       const mockDate = new Date("2025-01-01T12:00:00Z");
 
       // Mock the global Date object for new Date()
-      vi.spyOn(global, "Date").mockImplementation(
-        () => mockDate as unknown as Date
-      );
+      vi.spyOn(global, "Date").mockImplementation(() => mockDate as unknown as Date);
 
       service.setEnabled(testKey, false);
 
