@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -333,8 +333,8 @@ export const bomRouter = router({
         await collectDescendants(input.entryId);
 
         // Delete all collected entries
-        for (const id of toRemove) {
-          await tx.delete(bomEntries).where(eq(bomEntries.id, id));
+        if (toRemove.size > 0) {
+          await tx.delete(bomEntries).where(inArray(bomEntries.id, Array.from(toRemove)));
         }
 
         // Reorder remaining siblings
