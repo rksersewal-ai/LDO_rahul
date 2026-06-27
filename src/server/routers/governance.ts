@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { requirePermission } from "@/lib/auth/permissions";
@@ -13,12 +13,7 @@ import {
   recordDeclarations,
   removedFileHashes,
 } from "@/lib/db/schema";
-import {
-  countActiveReferences,
-  isHashUnderLegalHold,
-  markHashRemovedIfOrphaned,
-  restoreHash,
-} from "@/lib/storage/hash-removal";
+import { markHashRemovedIfOrphaned, restoreHash } from "@/lib/storage/hash-removal";
 import { protectedProcedure, router } from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId?: string | null } } }): string {
@@ -658,21 +653,52 @@ export const governanceRouter = router({
         db.select({ total: sql<number>`count(*)::int` }).from(removedFileHashes).where(whereClause),
       ]);
 
+      const fileHashes = rows.map((r) => r.fileHash);
+      const activeReferencesMap = new Map<string, number>();
+      const underLegalHoldSet = new Set<string>();
+
+      if (fileHashes.length > 0) {
+        const [refCounts, holdChecks] = await Promise.all([
+          db
+            .select({
+              fileHash: documents.fileHash,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(documents)
+            .where(and(inArray(documents.fileHash, fileHashes), eq(documents.isDeleted, 0)))
+            .groupBy(documents.fileHash),
+          db
+            .select({
+              fileHash: documents.fileHash,
+            })
+            .from(documentLegalHolds)
+            .innerJoin(documents, eq(documents.id, documentLegalHolds.documentId))
+            .innerJoin(legalHolds, eq(legalHolds.id, documentLegalHolds.holdId))
+            .where(and(inArray(documents.fileHash, fileHashes), eq(legalHolds.status, "active")))
+            .groupBy(documents.fileHash),
+        ]);
+
+        for (const rc of refCounts) {
+          activeReferencesMap.set(rc.fileHash, rc.count);
+        }
+        for (const hc of holdChecks) {
+          underLegalHoldSet.add(hc.fileHash);
+        }
+      }
+
       // Annotate each hash with its live reference count and legal-hold status.
-      const items = await Promise.all(
-        rows.map(async (r) => ({
-          id: r.id,
-          fileHash: r.fileHash,
-          lastDocumentId: r.lastDocumentId,
-          removedBy: r.removedBy,
-          removedAt: r.removedAt.toISOString(),
-          reason: r.reason,
-          restoredAt: r.restoredAt?.toISOString() ?? null,
-          restoredBy: r.restoredBy,
-          activeReferences: await countActiveReferences(r.fileHash),
-          underLegalHold: await isHashUnderLegalHold(r.fileHash),
-        })),
-      );
+      const items = rows.map((r) => ({
+        id: r.id,
+        fileHash: r.fileHash,
+        lastDocumentId: r.lastDocumentId,
+        removedBy: r.removedBy,
+        removedAt: r.removedAt.toISOString(),
+        reason: r.reason,
+        restoredAt: r.restoredAt?.toISOString() ?? null,
+        restoredBy: r.restoredBy,
+        activeReferences: activeReferencesMap.get(r.fileHash) ?? 0,
+        underLegalHold: underLegalHoldSet.has(r.fileHash),
+      }));
 
       return { items, total: totalResult[0]?.total ?? 0 };
     }),
