@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -48,16 +48,21 @@ export const bomRouter = router({
     const workspaceId = requireWorkspaceId(ctx);
 
     const products = await db
-      .select({
-        ...getTableColumns(bomProducts),
-        entryCount: sql<number>`cast(count(${bomEntries.id}) as int)`,
-      })
+      .select()
       .from(bomProducts)
-      .leftJoin(bomEntries, eq(bomProducts.id, bomEntries.bomProductId))
-      .where(eq(bomProducts.workspaceId, workspaceId))
-      .groupBy(bomProducts.id);
+      .where(eq(bomProducts.workspaceId, workspaceId));
 
-    return products;
+    const results = await Promise.all(
+      products.map(async (product) => {
+        const [countResult] = await db
+          .select({ count: count() })
+          .from(bomEntries)
+          .where(eq(bomEntries.bomProductId, product.id));
+        return { ...product, entryCount: countResult?.count ?? 0 };
+      }),
+    );
+
+    return results;
   }),
 
   /** Get full product with tree entries */
