@@ -1,14 +1,14 @@
+import { eq } from "drizzle-orm";
+import { v4 as uuid } from "uuid";
 import { db } from "./src/lib/db";
 import {
   documents,
   documentTags,
-  workspaces,
-  users,
   organizations,
   tags,
+  users,
+  workspaces,
 } from "./src/lib/db/schema";
-import { v4 as uuid } from "uuid";
-import { eq } from "drizzle-orm";
 
 async function run() {
   const userId = uuid();

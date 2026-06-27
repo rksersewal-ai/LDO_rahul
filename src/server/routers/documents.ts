@@ -921,6 +921,7 @@ export const documentsRouter = router({
             .values(
               processableIds.map((docId) => ({
                 documentId: docId,
+                // biome-ignore lint/style/noNonNullAssertion: guaranteed by early return
                 tagId: input.value!,
                 taggedBy: userId,
               })),
@@ -970,6 +971,7 @@ export const documentsRouter = router({
             .values(
               processableIds.map((docId) => ({
                 documentId: docId,
+                // biome-ignore lint/style/noNonNullAssertion: guaranteed by early return
                 cabinetId: input.value!,
                 addedBy: userId,
               })),

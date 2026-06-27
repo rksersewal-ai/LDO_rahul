@@ -1,7 +1,7 @@
-import { db } from "./src/lib/db";
-import { documents, documentTags, workspaces, users } from "./src/lib/db/schema";
-import { v4 as uuid } from "uuid";
 import { eq } from "drizzle-orm";
+import { v4 as uuid } from "uuid";
+import { db } from "./src/lib/db";
+import { documents, documentTags, users, workspaces } from "./src/lib/db/schema";
 
 async function run() {
   console.log("Setting up benchmark data...");
