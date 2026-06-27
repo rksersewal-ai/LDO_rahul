@@ -1,3 +1,4 @@
+// @ts-expect-error - TS7016: sharp package.json exports resolution issue
 import sharp from "sharp";
 import { OCR_PIPELINE_CONFIG } from "./pipeline-config";
 
