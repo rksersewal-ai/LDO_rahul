@@ -2,6 +2,7 @@ import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+// @ts-expect-error - TS7016: sharp package.json exports resolution issue
 import sharp from "sharp";
 
 import { db } from "@/lib/db";

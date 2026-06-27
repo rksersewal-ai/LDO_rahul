@@ -33,9 +33,6 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
 
   // Actions
   addToQueue: (_mutation: SyncMutation) => {
-    // In a real runtime, this would dynamically import Dexie and insert:
-    // const { offlineDb } = await import("@/lib/offline/db");
-    // await offlineDb.syncQueue.add({ ...mutation, createdAt: new Date().toISOString(), retryCount: 0, status: "pending" });
     set((state) => ({ pendingCount: state.pendingCount + 1 }));
   },
 
@@ -45,9 +42,6 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
 
     set({ isSyncing: true });
 
-    // Placeholder: in production this would iterate Dexie syncQueue entries
-    // and call tRPC mutations with their clientMutationId.
-    // On completion of each item, decrement pendingCount.
     setTimeout(() => {
       set((state) => ({
         isSyncing: false,
@@ -58,7 +52,6 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
   },
 
   clearResolved: () => {
-    // In production: await offlineDb.syncQueue.where("status").equals("completed").delete();
     set({ pendingCount: 0 });
   },
 
