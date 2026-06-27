@@ -45,7 +45,12 @@ export default function PlDocumentsPage({ params }: { params: Promise<{ id: stri
               variant="outline"
               size="sm"
               className="h-7 text-xs gap-1"
-              render={<a href="#pl-document-search" />}
+              render={
+                /* biome-ignore lint/a11y/useAnchorContent: <Button> renders content inside */ <a
+                  href="#pl-document-search"
+                  aria-label="Search documents"
+                />
+              }
             >
               <Plus className="h-3 w-3" />
               Link Document
