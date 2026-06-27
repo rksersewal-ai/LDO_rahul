@@ -915,18 +915,20 @@ export const documentsRouter = router({
           }
           break;
         }
-        for (const docId of processableIds) {
-          try {
-            await db
-              .insert(documentTags)
-              .values({
+        try {
+          await db
+            .insert(documentTags)
+            .values(
+              processableIds.map((docId) => ({
                 documentId: docId,
-                tagId: input.value,
+                tagId: input.value!,
                 taggedBy: userId,
-              })
-              .onConflictDoNothing();
-            succeeded.push(docId);
-          } catch {
+              })),
+            )
+            .onConflictDoNothing();
+          succeeded.push(...processableIds);
+        } catch {
+          for (const docId of processableIds) {
             failed.push(docId);
             errors.push({ id: docId, reason: "Failed to add tag" });
           }
@@ -962,18 +964,20 @@ export const documentsRouter = router({
           }
           break;
         }
-        for (const docId of processableIds) {
-          try {
-            await db
-              .insert(documentCabinets)
-              .values({
+        try {
+          await db
+            .insert(documentCabinets)
+            .values(
+              processableIds.map((docId) => ({
                 documentId: docId,
-                cabinetId: input.value,
+                cabinetId: input.value!,
                 addedBy: userId,
-              })
-              .onConflictDoNothing();
-            succeeded.push(docId);
-          } catch {
+              })),
+            )
+            .onConflictDoNothing();
+          succeeded.push(...processableIds);
+        } catch {
+          for (const docId of processableIds) {
             failed.push(docId);
             errors.push({ id: docId, reason: "Failed to add to cabinet" });
           }
