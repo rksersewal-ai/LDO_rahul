@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock tesseract.js - vi.mock is hoisted, so use vi.fn() inline
-vi.mock("tesseract.js", () => ({
-  createWorker: vi.fn(),
-}));
+vi.mock("tesseract.js", async (importOriginal) => {
+  return {
+    ...((await importOriginal()) as any),
+    createWorker: vi.fn(),
+  };
+});
 
 import { createWorker } from "tesseract.js";
 import { recognizeImage } from "../tesseract-engine";

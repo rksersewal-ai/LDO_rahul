@@ -45,6 +45,7 @@ export default function PlDocumentsPage({ params }: { params: Promise<{ id: stri
               variant="outline"
               size="sm"
               className="h-7 text-xs gap-1"
+              // biome-ignore lint/a11y/useAnchorContent: Children are injected by Button
               render={<a href="#pl-document-search" />}
             >
               <Plus className="h-3 w-3" />
