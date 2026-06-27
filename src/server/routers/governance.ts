@@ -13,7 +13,11 @@ import {
   recordDeclarations,
   removedFileHashes,
 } from "@/lib/db/schema";
-import { isHashUnderLegalHold, markHashRemovedIfOrphaned, restoreHash } from "@/lib/storage/hash-removal";
+import {
+  isHashUnderLegalHold,
+  markHashRemovedIfOrphaned,
+  restoreHash,
+} from "@/lib/storage/hash-removal";
 import { protectedProcedure, router } from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId?: string | null } } }): string {

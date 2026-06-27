@@ -2,7 +2,7 @@ import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-// @ts-ignore
+// @ts-expect-error
 import sharp from "sharp";
 
 import { db } from "@/lib/db";
