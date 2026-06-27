@@ -13,7 +13,7 @@ import {
   recordDeclarations,
   removedFileHashes,
 } from "@/lib/db/schema";
-import { markHashRemovedIfOrphaned, restoreHash } from "@/lib/storage/hash-removal";
+import { isHashUnderLegalHold, markHashRemovedIfOrphaned, restoreHash } from "@/lib/storage/hash-removal";
 import { protectedProcedure, router } from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId?: string | null } } }): string {
@@ -679,10 +679,14 @@ export const governanceRouter = router({
         ]);
 
         for (const rc of refCounts) {
-          activeReferencesMap.set(rc.fileHash, rc.count);
+          if (rc.fileHash) {
+            activeReferencesMap.set(rc.fileHash, rc.count);
+          }
         }
         for (const hc of holdChecks) {
-          underLegalHoldSet.add(hc.fileHash);
+          if (hc.fileHash) {
+            underLegalHoldSet.add(hc.fileHash);
+          }
         }
       }
 
