@@ -52,6 +52,15 @@
     }
   },
   "files": {
-    "includes": ["src/**", "scripts/**", "*.ts", "*.json", "*.js", "*.mjs"]
+    "includes": [
+      "src/**",
+      "scripts/**",
+      "*.ts",
+      "*.json",
+      "*.js",
+      "*.mjs",
+      "!**/.next",
+      "!**/node_modules"
+    ]
   }
 }

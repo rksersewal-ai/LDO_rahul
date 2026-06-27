@@ -1,5 +1,5 @@
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 /**
  * NAS-backed file storage service with workspace isolation,
@@ -13,6 +13,16 @@ function getNasPath(): string {
 /** Exported for testing - gets the current NAS base path */
 export function getBasePath(): string {
   return getNasPath();
+}
+
+function assertInsideStorage(path: string): string {
+  const basePath = resolve(getNasPath());
+  const resolvedPath = resolve(path);
+  const relativePath = relative(basePath, resolvedPath);
+  if (relativePath === "" || relativePath.startsWith("..")) {
+    throw new Error("Refusing to access a file outside the configured storage directory.");
+  }
+  return resolvedPath;
 }
 
 // --- Retry Helper ---
@@ -96,9 +106,10 @@ export async function storeFile(
  * Retrieve a file from NAS storage by its full path.
  */
 export async function getFile(path: string): Promise<Buffer> {
+  const safePath = assertInsideStorage(path);
   return withRetry(async () => {
-    return await readFile(path);
-  }, `getFile(${path})`);
+    return await readFile(safePath);
+  }, `getFile(${safePath})`);
 }
 
 /**
@@ -111,9 +122,10 @@ export async function getFile(path: string): Promise<Buffer> {
  * `markHashRemovedIfOrphaned` in `@/lib/storage/hash-removal` instead.
  */
 export async function deleteFile(path: string): Promise<void> {
+  const safePath = assertInsideStorage(path);
   return withRetry(async () => {
-    await unlink(path);
-  }, `deleteFile(${path})`);
+    await unlink(safePath);
+  }, `deleteFile(${safePath})`);
 }
 
 /**

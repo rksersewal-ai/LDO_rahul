@@ -72,17 +72,17 @@ async function getRedis() {
 }
 
 /** In-memory sliding window check. Throws TOO_MANY_REQUESTS when exceeded. */
-function checkInMemory(userId: string): void {
+function checkInMemory(key: string, maxRequests = MAX_REQUESTS): void {
   ensureCleanupStarted();
   const now = Date.now();
-  const entry = rateLimitStore.get(userId);
+  const entry = rateLimitStore.get(key);
 
   if (!entry || entry.resetAt <= now) {
-    rateLimitStore.set(userId, { count: 1, resetAt: now + WINDOW_MS });
+    rateLimitStore.set(key, { count: 1, resetAt: now + WINDOW_MS });
     return;
   }
 
-  if (entry.count >= MAX_REQUESTS) {
+  if (entry.count >= maxRequests) {
     throw new TRPCError({
       code: "TOO_MANY_REQUESTS",
       message: "Too many requests. Please wait a moment before trying again.",
@@ -98,12 +98,12 @@ function checkInMemory(userId: string): void {
  * limit holds across every app instance. Returns false if Redis is unavailable
  * (caller then falls back to the in-memory window).
  */
-async function checkRedis(userId: string): Promise<boolean> {
+async function checkRedis(keySuffix: string, maxRequests = MAX_REQUESTS): Promise<boolean> {
   const redis = await getRedis();
   if (!redis) return false;
 
   try {
-    const key = `${REDIS_KEY_PREFIX}${userId}`;
+    const key = `${REDIS_KEY_PREFIX}${keySuffix}`;
     const count = await redis.incr(key);
     if (count === 1) {
       // First hit in this window — set the expiry.
@@ -112,7 +112,7 @@ async function checkRedis(userId: string): Promise<boolean> {
       return false;
     }
 
-    if (count > MAX_REQUESTS) {
+    if (count > maxRequests) {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
         message: "Too many requests. Please wait a moment before trying again.",
@@ -137,9 +137,24 @@ export async function checkRateLimit(userId: string | undefined): Promise<void> 
     return;
   }
 
-  const handledByRedis = await checkRedis(userId);
+  const handledByRedis = await checkRedis(`user:${userId}`);
   if (!handledByRedis) {
-    checkInMemory(userId);
+    checkInMemory(`user:${userId}`);
+  }
+}
+
+/**
+ * Rate limit a public or system action by an explicit key. Useful for LAN
+ * public endpoints such as share links where no authenticated user is present.
+ */
+export async function checkRateLimitKey(
+  key: string,
+  options: { maxRequests?: number } = {},
+): Promise<void> {
+  const maxRequests = options.maxRequests ?? MAX_REQUESTS;
+  const handledByRedis = await checkRedis(key, maxRequests);
+  if (!handledByRedis) {
+    checkInMemory(key, maxRequests);
   }
 }
 

@@ -79,7 +79,13 @@ export async function checkDuplicate(
   const existing = await db
     .select({ id: documents.id })
     .from(documents)
-    .where(and(eq(documents.fileHash, fileHash), eq(documents.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(documents.fileHash, fileHash),
+        eq(documents.workspaceId, workspaceId),
+        eq(documents.isDeleted, 0),
+      ),
+    )
     .limit(1);
 
   if (existing.length > 0) {

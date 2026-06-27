@@ -21,6 +21,21 @@ const DATABASE_URL =
   process.env.DATABASE_URL ||
   process.env.POSTGRES_URL ||
   "postgresql://postgres:postgres@localhost:5432/ldo2_edms";
+const DEFAULT_DEV_ADMIN_PASSWORD = "Admin@123";
+
+function getSeedAdminPassword(): string {
+  const password = process.env.SEED_ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD;
+  if (password) return password;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SEED_ADMIN_PASSWORD is required when running the seed script in production.");
+  }
+
+  console.warn(
+    "WARNING: using the development-only default admin password. Set SEED_ADMIN_PASSWORD for shared LAN environments.",
+  );
+  return DEFAULT_DEV_ADMIN_PASSWORD;
+}
 
 async function seed() {
   console.log("Connecting to database...");
@@ -65,7 +80,8 @@ async function seed() {
 
     // 3. Create admin user
     console.log("\n3. Creating admin user...");
-    const passwordHash = hashSync("Admin@123", 12);
+    const adminPassword = getSeedAdminPassword();
+    const passwordHash = hashSync(adminPassword, 12);
     await db
       .insert(users)
       .values({
@@ -80,11 +96,15 @@ async function seed() {
         employeeId: "EMP-ADMIN-001",
         role: "admin",
         isActive: true,
-        forcePasswordChange: false,
+        forcePasswordChange: true,
         workspaceId: "ws-default",
       })
       .onConflictDoNothing({ target: users.id });
-    console.log("   Done: user-admin (admin@ldo2.gov.in / Admin@123)");
+    console.log(
+      `   Done: user-admin (admin@ldo2.gov.in / ${
+        adminPassword === DEFAULT_DEV_ADMIN_PASSWORD ? "development default" : "provided secret"
+      }; password change required)`,
+    );
 
     // 4. Link admin user to workspace
     console.log("\n4. Linking admin user to workspace...");

@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc/client";
 export default function UserPreferencesPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Notification preferences
   const [emailNotifications, setEmailNotifications] = useState("true");
@@ -22,6 +23,7 @@ export default function UserPreferencesPage() {
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
 
     const prefs = [
       { key: "notifications.email.enabled", value: emailNotifications },
@@ -31,13 +33,15 @@ export default function UserPreferencesPage() {
       { key: "display.itemsPerPage", value: itemsPerPage },
     ];
 
-    for (const pref of prefs) {
-      await setUserPref.mutateAsync(pref);
+    try {
+      await Promise.all(prefs.map((pref) => setUserPref.mutateAsync(pref)));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Failed to save preferences.");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
   };
 
   return (
@@ -178,6 +182,7 @@ export default function UserPreferencesPage() {
             Preferences saved successfully.
           </span>
         )}
+        {saveError && <span className="text-sm text-destructive">{saveError}</span>}
       </div>
     </div>
   );

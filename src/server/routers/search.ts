@@ -1,6 +1,7 @@
-import { MOCK_DOCUMENTS } from "@/lib/mock-data/documents";
-import { MOCK_PL_NUMBERS } from "@/lib/mock-data/pl-numbers";
-import { MOCK_WORK_RECORDS } from "@/lib/mock-data/work-records";
+import { TRPCError } from "@trpc/server";
+import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { documents, plNumbers, workRecords } from "@/lib/db/schema";
 import type { SearchFacets, SearchResult, SearchSuggestion } from "@/lib/validators/search";
 import {
   documentSearchSchema,
@@ -10,12 +11,24 @@ import {
 } from "@/lib/validators/search";
 import { protectedProcedure, router } from "@/server/trpc";
 
+function requireWorkspaceId(ctx: { session: { user: { workspaceId: string | null } } }): string {
+  const workspaceId = ctx.session.user.workspaceId;
+  if (!workspaceId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No workspace assigned. Contact an administrator.",
+    });
+  }
+  return workspaceId;
+}
+
 function matchesQuery(text: string | null | undefined, query: string): boolean {
   if (!text) return false;
   return text.toLowerCase().includes(query.toLowerCase());
 }
 
-function getMatchText(text: string, query: string): string {
+function getMatchText(text: string | null | undefined, query: string): string {
+  if (!text) return "";
   const lower = text.toLowerCase();
   const idx = lower.indexOf(query.toLowerCase());
   if (idx === -1) return text.slice(0, 80);
@@ -26,43 +39,121 @@ function getMatchText(text: string, query: string): string {
   return `${prefix}${text.slice(start, end)}${suffix}`;
 }
 
-function searchDocuments(query: string): SearchResult[] {
-  return MOCK_DOCUMENTS.filter(
-    (doc) =>
-      matchesQuery(doc.title, query) ||
-      matchesQuery(doc.documentNumber, query) ||
-      matchesQuery(doc.ocrText, query) ||
-      doc.tags.some((t) => matchesQuery(t, query)),
-  ).map((doc) => ({
+function dateToString(value: Date | string | null): string {
+  if (!value) return new Date(0).toISOString();
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function likeQuery(query: string): string {
+  return `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+}
+
+function buildDocumentMatch(query: string) {
+  const term = likeQuery(query);
+  return or(
+    ilike(documents.title, term),
+    ilike(documents.documentNumber, term),
+    ilike(documents.description, term),
+    ilike(documents.ocrText, term),
+    ilike(documents.tags, term),
+  );
+}
+
+function buildPlMatch(query: string) {
+  const term = likeQuery(query);
+  return or(
+    ilike(plNumbers.plNumber, term),
+    ilike(plNumbers.name, term),
+    ilike(plNumbers.description, term),
+    ilike(plNumbers.drawingRef, term),
+    ilike(plNumbers.specification, term),
+    ilike(plNumbers.manufacturer, term),
+    ilike(plNumbers.vendorCode, term),
+  );
+}
+
+function buildWorkMatch(query: string) {
+  const term = likeQuery(query);
+  return or(
+    ilike(workRecords.title, term),
+    ilike(workRecords.workOrderNumber, term),
+    ilike(workRecords.description, term),
+    ilike(workRecords.locoNumber, term),
+    ilike(workRecords.workshop, term),
+    ilike(workRecords.section, term),
+  );
+}
+
+async function searchDocuments(query: string, workspaceId: string): Promise<SearchResult[]> {
+  const rows = await db
+    .select({
+      id: documents.id,
+      documentNumber: documents.documentNumber,
+      title: documents.title,
+      description: documents.description,
+      category: documents.category,
+      status: documents.status,
+      revision: documents.revision,
+      agency: documents.workshop,
+      ocrText: documents.ocrText,
+      tags: documents.tags,
+      createdAt: documents.createdAt,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.workspaceId, workspaceId),
+        eq(documents.isDeleted, 0),
+        buildDocumentMatch(query),
+      ),
+    )
+    .limit(100);
+
+  return rows.map((doc) => ({
     id: doc.id,
     type: "document" as const,
     title: `${doc.documentNumber} - ${doc.title}`,
-    subtitle: `${doc.category} | Rev ${doc.revision} | ${doc.agency}`,
+    subtitle: `${doc.category} | Rev ${doc.revision}${doc.agency ? ` | ${doc.agency}` : ""}`,
     matchText: getMatchText(
       matchesQuery(doc.title, query)
         ? doc.title
         : matchesQuery(doc.documentNumber, query)
           ? doc.documentNumber
-          : doc.ocrText || doc.title,
+          : matchesQuery(doc.description, query)
+            ? doc.description
+            : matchesQuery(doc.tags, query)
+              ? doc.tags
+              : doc.ocrText,
       query,
     ),
     badges: [doc.category, doc.status],
     url: `/documents/${doc.id}`,
-    createdAt: doc.createdAt,
+    createdAt: dateToString(doc.createdAt),
   }));
 }
 
-function searchPlNumbers(query: string): SearchResult[] {
-  return MOCK_PL_NUMBERS.filter(
-    (pl) =>
-      matchesQuery(pl.plNumber, query) ||
-      matchesQuery(pl.name, query) ||
-      matchesQuery(pl.description, query),
-  ).map((pl) => ({
+async function searchPlNumbers(query: string, workspaceId: string): Promise<SearchResult[]> {
+  const rows = await db
+    .select({
+      id: plNumbers.id,
+      plNumber: plNumbers.plNumber,
+      name: plNumbers.name,
+      description: plNumbers.description,
+      category: plNumbers.category,
+      status: plNumbers.status,
+      workshop: plNumbers.workshop,
+      safetyCritical: plNumbers.safetyCritical,
+      createdAt: plNumbers.createdAt,
+    })
+    .from(plNumbers)
+    .where(and(eq(plNumbers.workspaceId, workspaceId), buildPlMatch(query)))
+    .limit(100);
+
+  return rows.map((pl) => ({
     id: pl.id,
     type: "pl" as const,
     title: `${pl.plNumber} - ${pl.name}`,
-    subtitle: `${pl.category} | ${pl.workshop}`,
+    subtitle: `${pl.category}${pl.workshop ? ` | ${pl.workshop}` : ""}`,
     matchText: getMatchText(
       matchesQuery(pl.name, query)
         ? pl.name
@@ -73,72 +164,106 @@ function searchPlNumbers(query: string): SearchResult[] {
     ),
     badges: [pl.category, pl.status, ...(pl.safetyCritical ? ["Safety Critical"] : [])],
     url: `/pl/${pl.id}`,
-    createdAt: pl.createdAt,
+    createdAt: dateToString(pl.createdAt),
   }));
 }
 
-function searchWorkRecords(query: string): SearchResult[] {
-  return MOCK_WORK_RECORDS.filter(
-    (wr) =>
-      matchesQuery(wr.description, query) ||
-      matchesQuery(wr.referenceNumber, query) ||
-      matchesQuery(wr.workTypeLabel, query) ||
-      matchesQuery(wr.plNumber, query),
-  ).map((wr) => ({
+async function searchWorkRecords(query: string, workspaceId: string): Promise<SearchResult[]> {
+  const rows = await db
+    .select({
+      id: workRecords.id,
+      workOrderNumber: workRecords.workOrderNumber,
+      title: workRecords.title,
+      description: workRecords.description,
+      status: workRecords.status,
+      priority: workRecords.priority,
+      workshop: workRecords.workshop,
+      createdAt: workRecords.createdAt,
+    })
+    .from(workRecords)
+    .where(and(eq(workRecords.workspaceId, workspaceId), buildWorkMatch(query)))
+    .limit(100);
+
+  return rows.map((wr) => ({
     id: wr.id,
     type: "work_record" as const,
-    title: `${wr.referenceNumber} - ${wr.workTypeLabel}`,
-    subtitle: `${wr.workCategory} | ${wr.userName} | ${wr.date}`,
+    title: `${wr.workOrderNumber} - ${wr.title}`,
+    subtitle: `${wr.workshop ?? "Work record"}`,
     matchText: getMatchText(
-      matchesQuery(wr.description, query) ? wr.description : wr.referenceNumber,
+      matchesQuery(wr.description, query) ? wr.description : wr.workOrderNumber,
       query,
     ),
     badges: [wr.status, wr.priority],
     url: `/ledger?id=${wr.id}`,
-    createdAt: wr.createdAt,
+    createdAt: dateToString(wr.createdAt),
   }));
 }
 
+function applyResultFilters(
+  results: SearchResult[],
+  filters: { category?: string; status?: string } | undefined,
+): SearchResult[] {
+  let filtered = results;
+  if (filters?.category) {
+    filtered = filtered.filter((r) =>
+      r.badges.some((b) => b.toLowerCase() === filters.category?.toLowerCase()),
+    );
+  }
+  if (filters?.status) {
+    filtered = filtered.filter((r) =>
+      r.badges.some((b) => b.toLowerCase() === filters.status?.toLowerCase()),
+    );
+  }
+  return filtered;
+}
+
+function sortResults(
+  results: SearchResult[],
+  sortBy: "relevance" | "date" | "name",
+  sortOrder: "asc" | "desc",
+): SearchResult[] {
+  if (sortBy === "date") {
+    return results.sort((a, b) => {
+      const cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortOrder === "desc" ? -cmp : cmp;
+    });
+  }
+  if (sortBy === "name") {
+    return results.sort((a, b) => {
+      const cmp = a.title.localeCompare(b.title);
+      return sortOrder === "desc" ? -cmp : cmp;
+    });
+  }
+  return results;
+}
+
+function facetRowsToOptions(rows: Array<{ value: string | null; count: number }>) {
+  return rows
+    .filter((row): row is { value: string; count: number } => !!row.value)
+    .map((row) => ({
+      label: row.value.replace(/_/g, " "),
+      value: row.value,
+      count: Number(row.count),
+    }));
+}
+
 export const searchRouter = router({
-  global: protectedProcedure.input(globalSearchSchema).query(({ input }) => {
+  global: protectedProcedure.input(globalSearchSchema).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
     const { query, entityType, limit, offset, sortBy, sortOrder, filters } = input;
     let results: SearchResult[] = [];
 
     if (entityType === "all" || entityType === "document") {
-      results = [...results, ...searchDocuments(query)];
+      results = [...results, ...(await searchDocuments(query, workspaceId))];
     }
     if (entityType === "all" || entityType === "pl") {
-      results = [...results, ...searchPlNumbers(query)];
+      results = [...results, ...(await searchPlNumbers(query, workspaceId))];
     }
     if (entityType === "all" || entityType === "work_record") {
-      results = [...results, ...searchWorkRecords(query)];
+      results = [...results, ...(await searchWorkRecords(query, workspaceId))];
     }
 
-    // Apply filters
-    if (filters?.category) {
-      results = results.filter((r) =>
-        r.badges.some((b) => b.toLowerCase() === filters.category?.toLowerCase()),
-      );
-    }
-    if (filters?.status) {
-      results = results.filter((r) =>
-        r.badges.some((b) => b.toLowerCase() === filters.status?.toLowerCase()),
-      );
-    }
-
-    // Sort
-    if (sortBy === "date") {
-      results.sort((a, b) => {
-        const cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        return sortOrder === "desc" ? -cmp : cmp;
-      });
-    } else if (sortBy === "name") {
-      results.sort((a, b) => {
-        const cmp = a.title.localeCompare(b.title);
-        return sortOrder === "desc" ? -cmp : cmp;
-      });
-    }
-    // relevance: keep default order (match quality)
+    results = sortResults(applyResultFilters(results, filters), sortBy, sortOrder);
 
     const total = results.length;
     const data = results.slice(offset, offset + limit);
@@ -146,91 +271,116 @@ export const searchRouter = router({
     return { data, total };
   }),
 
-  documents: protectedProcedure.input(documentSearchSchema).query(({ input }) => {
-    const { query, category, status, ocrStatus, limit, offset } = input;
+  documents: protectedProcedure.input(documentSearchSchema).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
+    const conditions = [
+      eq(documents.workspaceId, workspaceId),
+      eq(documents.isDeleted, 0),
+      buildDocumentMatch(input.query),
+    ];
 
-    let results = MOCK_DOCUMENTS.filter(
-      (doc) =>
-        matchesQuery(doc.title, query) ||
-        matchesQuery(doc.documentNumber, query) ||
-        matchesQuery(doc.ocrText, query) ||
-        doc.tags.some((t) => matchesQuery(t, query)),
-    );
-
-    if (category) {
-      results = results.filter((d) => d.category === category);
+    if (input.category) {
+      conditions.push(sql`${documents.category}::text = ${input.category}`);
     }
-    if (status) {
-      results = results.filter((d) => d.status === status);
+    if (input.status) {
+      conditions.push(sql`${documents.status}::text = ${input.status}`);
     }
-    if (ocrStatus) {
-      results = results.filter((d) => d.ocrStatus === ocrStatus);
+    if (input.ocrStatus) {
+      conditions.push(sql`${documents.ocrStatus}::text = ${input.ocrStatus}`);
     }
 
-    const total = results.length;
-    const data = results.slice(offset, offset + limit);
+    const whereClause = and(...conditions);
+    const [rows, totals] = await Promise.all([
+      db
+        .select()
+        .from(documents)
+        .where(whereClause)
+        .orderBy(desc(documents.createdAt))
+        .limit(input.limit)
+        .offset(input.offset),
+      db.select({ total: count() }).from(documents).where(whereClause),
+    ]);
 
-    return { data, total };
+    return { data: rows, total: totals[0]?.total ?? 0 };
   }),
 
-  facets: protectedProcedure.input(facetRequestSchema).query(({ input }) => {
+  facets: protectedProcedure.input(facetRequestSchema).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
     const { query, entityType } = input;
-
     const categoryCount: Record<string, number> = {};
     const statusCount: Record<string, number> = {};
     const entityTypeCount: Record<string, number> = {};
 
-    // Documents
     if (entityType === "all" || entityType === "document") {
-      const docs = MOCK_DOCUMENTS.filter(
-        (doc) =>
-          matchesQuery(doc.title, query) ||
-          matchesQuery(doc.documentNumber, query) ||
-          matchesQuery(doc.ocrText, query) ||
-          doc.tags.some((t) => matchesQuery(t, query)),
+      const whereClause = and(
+        eq(documents.workspaceId, workspaceId),
+        eq(documents.isDeleted, 0),
+        buildDocumentMatch(query),
       );
-      for (const doc of docs) {
-        categoryCount[doc.category] = (categoryCount[doc.category] || 0) + 1;
-        statusCount[doc.status] = (statusCount[doc.status] || 0) + 1;
-      }
-      if (docs.length > 0) {
-        entityTypeCount.document = docs.length;
-      }
+      const [categories, statuses, total] = await Promise.all([
+        db
+          .select({ value: sql<string>`${documents.category}::text`, count: count() })
+          .from(documents)
+          .where(whereClause)
+          .groupBy(documents.category),
+        db
+          .select({ value: sql<string>`${documents.status}::text`, count: count() })
+          .from(documents)
+          .where(whereClause)
+          .groupBy(documents.status),
+        db.select({ total: count() }).from(documents).where(whereClause),
+      ]);
+      for (const row of facetRowsToOptions(categories)) categoryCount[row.value] = row.count;
+      for (const row of facetRowsToOptions(statuses)) statusCount[row.value] = row.count;
+      entityTypeCount.document = total[0]?.total ?? 0;
     }
 
-    // PL Numbers
     if (entityType === "all" || entityType === "pl") {
-      const pls = MOCK_PL_NUMBERS.filter(
-        (pl) =>
-          matchesQuery(pl.plNumber, query) ||
-          matchesQuery(pl.name, query) ||
-          matchesQuery(pl.description, query),
-      );
-      for (const pl of pls) {
-        categoryCount[pl.category] = (categoryCount[pl.category] || 0) + 1;
-        statusCount[pl.status] = (statusCount[pl.status] || 0) + 1;
+      const whereClause = and(eq(plNumbers.workspaceId, workspaceId), buildPlMatch(query));
+      const [categories, statuses, total] = await Promise.all([
+        db
+          .select({ value: sql<string>`${plNumbers.category}::text`, count: count() })
+          .from(plNumbers)
+          .where(whereClause)
+          .groupBy(plNumbers.category),
+        db
+          .select({ value: sql<string>`${plNumbers.status}::text`, count: count() })
+          .from(plNumbers)
+          .where(whereClause)
+          .groupBy(plNumbers.status),
+        db.select({ total: count() }).from(plNumbers).where(whereClause),
+      ]);
+      for (const row of facetRowsToOptions(categories)) {
+        categoryCount[row.value] = (categoryCount[row.value] || 0) + row.count;
       }
-      if (pls.length > 0) {
-        entityTypeCount.pl = pls.length;
+      for (const row of facetRowsToOptions(statuses)) {
+        statusCount[row.value] = (statusCount[row.value] || 0) + row.count;
       }
+      entityTypeCount.pl = total[0]?.total ?? 0;
     }
 
-    // Work Records
     if (entityType === "all" || entityType === "work_record") {
-      const wrs = MOCK_WORK_RECORDS.filter(
-        (wr) =>
-          matchesQuery(wr.description, query) ||
-          matchesQuery(wr.referenceNumber, query) ||
-          matchesQuery(wr.workTypeLabel, query) ||
-          matchesQuery(wr.plNumber, query),
-      );
-      for (const wr of wrs) {
-        categoryCount[wr.workCategory] = (categoryCount[wr.workCategory] || 0) + 1;
-        statusCount[wr.status] = (statusCount[wr.status] || 0) + 1;
+      const whereClause = and(eq(workRecords.workspaceId, workspaceId), buildWorkMatch(query));
+      const [categories, statuses, total] = await Promise.all([
+        db
+          .select({ value: workRecords.workshop, count: count() })
+          .from(workRecords)
+          .where(whereClause)
+          .groupBy(workRecords.workshop),
+        db
+          .select({ value: sql<string>`${workRecords.status}::text`, count: count() })
+          .from(workRecords)
+          .where(whereClause)
+          .groupBy(workRecords.status),
+        db.select({ total: count() }).from(workRecords).where(whereClause),
+      ]);
+      for (const row of facetRowsToOptions(categories)) {
+        categoryCount[row.value] = (categoryCount[row.value] || 0) + row.count;
       }
-      if (wrs.length > 0) {
-        entityTypeCount.work_record = wrs.length;
+      for (const row of facetRowsToOptions(statuses)) {
+        statusCount[row.value] = (statusCount[row.value] || 0) + row.count;
       }
+      entityTypeCount.work_record = total[0]?.total ?? 0;
     }
 
     const facets: SearchFacets = {
@@ -244,52 +394,66 @@ export const searchRouter = router({
         value,
         count,
       })),
-      entityTypes: Object.entries(entityTypeCount).map(([value, count]) => ({
-        label:
-          value === "document"
-            ? "Documents"
-            : value === "pl"
-              ? "PL Numbers"
-              : value === "work_record"
-                ? "Work Records"
-                : "Cases",
-        value,
-        count,
-      })),
+      entityTypes: Object.entries(entityTypeCount)
+        .filter(([, countValue]) => countValue > 0)
+        .map(([value, countValue]) => ({
+          label:
+            value === "document"
+              ? "Documents"
+              : value === "pl"
+                ? "PL Numbers"
+                : value === "work_record"
+                  ? "Work Records"
+                  : "Cases",
+          value,
+          count: countValue,
+        })),
     };
 
     return facets;
   }),
 
-  suggest: protectedProcedure.input(suggestSchema).query(({ input }) => {
+  suggest: protectedProcedure.input(suggestSchema).query(async ({ input, ctx }) => {
+    const workspaceId = requireWorkspaceId(ctx);
     const { query, limit } = input;
     const suggestions: SearchSuggestion[] = [];
 
-    // Documents
-    for (const doc of MOCK_DOCUMENTS) {
-      if (
-        matchesQuery(doc.title, query) ||
-        matchesQuery(doc.documentNumber, query) ||
-        doc.tags.some((t) => matchesQuery(t, query))
-      ) {
-        suggestions.push({
-          id: doc.id,
-          type: "document",
-          title: doc.documentNumber,
-          subtitle: doc.title,
-          url: `/documents/${doc.id}`,
-        });
-      }
-      if (suggestions.length >= limit) return suggestions;
+    const docRows = await db
+      .select({
+        id: documents.id,
+        documentNumber: documents.documentNumber,
+        title: documents.title,
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.workspaceId, workspaceId),
+          eq(documents.isDeleted, 0),
+          buildDocumentMatch(query),
+        ),
+      )
+      .orderBy(desc(documents.createdAt))
+      .limit(limit);
+
+    for (const doc of docRows) {
+      suggestions.push({
+        id: doc.id,
+        type: "document",
+        title: doc.documentNumber,
+        subtitle: doc.title,
+        url: `/documents/${doc.id}`,
+      });
     }
 
-    // PL Numbers
-    for (const pl of MOCK_PL_NUMBERS) {
-      if (
-        matchesQuery(pl.plNumber, query) ||
-        matchesQuery(pl.name, query) ||
-        matchesQuery(pl.description, query)
-      ) {
+    if (suggestions.length < limit) {
+      const plRows = await db
+        .select({ id: plNumbers.id, plNumber: plNumbers.plNumber, name: plNumbers.name })
+        .from(plNumbers)
+        .where(and(eq(plNumbers.workspaceId, workspaceId), buildPlMatch(query)))
+        .orderBy(asc(plNumbers.plNumber))
+        .limit(limit - suggestions.length);
+
+      for (const pl of plRows) {
         suggestions.push({
           id: pl.id,
           type: "pl",
@@ -298,25 +462,29 @@ export const searchRouter = router({
           url: `/pl/${pl.id}`,
         });
       }
-      if (suggestions.length >= limit) return suggestions;
     }
 
-    // Work Records
-    for (const wr of MOCK_WORK_RECORDS) {
-      if (
-        matchesQuery(wr.description, query) ||
-        matchesQuery(wr.referenceNumber, query) ||
-        matchesQuery(wr.workTypeLabel, query)
-      ) {
+    if (suggestions.length < limit) {
+      const workRows = await db
+        .select({
+          id: workRecords.id,
+          workOrderNumber: workRecords.workOrderNumber,
+          title: workRecords.title,
+        })
+        .from(workRecords)
+        .where(and(eq(workRecords.workspaceId, workspaceId), buildWorkMatch(query)))
+        .orderBy(desc(workRecords.createdAt))
+        .limit(limit - suggestions.length);
+
+      for (const wr of workRows) {
         suggestions.push({
           id: wr.id,
           type: "work_record",
-          title: wr.referenceNumber,
-          subtitle: wr.workTypeLabel,
+          title: wr.workOrderNumber,
+          subtitle: wr.title,
           url: `/ledger?id=${wr.id}`,
         });
       }
-      if (suggestions.length >= limit) return suggestions;
     }
 
     return suggestions.slice(0, limit);

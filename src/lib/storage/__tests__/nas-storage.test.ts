@@ -158,15 +158,22 @@ describe("nas-storage", () => {
   describe("retry logic", () => {
     it("getFile fails with clear error after retries on non-existent file", async () => {
       const nas = await getNasStorage();
-      await expect(nas.getFile("/absolutely/does/not/exist.txt")).rejects.toThrow(
+      await expect(nas.getFile(join(testDir, "does-not-exist.txt"))).rejects.toThrow(
         /NAS storage operation.*failed after 3 retries/,
       );
     });
 
     it("deleteFile fails with clear error after retries on non-existent file", async () => {
       const nas = await getNasStorage();
-      await expect(nas.deleteFile("/absolutely/does/not/exist.txt")).rejects.toThrow(
+      await expect(nas.deleteFile(join(testDir, "does-not-exist.txt"))).rejects.toThrow(
         /NAS storage operation.*failed after 3 retries/,
+      );
+    });
+
+    it("rejects reads outside the configured storage directory", async () => {
+      const nas = await getNasStorage();
+      await expect(nas.getFile("/absolutely/does/not/exist.txt")).rejects.toThrow(
+        /outside the configured storage directory/,
       );
     });
   });

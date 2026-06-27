@@ -12,6 +12,7 @@ import {
   resolveShareTokenSchema,
   revokeShareLinkSchema,
 } from "@/lib/validators/document-share-links";
+import { checkRateLimitKey } from "@/server/middleware/rate-limit";
 import { engineerProcedure, protectedProcedure, publicProcedure, router } from "@/server/trpc";
 
 function requireWorkspaceId(ctx: { session: { user: { workspaceId: string | null } } }): string {
@@ -168,6 +169,8 @@ export const documentShareLinksRouter = router({
     }),
 
   resolveShareToken: publicProcedure.input(resolveShareTokenSchema).query(async ({ input }) => {
+    await checkRateLimitKey(`share:${input.token}`, { maxRequests: 20 });
+
     // Find the share link by token - NO workspace filter (public)
     const [link] = await db
       .select()
@@ -221,7 +224,7 @@ export const documentShareLinksRouter = router({
         createdAt: documents.createdAt,
       })
       .from(documents)
-      .where(eq(documents.id, link.documentId));
+      .where(and(eq(documents.id, link.documentId), eq(documents.isDeleted, 0)));
 
     if (!doc) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });

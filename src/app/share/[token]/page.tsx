@@ -86,6 +86,8 @@ function PasswordForm({
 function DocumentView({
   document,
   allowDownload,
+  token,
+  password,
 }: {
   document: {
     id: string;
@@ -101,7 +103,46 @@ function DocumentView({
     createdAt: string;
   };
   allowDownload: boolean;
+  token: string;
+  password?: string;
 }) {
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isOpening, setIsOpening] = useState(false);
+
+  const openSharedFile = async (disposition: "inline" | "attachment") => {
+    setDownloadError(null);
+    setIsOpening(true);
+    try {
+      const response = await fetch(`/api/share/${token}/download?disposition=${disposition}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Unable to open the shared document.");
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      if (disposition === "attachment") {
+        const link = window.document.createElement("a");
+        link.href = objectUrl;
+        link.download = document.originalFilename ?? `${document.documentNumber}`;
+        link.click();
+        URL.revokeObjectURL(objectUrl);
+      } else {
+        window.open(objectUrl, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "Unable to open document.");
+    } finally {
+      setIsOpening(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-2xl rounded-lg border bg-card p-8 shadow-sm">
@@ -156,7 +197,7 @@ function DocumentView({
           </div>
         )}
 
-        <div className="mt-6 flex items-center gap-2 border-t pt-4">
+        <div className="mt-6 flex flex-wrap items-center gap-2 border-t pt-4">
           {allowDownload ? (
             <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
               Download allowed
@@ -166,6 +207,25 @@ function DocumentView({
               View only
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => openSharedFile("inline")}
+            disabled={isOpening}
+            className="rounded-md border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+          >
+            {isOpening ? "Opening..." : "Preview document"}
+          </button>
+          {allowDownload && (
+            <button
+              type="button"
+              onClick={() => openSharedFile("attachment")}
+              disabled={isOpening}
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              Download
+            </button>
+          )}
+          {downloadError && <p className="basis-full text-sm text-destructive">{downloadError}</p>}
         </div>
       </div>
     </div>
@@ -251,7 +311,14 @@ export default function ShareTokenPage() {
   }
 
   if (data.status === "valid" && data.document) {
-    return <DocumentView document={data.document} allowDownload={data.allowDownload ?? false} />;
+    return (
+      <DocumentView
+        document={data.document}
+        allowDownload={data.allowDownload ?? false}
+        token={token}
+        password={passwordRef.current}
+      />
+    );
   }
 
   return <NotFoundState />;

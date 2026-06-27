@@ -15,7 +15,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageFrame } from "@/components/layout/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -135,11 +135,27 @@ export default function SettingsPage() {
   const featuresFromServer = Array.isArray(featuresData)
     ? (featuresData as FeatureToggle[])
     : undefined;
-  const effectiveFeatures = featuresFromServer ?? features;
-  const effectiveSecurity = (securityData as SecurityPolicies | undefined) ?? security;
-  const effectiveRolePerms = (rolePermsData as RolePermissionMatrix | undefined) ?? rolePerms;
-  const effectiveSysConfig = (sysConfigData as SystemConfiguration | undefined) ?? sysConfig;
-  const effectiveCompliance = (complianceData as ComplianceSettings | undefined) ?? compliance;
+  useEffect(() => {
+    if (featuresFromServer) setFeatures(featuresFromServer);
+  }, [featuresFromServer]);
+  useEffect(() => {
+    if (securityData) setSecurity(securityData as SecurityPolicies);
+  }, [securityData]);
+  useEffect(() => {
+    if (rolePermsData) setRolePerms(rolePermsData as RolePermissionMatrix);
+  }, [rolePermsData]);
+  useEffect(() => {
+    if (sysConfigData) setSysConfig(sysConfigData as SystemConfiguration);
+  }, [sysConfigData]);
+  useEffect(() => {
+    if (complianceData) setCompliance(complianceData as ComplianceSettings);
+  }, [complianceData]);
+
+  const effectiveFeatures = features.length > 0 ? features : (featuresFromServer ?? features);
+  const effectiveSecurity = security;
+  const effectiveRolePerms = rolePerms;
+  const effectiveSysConfig = sysConfig;
+  const effectiveCompliance = compliance;
 
   // Don't render tabs until server data is loaded to avoid accessing undefined fields
   const isDataReady =
@@ -476,6 +492,9 @@ function FeatureTogglesTab({
   setFeatures: (f: FeatureToggle[]) => void;
 }) {
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const utils = trpc.useUtils();
+  const updateFeatureToggle = trpc.admin.updateFeatureToggle.useMutation();
 
   const handleToggle = (id: string, enabled: boolean) => {
     setFeatures(
@@ -487,9 +506,20 @@ function FeatureTogglesTab({
     );
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setError(null);
+    try {
+      await Promise.all(
+        features.map((feature) =>
+          updateFeatureToggle.mutateAsync({ id: feature.id, enabled: feature.enabled }),
+        ),
+      );
+      await utils.admin.getFeatureToggles.invalidate();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save feature toggles.");
+    }
   };
 
   return (
@@ -501,11 +531,21 @@ function FeatureTogglesTab({
             Enable or disable features across the application
           </p>
         </div>
-        <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSave}>
+        <Button
+          size="sm"
+          className="h-7 text-xs gap-1"
+          onClick={handleSave}
+          disabled={updateFeatureToggle.isPending}
+        >
           {saved ? <Check className="h-3 w-3" /> : <Save className="h-3 w-3" />}
-          {saved ? "Saved" : "Save Changes"}
+          {updateFeatureToggle.isPending ? "Saving..." : saved ? "Saved" : "Save Changes"}
         </Button>
       </div>
+      {error && (
+        <p className="rounded-md border border-destructive/40 p-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="space-y-2">
         {features.map((ft) => (
@@ -546,10 +586,22 @@ function SecurityTab({
   setSecurity: (s: SecurityPolicies) => void;
 }) {
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const utils = trpc.useUtils();
+  const updateSecurityPolicies = trpc.admin.updateSecurityPolicies.useMutation();
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setError(null);
+    try {
+      await updateSecurityPolicies.mutateAsync(security);
+      await utils.admin.getSecurityPolicies.invalidate();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : "Failed to save security policies.",
+      );
+    }
   };
 
   return (
@@ -561,11 +613,21 @@ function SecurityTab({
             Configure authentication, session, and access control policies
           </p>
         </div>
-        <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSave}>
+        <Button
+          size="sm"
+          className="h-7 text-xs gap-1"
+          onClick={handleSave}
+          disabled={updateSecurityPolicies.isPending}
+        >
           {saved ? <Check className="h-3 w-3" /> : <Save className="h-3 w-3" />}
-          {saved ? "Saved" : "Save Changes"}
+          {updateSecurityPolicies.isPending ? "Saving..." : saved ? "Saved" : "Save Changes"}
         </Button>
       </div>
+      {error && (
+        <p className="rounded-md border border-destructive/40 p-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Password Policy */}
