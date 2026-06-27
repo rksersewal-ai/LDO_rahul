@@ -919,12 +919,13 @@ export const documentsRouter = router({
           try {
             const values = processableIds.map((docId) => ({
               documentId: docId,
+              // biome-ignore lint/style/noNonNullAssertion: value is checked above
               tagId: input.value!,
               taggedBy: userId,
             }));
             await db.insert(documentTags).values(values).onConflictDoNothing();
             succeeded.push(...processableIds);
-          } catch (e) {
+          } catch (_e) {
             for (const id of processableIds) {
               failed.push(id);
               errors.push({ id, reason: "Failed to add tag in bulk" });
@@ -966,12 +967,13 @@ export const documentsRouter = router({
           try {
             const values = processableIds.map((docId) => ({
               documentId: docId,
+              // biome-ignore lint/style/noNonNullAssertion: value is checked above
               cabinetId: input.value!,
               addedBy: userId,
             }));
             await db.insert(documentCabinets).values(values).onConflictDoNothing();
             succeeded.push(...processableIds);
-          } catch (e) {
+          } catch (_e) {
             for (const id of processableIds) {
               failed.push(id);
               errors.push({ id, reason: "Failed to add to cabinet in bulk" });
