@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { createAuditEntry } from "@/lib/audit/create-entry";
+import {
+  type AuditEntryInput,
+  createAuditEntries,
+  createAuditEntry,
+} from "@/lib/audit/create-entry";
 import { isRoleAtLeast } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import {
@@ -1413,47 +1417,53 @@ export const plRouter = router({
     // Insert all valid rows inside a transaction for atomicity
     let importedCount = 0;
     if (validRows.length > 0) {
+      const plValuesToInsert: (typeof plNumbers.$inferInsert)[] = [];
+      const auditInputs: AuditEntryInput[] = [];
+
+      for (const { row } of validRows) {
+        const id = randomUUID();
+        const now = new Date();
+
+        plValuesToInsert.push({
+          id,
+          plNumber: row.plNumber,
+          name: row.name,
+          description: row.description,
+          category: row.category,
+          status: row.status,
+          safetyCritical: row.safetyCritical,
+          drawingRef: row.drawingRef ?? null,
+          specification: row.specification ?? null,
+          unit: row.unit,
+          workshop: row.workshop,
+          manufacturer: row.manufacturer ?? null,
+          vendorCode: row.vendorCode ?? null,
+          partFamily: row.partFamily ?? null,
+          lifecycleStage: row.lifecycleStage ?? "active",
+          workspaceId,
+          createdBy: userId,
+          updatedBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        auditInputs.push({
+          userId,
+          userName,
+          action: "pl.bulkImport",
+          resourceType: "pl_number",
+          resourceId: id,
+          resourceTitle: `${row.plNumber} - ${row.name}`,
+          details: `Bulk imported PL number ${row.plNumber}`,
+          workspaceId,
+        });
+
+        importedCount++;
+      }
+
       await db.transaction(async (tx) => {
-        for (const { row } of validRows) {
-          const id = randomUUID();
-          const now = new Date();
-
-          await tx.insert(plNumbers).values({
-            id,
-            plNumber: row.plNumber,
-            name: row.name,
-            description: row.description,
-            category: row.category,
-            status: row.status,
-            safetyCritical: row.safetyCritical,
-            drawingRef: row.drawingRef ?? null,
-            specification: row.specification ?? null,
-            unit: row.unit,
-            workshop: row.workshop,
-            manufacturer: row.manufacturer ?? null,
-            vendorCode: row.vendorCode ?? null,
-            partFamily: row.partFamily ?? null,
-            lifecycleStage: row.lifecycleStage ?? "active",
-            workspaceId,
-            createdBy: userId,
-            updatedBy: userId,
-            createdAt: now,
-            updatedAt: now,
-          });
-
-          await createAuditEntry(tx, {
-            userId,
-            userName,
-            action: "pl.bulkImport",
-            resourceType: "pl_number",
-            resourceId: id,
-            resourceTitle: `${row.plNumber} - ${row.name}`,
-            details: `Bulk imported PL number ${row.plNumber}`,
-            workspaceId,
-          });
-
-          importedCount++;
-        }
+        await tx.insert(plNumbers).values(plValuesToInsert);
+        await createAuditEntries(tx, auditInputs);
       });
     }
 

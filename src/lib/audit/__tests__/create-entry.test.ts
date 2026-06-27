@@ -56,17 +56,19 @@ describe("createAuditEntry", () => {
     // Verify db.insert was called
     expect(mockDb.insert).toHaveBeenCalled();
     expect(mockDb._insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "document.create",
-        entityType: "document",
-        entityId: "doc-456",
-        userId: "user-123",
-        userName: "Test User",
-        previousHash: "previous-hash-abc",
-        workspaceId: "ws-789",
-        ipAddress: "192.168.1.1",
-        userAgent: "TestAgent/1.0",
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "document.create",
+          entityType: "document",
+          entityId: "doc-456",
+          userId: "user-123",
+          userName: "Test User",
+          previousHash: "previous-hash-abc",
+          workspaceId: "ws-789",
+          ipAddress: "192.168.1.1",
+          userAgent: "TestAgent/1.0",
+        }),
+      ]),
     );
   });
 
@@ -76,9 +78,11 @@ describe("createAuditEntry", () => {
     await createAuditEntry(mockDb as unknown as Database, baseInput);
 
     expect(mockDb._insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        previousHash: "GENESIS",
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          previousHash: "GENESIS",
+        }),
+      ]),
     );
   });
 
@@ -88,7 +92,7 @@ describe("createAuditEntry", () => {
     await createAuditEntry(mockDb as unknown as Database, baseInput);
 
     // The hash chain should be a valid 64-char hex string (SHA-256)
-    const insertedValues = mockDb._insertValues.mock.calls[0][0];
+    const insertedValues = mockDb._insertValues.mock.calls[0][0][0];
     expect(insertedValues.hashChain).toMatch(/^[a-f0-9]{64}$/);
 
     // Verify the hash is computed from expected inputs
@@ -122,7 +126,7 @@ describe("createAuditEntry", () => {
     // Failure is logged via the structured logger, which writes a single
     // JSON string to console.error containing the failure message.
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[AuditLog] Failed to create audit entry"),
+      expect.stringContaining("[AuditLog] Failed to create audit entries"),
     );
 
     consoleSpy.mockRestore();
@@ -163,9 +167,11 @@ describe("createAuditEntry", () => {
     await createAuditEntry(mockDb as unknown as Database, input);
 
     expect(mockDb._insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        details: "Resource: My Document",
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: "Resource: My Document",
+        }),
+      ]),
     );
   });
 
@@ -180,9 +186,75 @@ describe("createAuditEntry", () => {
     await createAuditEntry(mockDb as unknown as Database, input);
 
     expect(mockDb._insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        details: "Custom detail message",
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: "Custom detail message",
+        }),
+      ]),
     );
+  });
+});
+
+import { createAuditEntries } from "../create-entry";
+
+describe("createAuditEntries", () => {
+  const baseInput1: AuditEntryInput = {
+    userId: "user-1",
+    userName: "User One",
+    action: "document.create",
+    resourceType: "document",
+    resourceId: "doc-1",
+  };
+  const baseInput2: AuditEntryInput = {
+    userId: "user-2",
+    userName: "User Two",
+    action: "document.update",
+    resourceType: "document",
+    resourceId: "doc-2",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns early if input array is empty", async () => {
+    const mockDb = createMockDb();
+    await createAuditEntries(mockDb as unknown as Database, []);
+    expect(mockDb._selectFields).not.toHaveBeenCalled();
+    expect(mockDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("queries previous hash from audit log once", async () => {
+    const mockDb = createMockDb("previous-hash-start");
+    await createAuditEntries(mockDb as unknown as Database, [baseInput1, baseInput2]);
+    expect(mockDb._selectFields).toHaveBeenCalledTimes(1);
+  });
+
+  it("inserts multiple audit entries correctly with computed hash chains", async () => {
+    const mockDb = createMockDb("previous-hash-start");
+    await createAuditEntries(mockDb as unknown as Database, [baseInput1, baseInput2]);
+
+    expect(mockDb.insert).toHaveBeenCalledTimes(1);
+
+    const insertedValuesArray = mockDb._insertValues.mock.calls[0][0];
+    expect(insertedValuesArray).toHaveLength(2);
+
+    const [entry1, entry2] = insertedValuesArray;
+
+    expect(entry1.action).toBe("document.create");
+    expect(entry1.previousHash).toBe("previous-hash-start");
+
+    const timestamp1 = entry1.createdAt.toISOString();
+    const expectedInput1 = `${timestamp1}|user-1|document.create|previous-hash-start`;
+    const expectedHash1 = createHash("sha256").update(expectedInput1).digest("hex");
+    expect(entry1.hashChain).toBe(expectedHash1);
+
+    expect(entry2.action).toBe("document.update");
+    expect(entry2.previousHash).toBe(expectedHash1);
+
+    const timestamp2 = entry2.createdAt.toISOString();
+    const expectedInput2 = `${timestamp2}|user-2|document.update|${expectedHash1}`;
+    const expectedHash2 = createHash("sha256").update(expectedInput2).digest("hex");
+    expect(entry2.hashChain).toBe(expectedHash2);
   });
 });

@@ -28,10 +28,21 @@ type DbOrTransaction = Pick<Database, "select" | "insert">;
  * Accepts either the db instance or a transaction (tx) from db.transaction().
  */
 export async function createAuditEntry(db: DbOrTransaction, input: AuditEntryInput): Promise<void> {
-  try {
-    const id = randomUUID();
-    const now = new Date();
+  await createAuditEntries(db, [input]);
+}
 
+/**
+ * Creates multiple audit log entries with a SHA-256 hash chain for tamper detection.
+ * Never throws - logs to console.error on failure.
+ * Accepts either the db instance or a transaction (tx) from db.transaction().
+ */
+export async function createAuditEntries(
+  db: DbOrTransaction,
+  inputs: AuditEntryInput[],
+): Promise<void> {
+  if (inputs.length === 0) return;
+
+  try {
     // Get the previous entry's hash for chain continuity
     const [previousEntry] = await db
       .select({ hashChain: auditLog.hashChain })
@@ -39,35 +50,45 @@ export async function createAuditEntry(db: DbOrTransaction, input: AuditEntryInp
       .orderBy(desc(auditLog.createdAt))
       .limit(1);
 
-    const previousHash = previousEntry?.hashChain ?? "GENESIS";
+    let currentPreviousHash = previousEntry?.hashChain ?? "GENESIS";
 
-    // Compute SHA-256 hash: timestamp + userId + action + previousHash
-    const hashInput = `${now.toISOString()}|${input.userId}|${input.action}|${previousHash}`;
-    const hashChain = createHash("sha256").update(hashInput).digest("hex");
+    const entriesToInsert = inputs.map((input) => {
+      const id = randomUUID();
+      const now = new Date();
 
-    await db.insert(auditLog).values({
-      id,
-      action: input.action,
-      entityType: input.resourceType,
-      entityId: input.resourceId,
-      userId: input.userId,
-      userName: input.userName,
-      details: input.details ?? (input.resourceTitle ? `Resource: ${input.resourceTitle}` : null),
-      previousState: input.oldValue ?? null,
-      newState: input.newValue ?? null,
-      oldValue: input.oldValue ?? null,
-      newValue: input.newValue ?? null,
-      workspaceId: input.workspaceId ?? null,
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
-      hashChain,
-      previousHash,
-      createdAt: now,
+      // Compute SHA-256 hash: timestamp + userId + action + previousHash
+      const hashInput = `${now.toISOString()}|${input.userId}|${input.action}|${currentPreviousHash}`;
+      const hashChain = createHash("sha256").update(hashInput).digest("hex");
+
+      const entry = {
+        id,
+        action: input.action,
+        entityType: input.resourceType,
+        entityId: input.resourceId,
+        userId: input.userId,
+        userName: input.userName,
+        details: input.details ?? (input.resourceTitle ? `Resource: ${input.resourceTitle}` : null),
+        previousState: input.oldValue ?? null,
+        newState: input.newValue ?? null,
+        oldValue: input.oldValue ?? null,
+        newValue: input.newValue ?? null,
+        workspaceId: input.workspaceId ?? null,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+        hashChain,
+        previousHash: currentPreviousHash,
+        createdAt: now,
+      };
+
+      currentPreviousHash = hashChain;
+      return entry;
     });
+
+    await db.insert(auditLog).values(entriesToInsert);
   } catch (error) {
     logError(
-      "[AuditLog] Failed to create audit entry",
-      { action: input.action, resourceType: input.resourceType },
+      "[AuditLog] Failed to create audit entries",
+      { action: inputs[0]?.action, resourceType: inputs[0]?.resourceType, count: inputs.length },
       error,
     );
   }
