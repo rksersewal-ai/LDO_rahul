@@ -915,20 +915,24 @@ export const documentsRouter = router({
           }
           break;
         }
-        for (const docId of processableIds) {
+        if (processableIds.length > 0) {
           try {
             await db
               .insert(documentTags)
-              .values({
-                documentId: docId,
-                tagId: input.value,
-                taggedBy: userId,
-              })
+              .values(
+                processableIds.map((docId) => ({
+                  documentId: docId,
+                  tagId: input.value as string,
+                  taggedBy: userId,
+                })),
+              )
               .onConflictDoNothing();
-            succeeded.push(docId);
-          } catch {
-            failed.push(docId);
-            errors.push({ id: docId, reason: "Failed to add tag" });
+            succeeded.push(...processableIds);
+          } catch (_e) {
+            for (const docId of processableIds) {
+              failed.push(docId);
+              errors.push({ id: docId, reason: "Failed to add tag" });
+            }
           }
         }
         break;
@@ -962,20 +966,24 @@ export const documentsRouter = router({
           }
           break;
         }
-        for (const docId of processableIds) {
+        if (processableIds.length > 0) {
           try {
             await db
               .insert(documentCabinets)
-              .values({
-                documentId: docId,
-                cabinetId: input.value,
-                addedBy: userId,
-              })
+              .values(
+                processableIds.map((docId) => ({
+                  documentId: docId,
+                  cabinetId: input.value as string,
+                  addedBy: userId,
+                })),
+              )
               .onConflictDoNothing();
-            succeeded.push(docId);
-          } catch {
-            failed.push(docId);
-            errors.push({ id: docId, reason: "Failed to add to cabinet" });
+            succeeded.push(...processableIds);
+          } catch (_e) {
+            for (const docId of processableIds) {
+              failed.push(docId);
+              errors.push({ id: docId, reason: "Failed to add to cabinet" });
+            }
           }
         }
         break;
