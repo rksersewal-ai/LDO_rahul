@@ -627,12 +627,12 @@ export const bomRouter = router({
         }
 
         // Insert all entries with new IDs, mapping parentId through the ID map
-        for (const entry of originalEntries) {
+        const newEntries = originalEntries.map((entry) => {
           // biome-ignore lint/style/noNonNullAssertion: every entry.id was inserted into idMap in the prior loop, so get() is always defined
           const newId = idMap.get(entry.id)!;
           const newParentId = entry.parentId ? (idMap.get(entry.parentId) ?? null) : null;
 
-          await tx.insert(bomEntries).values({
+          return {
             id: newId,
             bomProductId: newProductId,
             parentId: newParentId,
@@ -652,7 +652,11 @@ export const bomRouter = router({
             isActive: entry.isActive,
             createdAt: now,
             updatedAt: now,
-          });
+          };
+        });
+
+        if (newEntries.length > 0) {
+          await tx.insert(bomEntries).values(newEntries);
         }
 
         return { entriesCloned: originalEntries.length };
