@@ -208,7 +208,7 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
           SELECT ${documentPlLinks.plNumberId} AS pl_id
           FROM ${documentPlLinks}
           GROUP BY ${documentPlLinks.plNumberId}
-          HAVING count(*) BETWEEN 2 AND ${MAX_GROUP_SIZE}
+          HAVING count(*) BETWEEN 2 AND ${Number(MAX_GROUP_SIZE)}
         )
         SELECT a.document_id AS a_id, b.document_id AS b_id
         FROM ${documentPlLinks} a
@@ -216,10 +216,10 @@ export async function processDedupJob(job: Job<DedupJobPayload>): Promise<void> 
           ON a.pl_number_id = b.pl_number_id AND a.document_id < b.document_id
         JOIN small_pls sp ON sp.pl_id = a.pl_number_id
         JOIN ${documents} da ON da.id = a.document_id
-          AND da.workspace_id = ${workspaceId} AND da.is_deleted = 0
+          AND da.workspace_id = ${String(workspaceId)} AND da.is_deleted = 0
         JOIN ${documents} dbb ON dbb.id = b.document_id
-          AND dbb.workspace_id = ${workspaceId} AND dbb.is_deleted = 0
-        LIMIT ${MAX_CANDIDATE_PAIRS}
+          AND dbb.workspace_id = ${String(workspaceId)} AND dbb.is_deleted = 0
+        LIMIT ${Number(MAX_CANDIDATE_PAIRS)}
       `);
       // drizzle's execute returns either a QueryResult ({ rows }) or the rows
       // array directly depending on the driver/version — handle both.
