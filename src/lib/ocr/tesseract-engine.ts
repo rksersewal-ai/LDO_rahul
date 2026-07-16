@@ -1,4 +1,5 @@
 import { createWorker, type Worker as TesseractWorker } from "tesseract.js";
+import { logError } from "@/lib/logging/structured-logger";
 
 export interface OcrResult {
   text: string;
@@ -58,7 +59,7 @@ export async function recognizeImage(imageBuffer: Buffer, _mimeType: string): Pr
     return result;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown OCR error";
-    console.error("[tesseract-engine] OCR failed:", message);
+    logError("[tesseract-engine] OCR failed", { message }, error);
     return { text: "", confidence: 0, wordConfidences: [] };
   } finally {
     if (worker) {
