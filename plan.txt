@@ -1,0 +1,3 @@
+1. Update `src/app/(protected)/pl/[id]/documents/page.tsx` to include `// biome-ignore lint/a11y/useAnchorContent: <explanation>` or accessible screen reader content, as the button renders a link that only contains an icon and "Link Document" text as children which is getting flagged by Biome.
+2. Run `bun run lint` to confirm the fix works.
+3. Call `submit`.
