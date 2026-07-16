@@ -18,10 +18,20 @@ describe("trigramJaccard", () => {
 
   it("returns 0 for empty strings", () => {
     expect(trigramJaccard("", "")).toBe(0);
+    expect(trigramJaccard("", "abc")).toBe(0);
+    expect(trigramJaccard("abc", "")).toBe(0);
   });
 
   it("returns 0 for strings shorter than 3 chars", () => {
     expect(trigramJaccard("ab", "ab")).toBe(0);
+    expect(trigramJaccard("ab", "abc")).toBe(0);
+    expect(trigramJaccard("abc", "ab")).toBe(0);
+  });
+
+  it("handles strings with spaces and special characters", () => {
+    expect(trigramJaccard("   ", "   ")).toBe(1.0);
+    expect(trigramJaccard("!@#", "!@#")).toBe(1.0);
+    expect(trigramJaccard("a b", "a b")).toBe(1.0);
   });
 
   it("is case insensitive", () => {
