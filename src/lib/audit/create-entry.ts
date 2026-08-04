@@ -72,3 +72,62 @@ export async function createAuditEntry(db: DbOrTransaction, input: AuditEntryInp
     );
   }
 }
+
+/**
+ * Creates multiple audit log entries efficiently in a single batch, maintaining the SHA-256 hash chain.
+ * Never throws - logs to console.error on failure.
+ * Accepts either the db instance or a transaction (tx) from db.transaction().
+ */
+export async function createAuditEntries(
+  db: DbOrTransaction,
+  inputs: AuditEntryInput[],
+): Promise<void> {
+  if (inputs.length === 0) return;
+
+  try {
+    const now = new Date();
+
+    // Get the previous entry's hash for chain continuity
+    const [previousEntry] = await db
+      .select({ hashChain: auditLog.hashChain })
+      .from(auditLog)
+      .orderBy(desc(auditLog.createdAt))
+      .limit(1);
+
+    let currentHash = previousEntry?.hashChain ?? "GENESIS";
+
+    const values = inputs.map((input) => {
+      const id = randomUUID();
+      // Compute SHA-256 hash: timestamp + userId + action + currentHash
+      const hashInput = `${now.toISOString()}|${input.userId}|${input.action}|${currentHash}`;
+      const hashChain = createHash("sha256").update(hashInput).digest("hex");
+
+      const previousHashForEntry = currentHash;
+      currentHash = hashChain; // Update currentHash for the next entry
+
+      return {
+        id,
+        action: input.action,
+        entityType: input.resourceType,
+        entityId: input.resourceId,
+        userId: input.userId,
+        userName: input.userName,
+        details: input.details ?? (input.resourceTitle ? `Resource: ${input.resourceTitle}` : null),
+        previousState: input.oldValue ?? null,
+        newState: input.newValue ?? null,
+        oldValue: input.oldValue ?? null,
+        newValue: input.newValue ?? null,
+        workspaceId: input.workspaceId ?? null,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+        hashChain,
+        previousHash: previousHashForEntry,
+        createdAt: now,
+      };
+    });
+
+    await db.insert(auditLog).values(values);
+  } catch (error) {
+    logError("[AuditLog] Failed to create audit entries", { batchSize: inputs.length }, error);
+  }
+}
