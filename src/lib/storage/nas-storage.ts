@@ -198,21 +198,21 @@ export async function getStorageUsage(workspaceId: string): Promise<number> {
 }
 
 async function calculateDirSize(dirPath: string): Promise<number> {
-  let size = 0;
-
   const entries = await readdir(dirPath, { withFileTypes: true });
 
-  for (const entry of entries) {
-    const fullPath = join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      size += await calculateDirSize(fullPath);
-    } else {
-      const fileStat = await stat(fullPath);
-      size += fileStat.size;
-    }
-  }
+  const sizes = await Promise.all(
+    entries.map(async (entry) => {
+      const fullPath = join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        return calculateDirSize(fullPath);
+      } else {
+        const fileStat = await stat(fullPath);
+        return fileStat.size;
+      }
+    }),
+  );
 
-  return size;
+  return sizes.reduce((acc, size) => acc + size, 0);
 }
 
 // --- Health Check ---
