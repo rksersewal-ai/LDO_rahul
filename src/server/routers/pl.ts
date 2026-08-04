@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { createAuditEntry } from "@/lib/audit/create-entry";
+import { createAuditEntries, createAuditEntry } from "@/lib/audit/create-entry";
 import { isRoleAtLeast } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import {
@@ -1414,11 +1414,10 @@ export const plRouter = router({
     let importedCount = 0;
     if (validRows.length > 0) {
       await db.transaction(async (tx) => {
-        for (const { row } of validRows) {
+        const now = new Date();
+        const plNumberValues = validRows.map(({ row }) => {
           const id = randomUUID();
-          const now = new Date();
-
-          await tx.insert(plNumbers).values({
+          return {
             id,
             plNumber: row.plNumber,
             name: row.name,
@@ -1439,21 +1438,25 @@ export const plRouter = router({
             updatedBy: userId,
             createdAt: now,
             updatedAt: now,
-          });
+          };
+        });
 
-          await createAuditEntry(tx, {
-            userId,
-            userName,
-            action: "pl.bulkImport",
-            resourceType: "pl_number",
-            resourceId: id,
-            resourceTitle: `${row.plNumber} - ${row.name}`,
-            details: `Bulk imported PL number ${row.plNumber}`,
-            workspaceId,
-          });
+        await tx.insert(plNumbers).values(plNumberValues);
 
-          importedCount++;
-        }
+        const auditEntries = plNumberValues.map((val) => ({
+          userId,
+          userName,
+          action: "pl.bulkImport",
+          resourceType: "pl_number",
+          resourceId: val.id,
+          resourceTitle: `${val.plNumber} - ${val.name}`,
+          details: `Bulk imported PL number ${val.plNumber}`,
+          workspaceId,
+        }));
+
+        await createAuditEntries(tx, auditEntries);
+
+        importedCount = validRows.length;
       });
     }
 
