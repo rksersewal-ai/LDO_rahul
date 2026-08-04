@@ -115,6 +115,7 @@ export function SearchResultCard({ result, query, className }: SearchResultCardP
         <Link
           href={result.url}
           target="_blank"
+          rel="noopener noreferrer"
           className="flex items-center justify-center size-6 rounded hover:bg-accent"
           title="Open in new tab"
         >
