@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { createAuditEntry } from "@/lib/audit/create-entry";
 import { db } from "@/lib/db";
@@ -260,18 +260,24 @@ export const tagsRouter = router({
       throw new TRPCError({ code: "NOT_FOUND", message: "Tag not found" });
     }
 
-    // Enforce max 20 tags per document - check each document
-    for (const docId of input.documentIds) {
-      const [tagCount] = await db
-        .select({ cnt: count() })
+    // Enforce max 20 tags per document - batch query tag counts
+    if (input.documentIds.length > 0) {
+      const counts = await db
+        .select({
+          documentId: documentTags.documentId,
+          cnt: count(),
+        })
         .from(documentTags)
-        .where(eq(documentTags.documentId, docId));
+        .where(inArray(documentTags.documentId, input.documentIds))
+        .groupBy(documentTags.documentId);
 
-      if ((tagCount?.cnt ?? 0) >= 20) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Document ${docId} already has the maximum of 20 tags`,
-        });
+      for (const row of counts) {
+        if (row.cnt >= 20) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Document ${row.documentId} already has the maximum of 20 tags`,
+          });
+        }
       }
     }
 
