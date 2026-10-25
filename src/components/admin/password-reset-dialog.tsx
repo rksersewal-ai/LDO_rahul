@@ -15,12 +15,23 @@ interface PasswordResetDialogProps {
   onReset: (userId: string, newPassword: string, forceChange: boolean) => void;
 }
 
-function generateRandomPassword(length = 12): string {
+export function generateRandomPassword(length = 12): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*";
+  const charsLength = chars.length;
+  const maxValidByte = 256 - (256 % charsLength);
   let password = "";
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+
+  while (password.length < length) {
+    const buffer = new Uint8Array(length - password.length);
+    crypto.getRandomValues(buffer);
+    for (let i = 0; i < buffer.length && password.length < length; i++) {
+      const byte = buffer[i];
+      if (byte < maxValidByte) {
+        password += chars[byte % charsLength];
+      }
+    }
   }
+
   return password;
 }
 
