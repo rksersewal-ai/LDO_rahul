@@ -1,3 +1,5 @@
+import { nanoid } from "nanoid";
+
 /**
  * SavedFiltersService - persists filter combinations per page key in localStorage.
  * Pure TypeScript, no React dependencies.
@@ -15,8 +17,8 @@ export interface SavedFilter {
   createdAt: string;
 }
 
-function generateId(): string {
-  return `sf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+export function generateFilterId(): string {
+  return `sf_${nanoid()}`;
 }
 
 export class SavedFiltersService {
@@ -60,7 +62,7 @@ export class SavedFiltersService {
   save(pageKey: string, label: string, filters: Record<string, unknown>): SavedFilter {
     const all = this.load();
     const entry: SavedFilter = {
-      id: generateId(),
+      id: generateFilterId(),
       label,
       pageKey,
       filters,
