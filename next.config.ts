@@ -56,6 +56,9 @@ const nextConfig: NextConfig = {
     "pdf-parse",
     "tesseract.js",
     "nodemailer",
+    "lightningcss",
+    "react-is",
+    "canvas"
   ],
   async headers() {
     return [
