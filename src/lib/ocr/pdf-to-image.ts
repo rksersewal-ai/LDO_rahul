@@ -36,7 +36,8 @@ export async function getPdfPageCount(buffer: Buffer): Promise<number> {
   try {
     const meta = await sharp(buffer, { pages: -1 }).metadata();
     return (meta.pages as number | undefined) ?? 1;
-  } catch {
+  } catch (error) {
+    console.error("Sharp metadata failed (fallback to 1 page):", error);
     return 1;
   }
 }
@@ -62,7 +63,8 @@ export async function renderPdfPage(
       const scale = Math.sqrt(OCR_PIPELINE_CONFIG.max_pixels / pixels);
       dpi = Math.max(120, Math.floor(dpi * scale));
     }
-  } catch {
+  } catch (error) {
+    console.error("Sharp probe failed (proceeding with original DPI):", error);
     // Ignore probe failures; the render below will surface real errors.
   }
 
@@ -81,7 +83,8 @@ export async function imageDimensions(buffer: Buffer): Promise<{ width: number; 
   try {
     const meta = await sharp(buffer).metadata();
     return { width: meta.width ?? 0, height: meta.height ?? 0 };
-  } catch {
+  } catch (error) {
+    console.error("Sharp metadata failed (fallback to 0x0):", error);
     return { width: 0, height: 0 };
   }
 }
@@ -91,8 +94,13 @@ export async function extractTile(
   buffer: Buffer,
   rect: { x: number; y: number; width: number; height: number },
 ): Promise<Buffer> {
-  return sharp(buffer)
-    .extract({ left: rect.x, top: rect.y, width: rect.width, height: rect.height })
-    .png()
-    .toBuffer();
+  try {
+    return sharp(buffer)
+      .extract({ left: rect.x, top: rect.y, width: rect.width, height: rect.height })
+      .png()
+      .toBuffer();
+  } catch (error) {
+    console.error("Sharp extract failed:", error);
+    throw error;
+  }
 }

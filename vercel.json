@@ -1,5 +1,14 @@
 {
   "framework": "nextjs",
-  "installCommand": "bun install --frozen-lockfile",
-  "buildCommand": "next build"
+  "installCommand": "npm install --omit=optional --legacy-peer-deps --frozen-lockfile",
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "buildCache": {
+    "node_modules": true
+  },
+  "env": {
+    "NODE_ENV": "production",
+    "SHARP_IGNORE_GLOBAL_LIBVIPS": "1",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  }
 }
